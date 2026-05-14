@@ -215,6 +215,9 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("opening audit log: %w", err)
 	}
 	defer auditLog.Close()
+	if err := auditLog.WithPrevHashStore(context.Background(), sqlite.NewAuditStateStore(db)); err != nil {
+		return fmt.Errorf("restoring audit chain tip: %w", err)
+	}
 
 	// --- Genesis store ---------------------------------------------------
 	genesisStore, err := fs.NewGenesisStore(cfg.GenesisPath)

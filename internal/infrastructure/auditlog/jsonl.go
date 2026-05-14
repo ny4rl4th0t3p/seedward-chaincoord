@@ -6,10 +6,13 @@ import (
 	"bufio"
 	"context"
 	"crypto/ed25519"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"sync"
@@ -21,9 +24,11 @@ import (
 // JSONLWriter writes audit events to an append-only JSONL file.
 // A mutex serializes concurrent writes so lines are never interleaved.
 type JSONLWriter struct {
-	mu      sync.Mutex
-	file    *os.File
-	privKey ed25519.PrivateKey // nil disables signing
+	mu            sync.Mutex
+	file          *os.File
+	privKey       ed25519.PrivateKey    // nil disables signing
+	prevHash      string                // SHA-256 hex of the last written line's JSON bytes
+	prevHashStore ports.AuditChainStore // nil = no cross-restart persistence
 }
 
 // Open opens (or creates) the JSONL audit log at path.
@@ -47,11 +52,97 @@ func (w *JSONLWriter) PubKey() ed25519.PublicKey {
 	return w.privKey.Public().(ed25519.PublicKey)
 }
 
+// WithPrevHashStore attaches a persistent store for the chain tip. On each call
+// it loads the stored hash and verifies it matches the last line currently in the
+// log file. A mismatch means lines were deleted (or added) between the last
+// shutdown and now — the server refuses to start. Call this once after Open().
+func (w *JSONLWriter) WithPrevHashStore(ctx context.Context, store ports.AuditChainStore) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	storedHash, err := store.LoadPrevHash(ctx)
+	if err != nil {
+		return fmt.Errorf("audit log load chain tip: %w", err)
+	}
+
+	if storedHash != "" {
+		if err := verifyLastLineHash(w.file.Name(), storedHash); err != nil {
+			return err
+		}
+	}
+
+	w.prevHashStore = store
+	w.prevHash = storedHash
+	return nil
+}
+
+// verifyLastLineHash opens the log file read-only, reads the last non-empty line,
+// and confirms its SHA-256 matches storedHash. Returns a descriptive error if not.
+func verifyLastLineHash(path, storedHash string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("audit log: open for chain verification: %w", err)
+	}
+	defer f.Close()
+
+	last, err := readLastLine(f)
+	if err != nil {
+		return fmt.Errorf("audit log: reading last line for chain verification: %w", err)
+	}
+	if len(last) == 0 {
+		return fmt.Errorf(
+			"audit log: chain tip mismatch — stored hash %s but log file is empty; "+
+				"possible tampering or data loss — investigate before restarting", storedHash)
+	}
+	if got := sha256hex(last); got != storedHash {
+		return fmt.Errorf(
+			"audit log: chain tip mismatch — stored hash %s but last log line hashes to %s; "+
+				"possible tampering or data loss — investigate before restarting", storedHash, got)
+	}
+	return nil
+}
+
+// readLastLine scans up to the last 64 KB of f and returns the last non-empty line
+// (without its trailing newline). Returns nil if the file is empty.
+func readLastLine(f *os.File) ([]byte, error) {
+	const maxScan = 64 * 1024
+	info, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if info.Size() == 0 {
+		return nil, nil
+	}
+	offset := info.Size() - maxScan
+	if offset < 0 {
+		offset = 0
+	}
+	if _, err = f.Seek(offset, io.SeekStart); err != nil {
+		return nil, err
+	}
+	var last []byte
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		if b := scanner.Bytes(); len(b) > 0 {
+			last = append([]byte(nil), b...) // copy — scanner reuses the buffer
+		}
+	}
+	return last, scanner.Err()
+}
+
 // Append serializes ev to JSON and writes a single newline-terminated line.
 // If the writer was opened with a signing key, the Signature field is set to a
 // base64 Ed25519 signature over the canonical JSON of the event (excluding the
-// signature field itself).
-func (w *JSONLWriter) Append(_ context.Context, ev ports.AuditEvent) error {
+// signature field itself). PrevHash is set to the SHA-256 hex of the previous
+// line's JSON bytes and is covered by the signature, making deletions detectable.
+// If a PrevHashStore is attached, the new tip is persisted so the chain survives
+// server restarts.
+func (w *JSONLWriter) Append(ctx context.Context, ev ports.AuditEvent) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	ev.PrevHash = w.prevHash
+
 	if w.privKey != nil {
 		msg, err := canonicaljson.MarshalForSigning(ev)
 		if err != nil {
@@ -64,15 +155,23 @@ func (w *JSONLWriter) Append(_ context.Context, ev ports.AuditEvent) error {
 	if err != nil {
 		return fmt.Errorf("audit log marshal: %w", err)
 	}
-	line = append(line, '\n')
 
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
-	if _, err := w.file.Write(line); err != nil {
+	if _, err := w.file.Write(append(line, '\n')); err != nil {
 		return fmt.Errorf("audit log write: %w", err)
 	}
+	w.prevHash = sha256hex(line)
+
+	if w.prevHashStore != nil {
+		if err := w.prevHashStore.SavePrevHash(ctx, w.prevHash); err != nil {
+			return fmt.Errorf("audit log persist chain tip: %w", err)
+		}
+	}
 	return nil
+}
+
+func sha256hex(b []byte) string {
+	h := sha256.Sum256(b)
+	return hex.EncodeToString(h[:])
 }
 
 // ReadForLaunch opens the log file read-only and returns all entries whose
