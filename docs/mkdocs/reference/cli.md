@@ -116,6 +116,7 @@ coordd audit verify --file <path> [--pubkey <base64-key>] [--server-url <url>]
 - Every line is valid JSON with required fields (`launch_id`, `event_name`, `occurred_at`, `payload`)
 - Timestamps are monotonically non-decreasing
 - Ed25519 signatures are valid (when a public key is available)
+- `prev_hash` of each entry matches the SHA-256 of the previous line (where present)
 
 **Examples:**
 
