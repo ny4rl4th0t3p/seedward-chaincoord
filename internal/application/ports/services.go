@@ -36,12 +36,24 @@ type AuditEvent struct {
 	// Signature is a base64 Ed25519 signature over the canonical JSON of this entry
 	// (excluding the signature field itself), signed by the server's audit key.
 	Signature string `json:"signature"`
+	// PrevHash is the SHA-256 hex digest of the previous entry's raw JSON bytes
+	// (the full marshaled line, signature included). Empty for the first entry.
+	// Included in the signature of the current entry so it cannot be silently altered.
+	PrevHash string `json:"prev_hash,omitempty"`
 }
 
 // AuditLogReader reads entries from the immutable audit log.
 type AuditLogReader interface {
 	// ReadForLaunch returns all audit events for the given launch ID, in append order.
 	ReadForLaunch(ctx context.Context, launchID string) ([]AuditEvent, error)
+}
+
+// AuditChainStore persists the SHA-256 chain tip (hash of the last written line)
+// so the audit log hash chain survives server restarts. This closes the gap where
+// log lines deleted between restarts would otherwise go undetected.
+type AuditChainStore interface {
+	LoadPrevHash(ctx context.Context) (string, error)
+	SavePrevHash(ctx context.Context, hash string) error
 }
 
 // EventPublisher dispatches domain events to SSE subscribers and any other

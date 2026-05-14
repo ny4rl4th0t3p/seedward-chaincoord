@@ -279,6 +279,189 @@ func TestAppend_NoSignatureWhenNoKey(t *testing.T) {
 	}
 }
 
+// mockChainStore is an in-memory ports.AuditChainStore for tests.
+type mockChainStore struct {
+	mu   sync.Mutex
+	hash string
+}
+
+func (m *mockChainStore) LoadPrevHash(_ context.Context) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.hash, nil
+}
+
+func (m *mockChainStore) SavePrevHash(_ context.Context, hash string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.hash = hash
+	return nil
+}
+
+func TestAppend_ChainsPrevHash(t *testing.T) {
+	w, path := openTmp(t)
+	ctx := context.Background()
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	for i, name := range []string{"first", "second", "third"} {
+		e := ports.AuditEvent{
+			LaunchID:   "L1",
+			EventName:  name,
+			OccurredAt: base.Add(time.Duration(i) * time.Minute),
+			Payload:    []byte(`{}`),
+		}
+		if err := w.Append(ctx, e); err != nil {
+			t.Fatalf("Append %q: %v", name, err)
+		}
+	}
+	_ = w.Close()
+
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	var lines [][]byte
+	var entries []ports.AuditEvent
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		raw := append([]byte(nil), scanner.Bytes()...)
+		lines = append(lines, raw)
+		var e ports.AuditEvent
+		if err := json.Unmarshal(raw, &e); err != nil {
+			t.Fatalf("unmarshal line %d: %v", len(lines), err)
+		}
+		entries = append(entries, e)
+	}
+
+	if entries[0].PrevHash != "" {
+		t.Errorf("entry 0: want empty prev_hash, got %q", entries[0].PrevHash)
+	}
+	if got, want := entries[1].PrevHash, sha256hex(lines[0]); got != want {
+		t.Errorf("entry 1: prev_hash = %q, want %q", got, want)
+	}
+	if got, want := entries[2].PrevHash, sha256hex(lines[1]); got != want {
+		t.Errorf("entry 2: prev_hash = %q, want %q", got, want)
+	}
+}
+
+func TestWithPrevHashStore_RestoresChain(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "audit.jsonl")
+	ctx := context.Background()
+	store := &mockChainStore{}
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	// Session 1: write 2 entries.
+	w1, err := Open(path, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w1.WithPrevHashStore(ctx, store); err != nil {
+		t.Fatal(err)
+	}
+	for i, name := range []string{"first", "second"} {
+		_ = w1.Append(ctx, ports.AuditEvent{
+			LaunchID: "L1", EventName: name,
+			OccurredAt: base.Add(time.Duration(i) * time.Minute),
+			Payload:    []byte(`{}`),
+		})
+	}
+	_ = w1.Close()
+
+	storedHash := store.hash // sha256(line2)
+
+	// Session 2: new writer, same store — chain should continue.
+	w2, err := Open(path, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w2.Close()
+	if err := w2.WithPrevHashStore(ctx, store); err != nil {
+		t.Fatalf("WithPrevHashStore on restart: %v", err)
+	}
+	_ = w2.Append(ctx, ports.AuditEvent{
+		LaunchID: "L1", EventName: "third",
+		OccurredAt: base.Add(2 * time.Minute),
+		Payload:    []byte(`{}`),
+	})
+	_ = w2.Close()
+
+	// The third entry must chain from the hash stored after session 1.
+	f, _ := os.Open(path)
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	var allEntries []ports.AuditEvent
+	for scanner.Scan() {
+		var e ports.AuditEvent
+		_ = json.Unmarshal(scanner.Bytes(), &e)
+		allEntries = append(allEntries, e)
+	}
+
+	if got := allEntries[2].PrevHash; got != storedHash {
+		t.Errorf("entry 2 prev_hash = %q, want stored hash %q", got, storedHash)
+	}
+}
+
+func TestWithPrevHashStore_DetectsTampering(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "audit.jsonl")
+	ctx := context.Background()
+	store := &mockChainStore{}
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	// Write 2 entries normally.
+	w1, err := Open(path, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w1.WithPrevHashStore(ctx, store); err != nil {
+		t.Fatal(err)
+	}
+	for i, name := range []string{"first", "second"} {
+		_ = w1.Append(ctx, ports.AuditEvent{
+			LaunchID: "L1", EventName: name,
+			OccurredAt: base.Add(time.Duration(i) * time.Minute),
+			Payload:    []byte(`{}`),
+		})
+	}
+	_ = w1.Close()
+
+	storedHash := store.hash // sha256(line2)
+
+	// Tamper: rewrite the file keeping only line 1 (delete line 2).
+	f, _ := os.Open(path)
+	sc := bufio.NewScanner(f)
+	sc.Scan()
+	line1 := sc.Text()
+	_ = f.Close()
+
+	f2, _ := os.OpenFile(path, os.O_WRONLY|os.O_TRUNC, 0o600)
+	_, _ = f2.WriteString(line1 + "\n")
+	_ = f2.Close()
+
+	// Open new writer with the original stored hash — must fail.
+	w2, err := Open(path, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w2.Close()
+	if err := w2.WithPrevHashStore(ctx, &mockChainStore{hash: storedHash}); err == nil {
+		t.Fatal("expected tampering error, got nil")
+	}
+}
+
+func TestWithPrevHashStore_EmptyFileStoredHash(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "audit.jsonl")
+	w, err := Open(path, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Close()
+	// Store claims there was a previous entry but the file is empty.
+	if err := w.WithPrevHashStore(context.Background(), &mockChainStore{hash: "abc123"}); err == nil {
+		t.Fatal("expected error for stored hash with empty file, got nil")
+	}
+}
+
 func TestClose_Idempotent(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "audit.jsonl")
 	w, err := Open(path, nil)
