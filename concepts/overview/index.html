@@ -1069,10 +1069,15 @@
 
 
 <h1 id="concepts-overview">Concepts Overview<a class="headerlink" href="#concepts-overview" title="Permanent link">&para;</a></h1>
-<p>chaincoord coordinates the genesis launch of a <strong>Cosmos SDK</strong> chain between a group of coordinators and a set of validator applicants. It provides a structured protocol, an HTTP API, and a tamper-evident audit log — but it does not run a chain node, does not hold keys on behalf of anyone, and does not require trust in a central authority beyond the declared committee.</p>
+<p>chaincoord coordinates the genesis launch of a <strong>Cosmos SDK</strong> chain between a group of coordinators and a set of
+validator applicants. It provides a structured protocol, an HTTP API, and a tamper-evident audit log — but it does not
+run a chain node, does not hold keys on behalf of anyone, and does not require trust in a central authority beyond the
+declared committee.</p>
 <hr />
 <h2 id="the-problem">The problem<a class="headerlink" href="#the-problem" title="Permanent link">&para;</a></h2>
-<p>Launching a Cosmos SDK chain requires assembling a genesis file from validator contributions (<code>gentx</code>s), agreeing on its content, and ensuring every participant starts with the same file at the same time. Doing this informally — over chat, shared drives, or ad-hoc scripts — introduces opportunities for error, manipulation, and lack of accountability.</p>
+<p>Launching a Cosmos SDK chain requires assembling a genesis file from validator contributions (<code>gentx</code>s), agreeing on its
+content, and ensuring every participant starts with the same file at the same time. Doing this informally — over chat,
+shared drives, or ad-hoc scripts — introduces opportunities for error, manipulation, and lack of accountability.</p>
 <p>chaincoord makes the process explicit, auditable, and multi-party.</p>
 <hr />
 <h2 id="core-building-blocks">Core building blocks<a class="headerlink" href="#core-building-blocks" title="Permanent link">&para;</a></h2>
@@ -1084,12 +1089,17 @@
 <li>The <strong>genesis accounts</strong> — pre-funded accounts managed by committee proposal</li>
 <li>The current <strong>lifecycle status</strong></li>
 </ul>
-<p>A launch moves through a fixed sequence of states. No state can be skipped; all transitions are driven by committee action (except opening the application window, which the lead coordinator triggers directly).</p>
+<p>A launch moves through a fixed sequence of states. No state can be skipped; all transitions are driven by committee
+action (except opening the application window, which the lead coordinator triggers directly).</p>
 <h3 id="committee">Committee<a class="headerlink" href="#committee" title="Permanent link">&para;</a></h3>
-<p>A <strong>Committee</strong> is the M-of-N group of coordinators that governs a launch. Any member can raise a proposal; a proposal executes when M members sign it. A single VETO from any member kills it immediately.</p>
-<p>The committee is declared at launch creation and can be modified later via proposals (<code>REPLACE_COMMITTEE_MEMBER</code>, <code>EXPAND_COMMITTEE</code>, <code>SHRINK_COMMITTEE</code>). There is always at least one member, and M must be strictly less than N to preserve liveness (the committee can still act when one member is absent).</p>
+<p>A <strong>Committee</strong> is the M-of-N group of coordinators that governs a launch. Any member can raise a proposal; a proposal
+executes when M members sign it. A single VETO from any member kills it immediately.</p>
+<p>The committee is declared at launch creation and can be modified later via proposals (<code>REPLACE_COMMITTEE_MEMBER</code>,
+<code>EXPAND_COMMITTEE</code>, <code>SHRINK_COMMITTEE</code>). There is always at least one member, and M must be strictly less than N to
+preserve liveness (the committee can still act when one member is absent).</p>
 <h3 id="proposal">Proposal<a class="headerlink" href="#proposal" title="Permanent link">&para;</a></h3>
-<p>A <strong>Proposal</strong> is a signed, time-limited committee action. Every state transition and governance decision goes through a proposal. See <a href="../proposals/">Proposals &amp; M-of-N</a> for the full list of action types and how signing works.</p>
+<p>A <strong>Proposal</strong> is a signed, time-limited committee action. Every state transition and governance decision goes through a
+proposal. See <a href="../proposals/">Proposals &amp; M-of-N</a> for the full list of action types and how signing works.</p>
 <h3 id="join-request">Join Request<a class="headerlink" href="#join-request" title="Permanent link">&para;</a></h3>
 <p>A <strong>Join Request</strong> is a validator's application to participate in a genesis. It carries:</p>
 <ul>
@@ -1098,15 +1108,22 @@
 <li>Their peer address and RPC endpoint</li>
 <li>A secp256k1 signature over the full request payload</li>
 </ul>
-<p>The server validates the request structurally (chain ID, self-delegation floor, commission limits) but does not invoke the chain binary. Full semantic validation happens when the coordinator runs <code>gaiad genesis collect-gentxs</code> during genesis assembly.</p>
+<p>The server validates the request structurally (chain ID, self-delegation floor, commission limits) but does not invoke
+the chain binary. Full semantic validation happens when the coordinator runs <code>gaiad genesis collect-gentxs</code> during
+genesis assembly.</p>
 <h3 id="audit-log">Audit Log<a class="headerlink" href="#audit-log" title="Permanent link">&para;</a></h3>
-<p>Every state-changing event is appended to a JSONL file, with each entry signed by the server's Ed25519 key. The log can be verified offline with <code>coordd audit verify</code> to confirm no entries were tampered with or dropped. See <a href="../../reference/audit/">Audit Log</a>.</p>
+<p>Every state-changing event is appended to a JSONL file, with each entry signed by the server's Ed25519 key. Each entry
+also carries a <code>prev_hash</code> field — the SHA-256 of the previous line — covered by the current entry's signature. The log
+can be verified offline with <code>coordd audit verify</code> to confirm that entries have not been modified or deleted.
+See <a href="../../reference/audit/">Audit Log</a>.</p>
 <hr />
 <h2 id="what-chaincoord-does-not-do">What chaincoord does not do<a class="headerlink" href="#what-chaincoord-does-not-do" title="Permanent link">&para;</a></h2>
 <ul>
-<li>It does not run or connect to a chain node during the launch (monitoring polls CometBFT RPC only after <code>GENESIS_READY</code>)</li>
+<li>It does not run or connect to a chain node during the launch (monitoring polls CometBFT RPC only after
+  <code>GENESIS_READY</code>)</li>
 <li>It does not store private keys for coordinators or validators</li>
-<li>It does not assemble the final genesis file — that step is done locally by the coordinator using <code>gaiad genesis collect-gentxs</code></li>
+<li>It does not assemble the final genesis file — that step is done locally by the coordinator using
+  <code>gaiad genesis collect-gentxs</code></li>
 <li>It does not guarantee BFT safety beyond a warning when a single entity approaches 1/3 of committed voting power</li>
 </ul>
 <hr />

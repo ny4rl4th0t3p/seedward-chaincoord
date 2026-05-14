@@ -1320,6 +1320,7 @@
 <li>Every line is valid JSON with required fields (<code>launch_id</code>, <code>event_name</code>, <code>occurred_at</code>, <code>payload</code>)</li>
 <li>Timestamps are monotonically non-decreasing</li>
 <li>Ed25519 signatures are valid (when a public key is available)</li>
+<li><code>prev_hash</code> of each entry matches the SHA-256 of the previous line (where present)</li>
 </ul>
 <p><strong>Examples:</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># Verify offline with an explicit pubkey</span>

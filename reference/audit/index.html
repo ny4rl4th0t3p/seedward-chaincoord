@@ -967,17 +967,25 @@
 
 
 <h1 id="audit-log">Audit Log<a class="headerlink" href="#audit-log" title="Permanent link">&para;</a></h1>
-<p><code>coordd</code> appends an entry to a JSONL (newline-delimited JSON) file for every state-changing event. Each entry is signed with the server's Ed25519 key, making the log tamper-evident: a missing, reordered, or modified entry will fail verification.</p>
+<p><code>coordd</code> appends an entry to a JSONL (newline-delimited JSON) file for every state-changing event. Each entry is signed
+with the server's Ed25519 key and carries a <code>prev_hash</code> field containing the SHA-256 of the previous line's raw bytes,
+covered by the current entry's signature. A modified entry fails signature verification. A deleted entry breaks the hash
+chain — the next entry's <code>prev_hash</code> will not match the actual previous line. The chain tip is persisted to the database
+so deletions between server restarts are caught at startup; the server refuses to start if the log and database
+disagree.</p>
 <hr />
 <h2 id="entry-format">Entry format<a class="headerlink" href="#entry-format" title="Permanent link">&para;</a></h2>
 <p>Each line is a JSON object:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p">{</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">&quot;launch_id&quot;</span><span class="p">:</span><span class="w">   </span><span class="s2">&quot;&lt;uuid&gt;&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="nt">&quot;event_name&quot;</span><span class="p">:</span><span class="w">  </span><span class="s2">&quot;ValidatorApproved&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">&quot;launch_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;uuid&gt;&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="nt">&quot;event_name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ValidatorApproved&quot;</span><span class="p">,</span>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span><span class="nt">&quot;occurred_at&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-04-13T10:00:00Z&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">  </span><span class="nt">&quot;payload&quot;</span><span class="p">:</span><span class="w">     </span><span class="p">{</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">},</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">  </span><span class="nt">&quot;signature&quot;</span><span class="p">:</span><span class="w">   </span><span class="s2">&quot;&lt;base64 Ed25519 sig&gt;&quot;</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">}</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">  </span><span class="nt">&quot;payload&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">    </span><span class="err">...</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">  </span><span class="p">},</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">  </span><span class="nt">&quot;prev_hash&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;sha256-hex of previous line&#39;s JSON bytes&gt;&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">  </span><span class="nt">&quot;signature&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;base64 Ed25519 sig&gt;&quot;</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">}</span>
 </code></pre></div>
 <table>
 <thead>
@@ -1009,13 +1017,19 @@
 <td>Event-specific data</td>
 </tr>
 <tr>
+<td><code>prev_hash</code></td>
+<td>string (hex SHA-256)</td>
+<td>SHA-256 of the previous line's raw JSON bytes. Empty for the first entry in each server session. Covered by the signature.</td>
+</tr>
+<tr>
 <td><code>signature</code></td>
 <td>string (base64)</td>
-<td>Ed25519 signature over canonical JSON of the entry <em>without</em> the <code>signature</code> field</td>
+<td>Ed25519 signature over canonical JSON of the entry <em>without</em> the <code>signature</code> field (but <em>with</em> <code>prev_hash</code>)</td>
 </tr>
 </tbody>
 </table>
-<p>Timestamps are monotonically non-decreasing within a log file. A timestamp that moves backward is flagged as an anomaly by <code>coordd audit verify</code>.</p>
+<p>Timestamps are monotonically non-decreasing within a log file. A timestamp that moves backward is flagged as an anomaly
+by <code>coordd audit verify</code>.</p>
 <hr />
 <h2 id="event-types">Event types<a class="headerlink" href="#event-types" title="Permanent link">&para;</a></h2>
 <table>
@@ -1082,11 +1096,13 @@
 </table>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>Proposal actions that do not directly transition launch state (e.g. <code>ADD_GENESIS_ACCOUNT</code>, <code>REPLACE_COMMITTEE_MEMBER</code>) are recorded in the database but do not produce audit log entries in the current implementation.</p>
 </div>
+<p>Proposal actions that do not directly transition launch state (e.g. <code>ADD_GENESIS_ACCOUNT</code>, <code>REPLACE_COMMITTEE_MEMBER</code>)
+are recorded in the database but do not produce audit log entries in the current implementation.</p>
 <hr />
 <h2 id="signature-verification">Signature verification<a class="headerlink" href="#signature-verification" title="Permanent link">&para;</a></h2>
-<p>The signature covers the canonical JSON of the entry with the <code>signature</code> field omitted. Canonical JSON means:</p>
+<p>The signature covers the canonical JSON of the entry with the <code>signature</code> field omitted (<code>prev_hash</code> is included).
+Canonical JSON means:</p>
 <ul>
 <li>Keys sorted lexicographically</li>
 <li>No insignificant whitespace</li>
@@ -1114,18 +1130,22 @@
 <li>Required fields are present (<code>launch_id</code>, <code>event_name</code>, <code>occurred_at</code>, <code>payload</code>)</li>
 <li>Timestamps are monotonically non-decreasing</li>
 <li>Ed25519 signatures are valid (when a public key is supplied)</li>
+<li><code>prev_hash</code> of each entry matches the SHA-256 of the previous line (where present)</li>
 </ol>
 <p><strong>Output example:</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>entries:    142
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>time range: 2026-04-01T08:00:00Z → 2026-04-13T10:00:00Z
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>signatures: verified (where present)
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>result:     OK — no anomalies found
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>chain:      verified (where present)
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>result:     OK — no anomalies found
 </code></pre></div>
 <p>Exit code is <code>0</code> on success, non-zero if any anomaly is found.</p>
 <hr />
 <h2 id="keeping-the-log">Keeping the log<a class="headerlink" href="#keeping-the-log" title="Permanent link">&para;</a></h2>
-<p>The audit log is append-only by design. <code>coordd</code> never modifies or truncates it. Back it up alongside your database — the two together form the complete record of a launch.</p>
-<p>For archival purposes, the log is human-readable and requires no special tooling beyond <code>coordd audit verify</code> and a standard JSON processor (<code>jq</code>).</p>
+<p>The audit log is append-only by design. <code>coordd</code> never modifies or truncates it. Back it up alongside your database —
+the two together form the complete record of a launch.</p>
+<p>For archival purposes, the log is human-readable and requires no special tooling beyond <code>coordd audit verify</code> and a
+standard JSON processor (<code>jq</code>).</p>
 
 
 
