@@ -14,7 +14,7 @@ of launching and running a Cosmos chain. All three are Apache 2.0 and self-hosta
 > **Warning:** The web UI has not been fully validated end-to-end. Visual and interaction regressions may exist even
 > when the full test suite passes.
 
-
+📖 **[Full documentation](https://ny4rl4th0t3p.github.io/chaincoord)** · 🏗️ **[Design document](docs/DESIGN.md)**
 
 ---
 
