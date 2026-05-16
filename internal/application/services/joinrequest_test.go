@@ -18,23 +18,32 @@ func newJoinReqSvc(launchRepo *fakeLaunchRepo, jrRepo *fakeJoinRequestRepo) *Joi
 	return NewJoinRequestService(launchRepo, jrRepo, newFakeNonceStore(), &fakeVerifier{})
 }
 
+// osmosisPubKey is the real Ed25519 consensus key from the Bi23Labs Osmosis gentx (32 bytes).
+const osmosisPubKey = "f5DzEhtQbnmXE/WZQsX+I8RljPdEU0u0ncVGtniFyEM="
+
 // validSubmitInput returns a SubmitInput that passes all validation for the given launch.
+// The gentx matches the real-world v0.50+ format (SIGN_MODE_DIRECT, pubkey embedded).
 func validSubmitInput(l *launch.Launch) SubmitInput {
 	gentx, _ := json.Marshal(map[string]any{
-		"chain_id": l.Record.ChainID,
 		"body": map[string]any{
 			"messages": []any{
 				map[string]any{
-					"@type": "/cosmos.staking.v1beta1.MsgCreateValidator",
-					"value": map[string]any{"amount": "2000000utest"},
+					"@type":       "/cosmos.staking.v1beta1.MsgCreateValidator",
+					"description": map[string]any{"moniker": "test-validator"},
+					"pubkey": map[string]any{
+						"@type": "/cosmos.crypto.ed25519.PubKey",
+						"key":   osmosisPubKey,
+					},
+					"value": map[string]any{"denom": l.Record.Denom, "amount": "2000000"},
 				},
 			},
 		},
+		"auth_info":  map[string]any{},
+		"signatures": []any{},
 	})
 	return SubmitInput{
 		ChainID:         l.Record.ChainID,
 		OperatorAddress: testAddr1,
-		ConsensusPubKey: "AAAA",
 		GentxJSON:       gentx,
 		PeerAddress:     "abcdef1234567890abcdef1234567890abcdef12@192.168.1.1:26656",
 		RPCEndpoint:     "https://192.168.1.1:26657",
@@ -216,15 +225,21 @@ func makeJoinRequest(t *testing.T, launchID uuid.UUID, addr string) *joinrequest
 	t.Helper()
 	rec := testChainRecord()
 	gentx, _ := json.Marshal(map[string]any{
-		"chain_id": rec.ChainID,
 		"body": map[string]any{
 			"messages": []any{
 				map[string]any{
-					"@type": "/cosmos.staking.v1beta1.MsgCreateValidator",
-					"value": map[string]any{"amount": "2000000utest"},
+					"@type":       "/cosmos.staking.v1beta1.MsgCreateValidator",
+					"description": map[string]any{"moniker": "test-validator"},
+					"pubkey": map[string]any{
+						"@type": "/cosmos.crypto.ed25519.PubKey",
+						"key":   osmosisPubKey,
+					},
+					"value": map[string]any{"denom": rec.Denom, "amount": "2000000"},
 				},
 			},
 		},
+		"auth_info":  map[string]any{},
+		"signatures": []any{},
 	})
 	peer, _ := launch.NewPeerAddress("abcdef1234567890abcdef1234567890abcdef12@192.168.1.1:26656")
 	rpc, _ := launch.NewRPCEndpoint("https://192.168.1.1:26657")
@@ -232,7 +247,6 @@ func makeJoinRequest(t *testing.T, launchID uuid.UUID, addr string) *joinrequest
 	jr, err := joinrequest.New(
 		uuid.New(), launchID,
 		mustAddr(addr),
-		"AAAA",
 		gentx,
 		peer, rpc, "test-memo",
 		mustSig(),
