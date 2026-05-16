@@ -5,7 +5,7 @@ VERSION             ?= $(shell git describe --tags --always --dirty 2>/dev/null 
 LDFLAGS             := -X $(MODULE)/cmd/coordd/cmd.Version=$(VERSION)
 
 
-.PHONY: build build-server build-smoke-signer build-web test test-integration test-e2e test-jest test-playwright lint lint-web swagger lint-openapi release clean docker-build smoke-test smoke-test-down smoke-test-secrets dev-build dev-up dev-down install-web
+.PHONY: build build-server build-smoke-signer build-web test test-integration test-e2e test-jest test-playwright lint lint-web swagger lint-openapi release clean docker-build test-smoke test-down-smoke test-secrets-smoke dev-build dev-up dev-down install-web
 
 build: build-server build-smoke-signer
 
@@ -61,18 +61,18 @@ clean:
 docker-build:
 	docker compose -f docker/docker-compose.yml build
 
-smoke-test-secrets: build-server
+test-secrets-smoke: build-server
 	@mkdir -p docker/secrets
 	@[ -f docker/secrets/audit_key ] || ($(BINARY_SERVER) keygen > docker/secrets/audit_key && chmod 600 docker/secrets/audit_key)
 	@[ -f docker/secrets/jwt_key ]   || ($(BINARY_SERVER) keygen > docker/secrets/jwt_key   && chmod 600 docker/secrets/jwt_key)
 
-smoke-test: smoke-test-down smoke-test-secrets
+test-smoke: test-down-smoke test-secrets-smoke
 	docker compose -f docker/docker-compose.smoke.yml up --build \
 	    --abort-on-container-exit \
 	    --exit-code-from smoke-test
 	docker compose -f docker/docker-compose.smoke.yml down -v
 
-smoke-test-down:
+test-down-smoke:
 	docker compose -f docker/docker-compose.smoke.yml down --volumes
 
 # ── Dev environment (coordd + web frontend) ───────────────────────────────────
