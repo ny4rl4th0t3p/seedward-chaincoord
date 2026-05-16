@@ -34,9 +34,8 @@ test('K.4.1val submit join request shows pending status', async ({ browser }) =>
   await loginAs(valPage, validator(), { bech32Prefix: 'k4v1', navigateTo: `/launch/${launchId}` });
 
   // Fill and submit join request.
-  await valPage.getByPlaceholder(/cosmosvalconspub/i).fill('{"@type":"/cosmos.crypto.ed25519.PubKey","key":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}');
   await valPage.getByPlaceholder(/1\.2\.3\.4/i).fill('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@1.2.3.4:26656');
-  await valPage.getByPlaceholder(/MsgCreateValidator/).fill('{"body":{"messages":[{"value":{"amount":"1000000"}}]}}');
+  await valPage.getByPlaceholder(/MsgCreateValidator/).fill('{"body":{"messages":[{"@type":"/cosmos.staking.v1beta1.MsgCreateValidator","description":{"moniker":"e2e-validator"},"pubkey":{"@type":"/cosmos.crypto.ed25519.PubKey","key":"f5DzEhtQbnmXE/WZQsX+I8RljPdEU0u0ncVGtniFyEM="},"value":{"denom":"uk4val1","amount":"1000000"}}]},"auth_info":{},"signatures":[]}');
   await valPage.getByRole('button', { name: /submit join request/i }).click();
 
   await expect(valPage.getByText(/pending/i)).toBeVisible({ timeout: 10_000 });
@@ -80,9 +79,8 @@ test('K.5 full launch flow: create → open → join → approve', async ({ brow
   await installValidatorWalletStub(valPage, validator(), CHAIN_PREFIX);
   await loginAs(valPage, validator(), { bech32Prefix: CHAIN_PREFIX, navigateTo: `/launch/${launchId}` });
 
-  await valPage.getByPlaceholder(/cosmosvalconspub/i).fill('{"@type":"/cosmos.crypto.ed25519.PubKey","key":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}');
   await valPage.getByPlaceholder(/1\.2\.3\.4/i).fill('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@1.2.3.4:26656');
-  await valPage.getByPlaceholder(/MsgCreateValidator/).fill('{"body":{"messages":[{"value":{"amount":"1000000"}}]}}');
+  await valPage.getByPlaceholder(/MsgCreateValidator/).fill('{"body":{"messages":[{"@type":"/cosmos.staking.v1beta1.MsgCreateValidator","description":{"moniker":"e2e-validator"},"pubkey":{"@type":"/cosmos.crypto.ed25519.PubKey","key":"f5DzEhtQbnmXE/WZQsX+I8RljPdEU0u0ncVGtniFyEM="},"value":{"denom":"uk5","amount":"1000000"}}]},"auth_info":{},"signatures":[]}');
   await valPage.getByRole('button', { name: /submit join request/i }).click();
   await expect(valPage.getByText(/pending/i)).toBeVisible({ timeout: 10_000 });
 

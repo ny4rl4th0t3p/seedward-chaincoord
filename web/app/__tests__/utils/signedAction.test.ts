@@ -74,7 +74,6 @@ describe('buildCanonicalActionPayload', () => {
   it('matches expected join-request canonical form', () => {
     const got = buildCanonicalActionPayload({
       chain_id: 'mychain-1',
-      consensus_pubkey: 'cosmosvalconspub1abc',
       gentx: { body: { messages: [{ '@type': '/cosmos.staking.v1beta1.MsgCreateValidator' }] } },
       memo: '',
       nonce: 'strip-me',

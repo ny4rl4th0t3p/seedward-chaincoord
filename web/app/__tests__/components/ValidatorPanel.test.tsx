@@ -137,9 +137,6 @@ const VALID_GENTX = '{"body":{"messages":[{"@type":"/cosmos.staking.v1beta1.MsgC
 
 // Fill out the join form with valid data and click submit.
 async function fillAndSubmitJoinForm() {
-  fireEvent.change(screen.getByPlaceholderText(/cosmosvalconspub1/), {
-    target: { value: 'cosmosvalconspub1testkey' },
-  });
   fireEvent.change(screen.getByPlaceholderText(/\{"body"/), {
     target: { value: VALID_GENTX },
   });
@@ -229,20 +226,20 @@ describe('ValidatorPanel — JoinSection (H.3 / H.4)', () => {
     mockSignedResult();
   });
 
-  it('submit is disabled until required fields are filled — shows error for missing consensus pubkey', async () => {
+  it('submit shows error for missing peer address', async () => {
     render(<ValidatorPanel {...defaultProps()} />);
-    // Don't fill any fields
+    // Fill gentx but leave peer address empty
+    fireEvent.change(screen.getByPlaceholderText(/\{"body"/), {
+      target: { value: VALID_GENTX },
+    });
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Submit Join Request/ }));
     });
-    expect(screen.getByText(/Consensus public key is required/)).toBeInTheDocument();
+    expect(screen.getByText(/Peer address is required/)).toBeInTheDocument();
   });
 
   it('shows validation error for invalid gentx JSON', async () => {
     render(<ValidatorPanel {...defaultProps()} />);
-    fireEvent.change(screen.getByPlaceholderText(/cosmosvalconspub1/), {
-      target: { value: 'cosmosvalconspub1testkey' },
-    });
     fireEvent.change(screen.getByPlaceholderText(/1\.2\.3\.4:26656/), {
       target: { value: '5.6.7.8:26656' },
     });
@@ -270,9 +267,9 @@ describe('ValidatorPanel — JoinSection (H.3 / H.4)', () => {
     expect(payload).toMatchObject({
       chain_id: 'mychain-1',
       operator_address: ADDRESS,
-      consensus_pubkey: 'cosmosvalconspub1testkey',
       peer_address: '5.6.7.8:26656',
     });
+    expect(payload).not.toHaveProperty('consensus_pubkey');
     // gentx must be the parsed object, not a raw string
     expect(typeof payload.gentx).toBe('object');
   });
