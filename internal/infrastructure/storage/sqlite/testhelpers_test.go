@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"testing"
 	"time"
@@ -100,23 +101,32 @@ func testJoinRequest(t *testing.T, launchID uuid.UUID) *joinrequest.JoinRequest 
 	peer, _ := launch.NewPeerAddress("abcdef1234567890abcdef1234567890abcdef12@192.168.1.1:26656")
 	rpc, _ := launch.NewRPCEndpoint("https://192.168.1.1:26657")
 
-	gentx := map[string]any{
-		"chain_id": "testchain-1",
+	// Two random UUIDs concatenated give 32 bytes of entropy for a unique Ed25519 pubkey per call.
+	// Uniqueness matters because the DB enforces consensus_pubkey uniqueness per launch.
+	id1, id2 := uuid.New(), uuid.New()
+	uniquePubKey := base64.StdEncoding.EncodeToString(append(id1[:], id2[:]...))
+
+	gentxBytes, _ := json.Marshal(map[string]any{
 		"body": map[string]any{
 			"messages": []any{
 				map[string]any{
-					"@type": "/cosmos.staking.v1beta1.MsgCreateValidator",
-					"value": map[string]any{"amount": "2000000utest"},
+					"@type":       "/cosmos.staking.v1beta1.MsgCreateValidator",
+					"description": map[string]any{"moniker": "test-validator"},
+					"pubkey": map[string]any{
+						"@type": "/cosmos.crypto.ed25519.PubKey",
+						"key":   uniquePubKey,
+					},
+					"value": map[string]any{"denom": "utest", "amount": "2000000"},
 				},
 			},
 		},
-	}
-	gentxBytes, _ := json.Marshal(gentx)
+		"auth_info":  map[string]any{},
+		"signatures": []any{},
+	})
 
 	jr, err := joinrequest.New(
 		uuid.New(), launchID,
 		mustAddr(addr1),
-		uuid.New().String(), // unique per call — consensus pubkeys must be unique per launch
 		gentxBytes,
 		peer, rpc, "",
 		mustSig(),

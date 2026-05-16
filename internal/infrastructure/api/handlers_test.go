@@ -659,8 +659,7 @@ func TestHandleJoinSubmit_Success(t *testing.T) {
 	body := []byte(`{
 		"chain_id":"testchain-1",
 		"operator_address":"` + testAddr2 + `",
-		"consensus_pubkey":"AAAA",
-		"gentx":{"chain_id":"testchain-1"},
+		"gentx":{"body":{"messages":[{"@type":"/cosmos.staking.v1beta1.MsgCreateValidator","description":{"moniker":"test-validator"},"pubkey":{"@type":"/cosmos.crypto.ed25519.PubKey","key":"f5DzEhtQbnmXE/WZQsX+I8RljPdEU0u0ncVGtniFyEM="},"value":{"denom":"utest","amount":"2000000"}}]},"auth_info":{},"signatures":[]},
 		"peer_address":"` + testPeerAddress + `",
 		"rpc_endpoint":"` + testRPCURL + `",
 		"memo":"",
