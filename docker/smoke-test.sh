@@ -254,7 +254,6 @@ for i in 1 2 3 4; do
   OP_ADDR=$(gaiad_val "${i}" keys show operator --keyring-backend test -a)
   eval "OP_ADDR_${i}=${OP_ADDR}"
   NODE_ID=$(gaiad_val "${i}" comet show-node-id)
-  CONS_PUBKEY=$(gaiad_val "${i}" comet show-validator | jq -r '.key')
   PEER_ADDR="${NODE_ID}@val${i}:26656"
 
   # Each validator works from a fresh copy of the coordinator's genesis template
@@ -286,8 +285,8 @@ for i in 1 2 3 4; do
   VAL_PUBKEY=$(smoke-signer pubkey --key-index "${i}")
   RPC_ENDPOINT="http://val${i}:26657"
   JOIN_TEMPLATE=$(printf \
-    '{"operator_address":"%s","chain_id":"%s","consensus_pubkey":"%s","gentx":%s,"peer_address":"%s","rpc_endpoint":"%s","memo":"","nonce":"","timestamp":"","pubkey_b64":"","signature":""}' \
-    "${OP_ADDR}" "${CHAIN_ID}" "${CONS_PUBKEY}" "${GENTX_JSON}" "${PEER_ADDR}" "${RPC_ENDPOINT}")
+    '{"operator_address":"%s","chain_id":"%s","gentx":%s,"peer_address":"%s","rpc_endpoint":"%s","memo":"","nonce":"","timestamp":"","pubkey_b64":"","signature":""}' \
+    "${OP_ADDR}" "${CHAIN_ID}" "${GENTX_JSON}" "${PEER_ADDR}" "${RPC_ENDPOINT}")
   SIGNED_JOIN=$(echo "${JOIN_TEMPLATE}" | smoke-signer sign --key-index "${i}")
 
   JR_ID=$(curl_check -X POST "${SERVER}/launch/${LAUNCH_ID}/join" \

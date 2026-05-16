@@ -43,16 +43,15 @@ type SubmitInput struct {
 	ChainID         string `json:"chain_id"`
 	OperatorAddress string `json:"operator_address"`
 	// PubKeyB64 is the operator's secp256k1 compressed public key (base64, 33 bytes) used to verify the
-	// request signature. Distinct from ConsensusPubKey (the validator consensus key).
-	PubKeyB64       string          `json:"pubkey_b64"`
-	ConsensusPubKey string          `json:"consensus_pubkey"`
-	GentxJSON       json.RawMessage `json:"gentx"`
-	PeerAddress     string          `json:"peer_address"`
-	RPCEndpoint     string          `json:"rpc_endpoint"`
-	Memo            string          `json:"memo"`
-	Timestamp       string          `json:"timestamp"`
-	Nonce           string          `json:"nonce"`
-	Signature       string          `json:"signature"`
+	// request signature. Distinct from the consensus key, which is extracted from the gentx.
+	PubKeyB64   string          `json:"pubkey_b64"`
+	GentxJSON   json.RawMessage `json:"gentx"`
+	PeerAddress string          `json:"peer_address"`
+	RPCEndpoint string          `json:"rpc_endpoint"`
+	Memo        string          `json:"memo"`
+	Timestamp   string          `json:"timestamp"`
+	Nonce       string          `json:"nonce"`
+	Signature   string          `json:"signature"`
 }
 
 // Submit validates and stores a join request from a validator.
@@ -102,16 +101,6 @@ func (s *JoinRequestService) Submit(ctx context.Context, launchID uuid.UUID, inp
 		return nil, fmt.Errorf("submit join request: maximum %d submissions per validator per window", maxJoinRequestsPerOperator)
 	}
 
-	// Reject duplicate consensus pubkey for the same launch (spec §2.4).
-	// The DB also enforces this via a UNIQUE index as a safety net.
-	cpCount, err := s.joinRequests.CountByConsensusPubKey(ctx, launchID, input.ConsensusPubKey)
-	if err != nil {
-		return nil, fmt.Errorf("submit join request: consensus pubkey check: %w", err)
-	}
-	if cpCount > 0 {
-		return nil, fmt.Errorf("submit join request: consensus pubkey already submitted for this launch: %w", ports.ErrConflict)
-	}
-
 	peerAddr, err := launch.NewPeerAddress(input.PeerAddress)
 	if err != nil {
 		return nil, fmt.Errorf("submit join request: peer_address: %w: %w", err, ports.ErrBadRequest)
@@ -131,7 +120,6 @@ func (s *JoinRequestService) Submit(ctx context.Context, launchID uuid.UUID, inp
 		uuid.New(),
 		launchID,
 		operatorAddr,
-		input.ConsensusPubKey,
 		input.GentxJSON,
 		peerAddr,
 		rpcEndpoint,
@@ -143,6 +131,17 @@ func (s *JoinRequestService) Submit(ctx context.Context, launchID uuid.UUID, inp
 	)
 	if err != nil {
 		return nil, fmt.Errorf("submit join request: validation: %w: %w", err, ports.ErrBadRequest)
+	}
+
+	// Reject duplicate consensus pubkey for the same launch.
+	// Done after New, so the pubkey is extracted and validated before the DB check.
+	// The DB also enforces this via a UNIQUE index as a safety net.
+	cpCount, err := s.joinRequests.CountByConsensusPubKey(ctx, launchID, jr.ConsensusPubKey)
+	if err != nil {
+		return nil, fmt.Errorf("submit join request: consensus pubkey check: %w", err)
+	}
+	if cpCount > 0 {
+		return nil, fmt.Errorf("submit join request: consensus pubkey already submitted for this launch: %w", ports.ErrConflict)
 	}
 
 	if err := s.joinRequests.Save(ctx, jr); err != nil {

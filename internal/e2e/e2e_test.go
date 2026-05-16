@@ -86,6 +86,34 @@ func newActor(t *testing.T) actor {
 	return actor{priv: priv, pub: pub, pubB64: base64.StdEncoding.EncodeToString(pub), addr: deriveCosmosAddress(pub)}
 }
 
+// actorConsensusKey derives a unique 32-byte Ed25519 consensus key for an actor
+// by taking SHA256 of its secp256k1 compressed public key. The result is valid
+// base64, exactly 32 bytes, and unique per actor.
+func actorConsensusKey(a actor) string {
+	h := sha256.Sum256(a.pub)
+	return base64.StdEncoding.EncodeToString(h[:])
+}
+
+// makeValidatorGentx builds a v0.50+ gentx (SIGN_MODE_DIRECT) for the given actor,
+// embedding the Ed25519 consensus key derived from its secp256k1 keypair.
+func makeValidatorGentx(a actor, moniker string) json.RawMessage {
+	msg := map[string]any{
+		"@type":       "/cosmos.staking.v1beta1.MsgCreateValidator",
+		"description": map[string]any{"moniker": moniker},
+		"pubkey": map[string]any{
+			"@type": "/cosmos.crypto.ed25519.PubKey",
+			"key":   actorConsensusKey(a),
+		},
+		"value": map[string]any{"denom": "utest", "amount": "2000000"},
+	}
+	b, _ := json.Marshal(map[string]any{
+		"body":       map[string]any{"messages": []any{msg}},
+		"auth_info":  map[string]any{},
+		"signatures": []any{},
+	})
+	return b
+}
+
 // sign returns the base64-encoded secp256k1 ECDSA compact signature (r‖s, 64 bytes)
 // over sha256(ADR-036 amino bytes of canonical JSON of body), with "signature" and
 // "nonce" fields stripped. This matches the ADR-036 verification done by Secp256k1Verifier.
@@ -423,13 +451,11 @@ func TestE2E_HappyPath(t *testing.T) {
 	val1Token := authenticate(t, c, val1)
 	val1Client := c.withToken(val1Token)
 
-	gentx := json.RawMessage(fmt.Sprintf(`{"chain_id":"testchain-1","body":{"messages":[{"@type":"/cosmos.staking.v1beta1.MsgCreateValidator","value":{"amount":"2000000utest"}}]}}` + ``))
 	joinInput1 := services.SubmitInput{
 		ChainID:         "testchain-1",
 		OperatorAddress: val1.addr,
 		PubKeyB64:       val1.pubB64,
-		ConsensusPubKey: val1.pubB64, // reuse operator key as consensus key for simplicity
-		GentxJSON:       gentx,
+		GentxJSON:       makeValidatorGentx(val1, "val-1"),
 		PeerAddress:     "abcdef1234567890abcdef1234567890abcdef12@192.168.1.1:26656",
 		RPCEndpoint:     "https://192.168.1.1:26657",
 		Memo:            "val1",
@@ -452,8 +478,7 @@ func TestE2E_HappyPath(t *testing.T) {
 		ChainID:         "testchain-1",
 		OperatorAddress: val2.addr,
 		PubKeyB64:       val2.pubB64,
-		ConsensusPubKey: val2.pubB64,
-		GentxJSON:       gentx,
+		GentxJSON:       makeValidatorGentx(val2, "val-2"),
 		PeerAddress:     "abcdef1234567890abcdef1234567890abcdef12@192.168.1.2:26656",
 		RPCEndpoint:     "https://192.168.1.2:26657",
 		Memo:            "val2",
@@ -476,8 +501,7 @@ func TestE2E_HappyPath(t *testing.T) {
 		ChainID:         "testchain-1",
 		OperatorAddress: val3.addr,
 		PubKeyB64:       val3.pubB64,
-		ConsensusPubKey: val3.pubB64,
-		GentxJSON:       gentx,
+		GentxJSON:       makeValidatorGentx(val3, "val-3"),
 		PeerAddress:     "abcdef1234567890abcdef1234567890abcdef12@192.168.1.3:26656",
 		RPCEndpoint:     "https://192.168.1.3:26657",
 		Memo:            "val3",
@@ -500,8 +524,7 @@ func TestE2E_HappyPath(t *testing.T) {
 		ChainID:         "testchain-1",
 		OperatorAddress: val4.addr,
 		PubKeyB64:       val4.pubB64,
-		ConsensusPubKey: val4.pubB64,
-		GentxJSON:       gentx,
+		GentxJSON:       makeValidatorGentx(val4, "val-4"),
 		PeerAddress:     "abcdef1234567890abcdef1234567890abcdef12@192.168.1.4:26656",
 		RPCEndpoint:     "https://192.168.1.4:26657",
 		Memo:            "val4",
@@ -554,11 +577,11 @@ func TestE2E_HappyPath(t *testing.T) {
 	// Build the final genesis dynamically so gen_txs matches the 4 approved validators.
 	// validateFinalGenesis checks that every approved validator's consensus pubkey
 	// appears exactly once in app_state.genutil.gen_txs.
-	genTxFor := func(pubKeyB64 string) map[string]any {
+	genTxFor := func(a actor) map[string]any {
 		return map[string]any{
 			"body": map[string]any{
 				"messages": []map[string]any{
-					{"pubkey": map[string]any{"key": pubKeyB64}},
+					{"pubkey": map[string]any{"key": actorConsensusKey(a)}},
 				},
 			},
 		}
@@ -569,10 +592,10 @@ func TestE2E_HappyPath(t *testing.T) {
 		"app_state": map[string]any{
 			"genutil": map[string]any{
 				"gen_txs": []any{
-					genTxFor(val1.pubB64),
-					genTxFor(val2.pubB64),
-					genTxFor(val3.pubB64),
-					genTxFor(val4.pubB64),
+					genTxFor(val1),
+					genTxFor(val2),
+					genTxFor(val3),
+					genTxFor(val4),
 				},
 			},
 		},
@@ -769,13 +792,11 @@ func createLaunch(t *testing.T, c *testClient, lead actor, members []map[string]
 // submitJoin submits a join request for a validator and returns the join request ID.
 func submitJoin(t *testing.T, c *testClient, launchID string, v actor) string {
 	t.Helper()
-	gentx := json.RawMessage(`{"body":{"messages":[{"@type":"/cosmos.staking.v1beta1.MsgCreateValidator"}]}}`)
 	input := services.SubmitInput{
 		ChainID:         "testchain-1",
 		OperatorAddress: v.addr,
 		PubKeyB64:       v.pubB64,
-		ConsensusPubKey: v.pubB64,
-		GentxJSON:       gentx,
+		GentxJSON:       makeValidatorGentx(v, "e2e-validator"),
 		PeerAddress:     "abcdef1234567890abcdef1234567890abcdef12@192.168.1.1:26656",
 		RPCEndpoint:     "https://192.168.1.1:26657",
 		Nonce:           newNonce(),
@@ -1241,13 +1262,11 @@ func TestE2E_LaunchCancellation(t *testing.T) {
 	}
 
 	// A late validator attempting to join gets an error (launch is not in a joinable state).
-	gentx := json.RawMessage(`{"body":{"messages":[{"@type":"/cosmos.staking.v1beta1.MsgCreateValidator"}]}}`)
 	joinInput := services.SubmitInput{
 		ChainID:         "testchain-1",
 		OperatorAddress: lateVal.addr,
 		PubKeyB64:       lateVal.pubB64,
-		ConsensusPubKey: lateVal.pubB64,
-		GentxJSON:       gentx,
+		GentxJSON:       makeValidatorGentx(lateVal, "late-validator"),
 		PeerAddress:     "abcdef1234567890abcdef1234567890abcdef12@192.168.1.9:26656",
 		RPCEndpoint:     "https://192.168.1.9:26657",
 		Nonce:           newNonce(),

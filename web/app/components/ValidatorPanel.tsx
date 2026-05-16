@@ -122,7 +122,6 @@ interface JoinSectionProps {
 
 function JoinSection({ launchId, hint, address, wallet, signingChainId, isApproved, authFetch }: JoinSectionProps) {
   // Form fields — all hooks must come before any conditional returns
-  const [consensusPubkey, setConsensusPubkey] = useState('');
   const [gentxRaw, setGentxRaw] = useState('');
   const [peerAddress, setPeerAddress] = useState('');
   const [rpcEndpoint, setRpcEndpoint] = useState('');
@@ -215,10 +214,6 @@ function JoinSection({ launchId, hint, address, wallet, signingChainId, isApprov
   const handleSubmit = async () => {
     setSubmitError(null);
 
-    if (!consensusPubkey.trim()) {
-      setSubmitError('Consensus public key is required.');
-      return;
-    }
     if (!peerAddress.trim()) {
       setSubmitError('Peer address is required.');
       return;
@@ -236,7 +231,6 @@ function JoinSection({ launchId, hint, address, wallet, signingChainId, isApprov
     try {
       const payload = {
         chain_id: hint.chain_id,
-        consensus_pubkey: consensusPubkey.trim(),
         gentx: gentxParsed,
         memo: memo.trim(),
         operator_address: address,
@@ -277,16 +271,6 @@ function JoinSection({ launchId, hint, address, wallet, signingChainId, isApprov
   return (
     <PanelCard title="Submit Join Request">
       <Box display="flex" flexDirection="column" gap="12px">
-        <Box>
-          <FieldLabel>Consensus public key *</FieldLabel>
-          <TextInput
-            value={consensusPubkey}
-            onChange={setConsensusPubkey}
-            placeholder="cosmosvalconspub1abc…"
-            disabled={isSubmitting}
-          />
-        </Box>
-
         <Box>
           <FieldLabel>gentx JSON — upload file or paste below *</FieldLabel>
           <input

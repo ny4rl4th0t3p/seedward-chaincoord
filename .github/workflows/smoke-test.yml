@@ -34,4 +34,4 @@ jobs:
           go-version: stable
 
       - name: Run smoke test
-        run: make smoke-test
+        run: make test-smoke
