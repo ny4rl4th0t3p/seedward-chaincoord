@@ -8,6 +8,7 @@ package api_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -18,6 +19,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+
+	"github.com/ny4rl4th0t3p/seedward-libs/gentxvalidate"
 
 	"github.com/ny4rl4th0t3p/chaincoord/internal/application/ports"
 	"github.com/ny4rl4th0t3p/chaincoord/internal/application/services"
@@ -102,6 +105,37 @@ type harness struct {
 	allowlist  *thinCoordinatorAllowlist
 }
 
+// thinGentxValidator is an all-passing ports.GentxValidator for HTTP-layer
+// tests. It echoes the gentx's embedded consensus pubkey so the consensus-pubkey
+// uniqueness check still distinguishes submissions; real invariant coverage is
+// in the service and gentxvalidate tests.
+type thinGentxValidator struct{}
+
+func (thinGentxValidator) Validate(gentxJSON []byte, _ gentxvalidate.Params) ports.GentxValidationOutcome {
+	return ports.GentxValidationOutcome{
+		Results:            []gentxvalidate.Result{{Invariant: gentxvalidate.InvWellFormed, OK: true}},
+		ConsensusPubKeyB64: gentxConsensusPubKeyForTest(gentxJSON),
+	}
+}
+
+// gentxConsensusPubKeyForTest reads body.messages[0].pubkey.key (already base64,
+// matching the stored format) from a gentx JSON.
+func gentxConsensusPubKeyForTest(gentxJSON []byte) string {
+	var doc struct {
+		Body struct {
+			Messages []struct {
+				PubKey struct {
+					Key string `json:"key"`
+				} `json:"pubkey"`
+			} `json:"messages"`
+		} `json:"body"`
+	}
+	if err := json.Unmarshal(gentxJSON, &doc); err != nil || len(doc.Body.Messages) == 0 {
+		return ""
+	}
+	return doc.Body.Messages[0].PubKey.Key
+}
+
 // newHarness builds a Server wired with all-fake port implementations.
 func newHarness(t *testing.T) *harness {
 	t.Helper()
@@ -122,7 +156,7 @@ func newHarness(t *testing.T) *harness {
 
 	authSvc := services.NewAuthService(challenges, sessions, nonces, verifier)
 	launchSvc := services.NewLaunchService(launchRepo, jrRepo, readinessRepo, genesisStore, events, auditLogWriter)
-	jrSvc := services.NewJoinRequestService(launchRepo, jrRepo, nonces, verifier)
+	jrSvc := services.NewJoinRequestService(launchRepo, jrRepo, nonces, verifier, thinGentxValidator{})
 	propSvc := services.NewProposalService(launchRepo, jrRepo, propRepo, readinessRepo, nonces, verifier, events, auditLogWriter, tx)
 	readinessSvc := services.NewReadinessService(launchRepo, jrRepo, readinessRepo, nonces, verifier)
 
@@ -176,7 +210,7 @@ func newHarnessConfig(t *testing.T, adminAddrs []string, launchPolicy string) *h
 
 	authSvc := services.NewAuthService(challenges, sessions, nonces, verifier)
 	launchSvc := services.NewLaunchService(launchRepo, jrRepo, readinessRepo, genesisStore, events, auditLogWriter)
-	jrSvc := services.NewJoinRequestService(launchRepo, jrRepo, nonces, verifier)
+	jrSvc := services.NewJoinRequestService(launchRepo, jrRepo, nonces, verifier, thinGentxValidator{})
 	propSvc := services.NewProposalService(launchRepo, jrRepo, propRepo, readinessRepo, nonces, verifier, events, auditLogWriter, tx)
 	readinessSvc := services.NewReadinessService(launchRepo, jrRepo, readinessRepo, nonces, verifier)
 
@@ -218,7 +252,7 @@ func newHarnessRateLimitDisabled(t *testing.T) *harness {
 
 	authSvc := services.NewAuthService(challenges, sessions, nonces, verifier)
 	launchSvc := services.NewLaunchService(launchRepo, jrRepo, readinessRepo, genesisStore, events, auditLogWriter)
-	jrSvc := services.NewJoinRequestService(launchRepo, jrRepo, nonces, verifier)
+	jrSvc := services.NewJoinRequestService(launchRepo, jrRepo, nonces, verifier, thinGentxValidator{})
 	propSvc := services.NewProposalService(launchRepo, jrRepo, propRepo, readinessRepo, nonces, verifier, events, auditLogWriter, tx)
 	readinessSvc := services.NewReadinessService(launchRepo, jrRepo, readinessRepo, nonces, verifier)
 
@@ -261,7 +295,7 @@ func newHarnessHostMode(t *testing.T, maxBytes int64) *harness {
 
 	authSvc := services.NewAuthService(challenges, sessions, nonces, verifier)
 	launchSvc := services.NewLaunchService(launchRepo, jrRepo, readinessRepo, genesisStore, events, auditLogWriter)
-	jrSvc := services.NewJoinRequestService(launchRepo, jrRepo, nonces, verifier)
+	jrSvc := services.NewJoinRequestService(launchRepo, jrRepo, nonces, verifier, thinGentxValidator{})
 	propSvc := services.NewProposalService(launchRepo, jrRepo, propRepo, readinessRepo, nonces, verifier, events, auditLogWriter, tx)
 	readinessSvc := services.NewReadinessService(launchRepo, jrRepo, readinessRepo, nonces, verifier)
 

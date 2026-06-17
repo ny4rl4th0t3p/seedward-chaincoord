@@ -21,9 +21,17 @@ type errorEnvelope struct {
 }
 
 type errorBody struct {
-	Code      string `json:"code"`
-	Message   string `json:"message"`
-	RequestID string `json:"request_id,omitempty"`
+	Code       string                `json:"code"`
+	Message    string                `json:"message"`
+	RequestID  string                `json:"request_id,omitempty"`
+	Invariants []invariantResultJSON `json:"invariants,omitempty"`
+}
+
+// invariantResultJSON is one gentx invariant result in an error response.
+type invariantResultJSON struct {
+	Invariant string `json:"invariant"`
+	OK        bool   `json:"ok"`
+	Reason    string `json:"reason,omitempty"`
 }
 
 // writeJSON encodes v as JSON and writes it with the given status code.
@@ -92,6 +100,22 @@ type pageEnvelope[T any] struct {
 // For 5xx responses the request ID (injected by hlog.RequestIDHandler) is
 // included in the error body so clients can correlate errors with server logs.
 func writeServiceError(w http.ResponseWriter, r *http.Request, err error) {
+	// A gentx-invalid failure carries per-invariant detail. Check it before the
+	// ErrBadRequest case below, which it also unwraps to.
+	var gentxErr *ports.GentxInvalidError
+	if errors.As(err, &gentxErr) {
+		inv := make([]invariantResultJSON, 0, len(gentxErr.Results))
+		for _, res := range gentxErr.Results {
+			inv = append(inv, invariantResultJSON{Invariant: res.Invariant, OK: res.OK, Reason: res.Reason})
+		}
+		writeJSON(w, http.StatusBadRequest, errorEnvelope{Error: errorBody{
+			Code:       "gentx_invalid",
+			Message:    gentxErr.Error(),
+			Invariants: inv,
+		}})
+		return
+	}
+
 	switch {
 	case errors.Is(err, ports.ErrNotFound):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())

@@ -8,6 +8,8 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/ny4rl4th0t3p/seedward-libs/gentxvalidate"
+
 	"github.com/ny4rl4th0t3p/chaincoord/internal/application/ports"
 	"github.com/ny4rl4th0t3p/chaincoord/internal/domain/joinrequest"
 	"github.com/ny4rl4th0t3p/chaincoord/internal/domain/launch"
@@ -18,10 +20,11 @@ const maxJoinRequestsPerOperator = 3
 
 // JoinRequestService handles validator join request submission and retrieval.
 type JoinRequestService struct {
-	launches     ports.LaunchRepository
-	joinRequests ports.JoinRequestRepository
-	nonces       ports.NonceStore
-	verifier     ports.SignatureVerifier
+	launches       ports.LaunchRepository
+	joinRequests   ports.JoinRequestRepository
+	nonces         ports.NonceStore
+	verifier       ports.SignatureVerifier
+	gentxValidator ports.GentxValidator
 }
 
 func NewJoinRequestService(
@@ -29,13 +32,51 @@ func NewJoinRequestService(
 	joinRequests ports.JoinRequestRepository,
 	nonces ports.NonceStore,
 	verifier ports.SignatureVerifier,
+	gentxValidator ports.GentxValidator,
 ) *JoinRequestService {
 	return &JoinRequestService{
-		launches:     launches,
-		joinRequests: joinRequests,
-		nonces:       nonces,
-		verifier:     verifier,
+		launches:       launches,
+		joinRequests:   joinRequests,
+		nonces:         nonces,
+		verifier:       verifier,
+		gentxValidator: gentxValidator,
 	}
+}
+
+// requiresSelfDelegationFloor reports whether the launch type enforces the
+// declared minimum self-delegation (mainnet-grade launches do; plain testnets
+// do not). This is the launch-type-conditional gate the domain used to apply.
+func requiresSelfDelegationFloor(lt launch.LaunchType) bool {
+	switch lt {
+	case launch.LaunchTypeMainnet, launch.LaunchTypeIncentivizedTestnet, launch.LaunchTypePermissioned:
+		return true
+	case launch.LaunchTypeTestnet:
+		return false
+	default:
+		return false
+	}
+}
+
+// validateGentx runs the shared invariant set over the gentx using params built
+// from the launch (the self-delegation floor applies only to launch types that
+// declare one) and returns the extracted consensus pubkey. A failing gentx yields
+// a *ports.GentxInvalidError carrying the per-invariant detail.
+func (s *JoinRequestService) validateGentx(l *launch.Launch, gentxJSON json.RawMessage) (string, error) {
+	params := gentxvalidate.Params{
+		ChainID:                 l.Record.ChainID,
+		BondDenom:               l.Record.Denom,
+		Bech32Prefix:            l.Record.Bech32Prefix,
+		MaxCommissionRate:       l.Record.MaxCommissionRate.String(),
+		MaxCommissionChangeRate: l.Record.MaxCommissionChangeRate.String(),
+	}
+	if requiresSelfDelegationFloor(l.LaunchType) {
+		params.MinSelfDelegation = l.Record.MinSelfDelegation
+	}
+	outcome := s.gentxValidator.Validate(gentxJSON, params)
+	if !gentxvalidate.AllOK(outcome.Results) {
+		return "", &ports.GentxInvalidError{Results: outcome.Results}
+	}
+	return outcome.ConsensusPubKeyB64, nil
 }
 
 // SubmitInput is the deserialized join request payload from the validator.
@@ -92,6 +133,13 @@ func (s *JoinRequestService) Submit(ctx context.Context, launchID uuid.UUID, inp
 		return nil, fmt.Errorf("submit join request: %w: %w", err, ports.ErrForbidden)
 	}
 
+	// Submission-window deadline: a launch-state gate, enforced here alongside
+	// the WINDOW_OPEN check above (not in the JoinRequest constructor).
+	if time.Now().After(l.Record.GentxDeadline) {
+		return nil, fmt.Errorf("submit join request: gentx submission deadline has passed (%s): %w",
+			l.Record.GentxDeadline.Format(time.RFC3339), ports.ErrBadRequest)
+	}
+
 	// Rate limit: max 3 submissions per operator per launch.
 	count, err := s.joinRequests.CountByOperator(ctx, launchID, input.OperatorAddress)
 	if err != nil {
@@ -99,6 +147,13 @@ func (s *JoinRequestService) Submit(ctx context.Context, launchID uuid.UUID, inp
 	}
 	if count >= maxJoinRequestsPerOperator {
 		return nil, fmt.Errorf("submit join request: maximum %d submissions per validator per window", maxJoinRequestsPerOperator)
+	}
+
+	// Pre-acceptance gentx validation (shared invariant set, authoritative
+	// server-side). Returns the extracted consensus pubkey or a per-invariant error.
+	consensusPubKey, err := s.validateGentx(l, input.GentxJSON)
+	if err != nil {
+		return nil, err
 	}
 
 	peerAddr, err := launch.NewPeerAddress(input.PeerAddress)
@@ -116,7 +171,7 @@ func (s *JoinRequestService) Submit(ctx context.Context, launchID uuid.UUID, inp
 		return nil, fmt.Errorf("submit join request: signature value: %w: %w", err, ports.ErrBadRequest)
 	}
 
-	jr, err := joinrequest.New(
+	jr := joinrequest.New(
 		uuid.New(),
 		launchID,
 		operatorAddr,
@@ -125,17 +180,13 @@ func (s *JoinRequestService) Submit(ctx context.Context, launchID uuid.UUID, inp
 		rpcEndpoint,
 		input.Memo,
 		sig,
-		l.Record,
-		l.LaunchType,
+		consensusPubKey,
 		time.Now(),
 	)
-	if err != nil {
-		return nil, fmt.Errorf("submit join request: validation: %w: %w", err, ports.ErrBadRequest)
-	}
 
-	// Reject duplicate consensus pubkey for the same launch.
-	// Done after New, so the pubkey is extracted and validated before the DB check.
-	// The DB also enforces this via a UNIQUE index as a safety net.
+	// Reject duplicate consensus pubkey for the same launch. The pubkey was
+	// extracted by the validator above; the DB also enforces this via a UNIQUE
+	// index as the raceless safety net.
 	cpCount, err := s.joinRequests.CountByConsensusPubKey(ctx, launchID, jr.ConsensusPubKey)
 	if err != nil {
 		return nil, fmt.Errorf("submit join request: consensus pubkey check: %w", err)

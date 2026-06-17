@@ -124,19 +124,15 @@ func testJoinRequest(t *testing.T, launchID uuid.UUID) *joinrequest.JoinRequest 
 		"signatures": []any{},
 	})
 
-	jr, err := joinrequest.New(
+	jr := joinrequest.New(
 		uuid.New(), launchID,
 		mustAddr(addr1),
 		gentxBytes,
 		peer, rpc, "",
 		mustSig(),
-		testChainRecord(),
-		launch.LaunchTypeTestnet,
+		uniquePubKey,
 		time.Now().UTC(),
 	)
-	if err != nil {
-		t.Fatalf("testJoinRequest: %v", err)
-	}
 	return jr
 }
 

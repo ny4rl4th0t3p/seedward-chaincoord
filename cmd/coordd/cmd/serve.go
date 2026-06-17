@@ -26,6 +26,7 @@ import (
 	"github.com/ny4rl4th0t3p/chaincoord/internal/infrastructure/auditlog"
 	"github.com/ny4rl4th0t3p/chaincoord/internal/infrastructure/auth"
 	appCrypto "github.com/ny4rl4th0t3p/chaincoord/internal/infrastructure/crypto"
+	"github.com/ny4rl4th0t3p/chaincoord/internal/infrastructure/gentxvalidation"
 	"github.com/ny4rl4th0t3p/chaincoord/internal/infrastructure/jobs"
 	"github.com/ny4rl4th0t3p/chaincoord/internal/infrastructure/sse"
 	"github.com/ny4rl4th0t3p/chaincoord/internal/infrastructure/storage/fs"
@@ -235,7 +236,7 @@ func runServe(cmd *cobra.Command, _ []string) error {
 	if cfg.InsecureNoSSRFCheck {
 		launchSvc = launchSvc.WithURLValidator(netutil.ValidateRPCURLFormat)
 	}
-	joinReqSvc := services.NewJoinRequestService(launchRepo, joinReqRepo, nonceStore, verifier)
+	joinReqSvc := services.NewJoinRequestService(launchRepo, joinReqRepo, nonceStore, verifier, gentxvalidation.New())
 	proposalSvc := services.NewProposalService(
 		launchRepo, joinReqRepo, proposalRepo, readinessRepo,
 		nonceStore, verifier, sseBroker, auditLog, tx,

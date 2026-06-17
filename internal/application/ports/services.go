@@ -3,7 +3,10 @@ package ports
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"time"
+
+	"github.com/ny4rl4th0t3p/seedward-libs/gentxvalidate"
 
 	"github.com/ny4rl4th0t3p/chaincoord/internal/domain"
 )
@@ -109,6 +112,42 @@ type NonceStore interface {
 	// Consume records a nonce as used. Returns ErrConflict if the nonce was already seen.
 	Consume(ctx context.Context, operatorAddr, nonce string) error
 }
+
+// GentxValidationOutcome is the result of running the gentx invariant set over a
+// single gentx. ConsensusPubKeyB64 is populated only when every result passed.
+type GentxValidationOutcome struct {
+	Results            []gentxvalidate.Result
+	ConsensusPubKeyB64 string
+}
+
+// GentxValidator runs the shared gentxvalidate server invariant set over a gentx.
+// Implemented by an infrastructure adapter wrapping the library (DEC-16), so the
+// pure domain stays free of the validation/SDK weight and there is one
+// authoritative implementation shared by coordd, the CLI, and the WASM validator.
+type GentxValidator interface {
+	Validate(gentxJSON []byte, p gentxvalidate.Params) GentxValidationOutcome
+}
+
+// GentxInvalidError reports that a gentx failed one or more invariants. It is a
+// bad request; the HTTP layer renders the per-invariant results so the submitter
+// sees exactly which invariant failed and why.
+type GentxInvalidError struct {
+	Results []gentxvalidate.Result
+}
+
+func (e *GentxInvalidError) Error() string {
+	var failed []string
+	for _, r := range e.Results {
+		if !r.OK {
+			failed = append(failed, r.Invariant)
+		}
+	}
+	return "gentx validation failed: " + strings.Join(failed, ", ")
+}
+
+// Unwrap lets callers treat a gentx-invalid failure as a bad request via
+// errors.Is(err, ErrBadRequest) while errors.As recovers the per-invariant detail.
+func (*GentxInvalidError) Unwrap() error { return ErrBadRequest }
 
 // SignatureVerifier verifies signatures against public keys.
 type SignatureVerifier interface {

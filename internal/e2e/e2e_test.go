@@ -32,6 +32,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"github.com/ny4rl4th0t3p/chaincoord/internal/application/ports"
 	"github.com/ny4rl4th0t3p/chaincoord/internal/application/services"
 	"github.com/ny4rl4th0t3p/chaincoord/internal/domain"
 	"github.com/ny4rl4th0t3p/chaincoord/internal/domain/proposal"
@@ -45,6 +46,7 @@ import (
 	"github.com/ny4rl4th0t3p/chaincoord/internal/infrastructure/storage/sqlite"
 	"github.com/ny4rl4th0t3p/chaincoord/internal/netutil"
 	"github.com/ny4rl4th0t3p/chaincoord/pkg/canonicaljson"
+	"github.com/ny4rl4th0t3p/seedward-libs/gentxvalidate"
 )
 
 // actor holds a secp256k1 keypair and the bech32 address derived from the pubkey.
@@ -112,6 +114,30 @@ func makeValidatorGentx(a actor, moniker string) json.RawMessage {
 		"signatures": []any{},
 	})
 	return b
+}
+
+// e2eGentxValidator is an all-passing ports.GentxValidator for the e2e flow,
+// whose gentxs carry no real signature. It echoes the embedded consensus pubkey
+// so the per-launch uniqueness check still distinguishes validators.
+type e2eGentxValidator struct{}
+
+func (e2eGentxValidator) Validate(gentxJSON []byte, _ gentxvalidate.Params) ports.GentxValidationOutcome {
+	out := ports.GentxValidationOutcome{
+		Results: []gentxvalidate.Result{{Invariant: gentxvalidate.InvWellFormed, OK: true}},
+	}
+	var doc struct {
+		Body struct {
+			Messages []struct {
+				PubKey struct {
+					Key string `json:"key"`
+				} `json:"pubkey"`
+			} `json:"messages"`
+		} `json:"body"`
+	}
+	if err := json.Unmarshal(gentxJSON, &doc); err == nil && len(doc.Body.Messages) > 0 {
+		out.ConsensusPubKeyB64 = doc.Body.Messages[0].PubKey.Key
+	}
+	return out
 }
 
 // sign returns the base64-encoded secp256k1 ECDSA compact signature (r‖s, 64 bytes)
@@ -318,7 +344,7 @@ func buildTestServer(t *testing.T, admins []string) *testServer {
 	authSvc := services.NewAuthService(challengeStore, sessionStore, nonceStore, verifier)
 	launchSvc := services.NewLaunchService(launchRepo, joinReqRepo, readinessRepo, genesisStore, sseBroker, al).
 		WithURLValidator(netutil.ValidateRPCURLFormat)
-	joinReqSvc := services.NewJoinRequestService(launchRepo, joinReqRepo, nonceStore, verifier)
+	joinReqSvc := services.NewJoinRequestService(launchRepo, joinReqRepo, nonceStore, verifier, e2eGentxValidator{})
 	proposalSvc := services.NewProposalService(
 		launchRepo, joinReqRepo, proposalRepo, readinessRepo,
 		nonceStore, verifier, sseBroker, al, tx,
@@ -587,8 +613,10 @@ func TestE2E_HappyPath(t *testing.T) {
 		}
 	}
 	finalGenesisData := map[string]any{
-		"chain_id":     "testchain-1",
-		"genesis_time": "2026-06-01T00:00:00Z",
+		"chain_id": "testchain-1",
+		// Must be in the future (validateFinalGenesis enforces this); compute it
+		// relative to now rather than hardcoding a date that goes stale.
+		"genesis_time": time.Now().Add(30 * 24 * time.Hour).UTC().Format(time.RFC3339),
 		"app_state": map[string]any{
 			"genutil": map[string]any{
 				"gen_txs": []any{

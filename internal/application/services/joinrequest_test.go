@@ -9,13 +9,34 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/ny4rl4th0t3p/seedward-libs/gentxvalidate"
+
 	"github.com/ny4rl4th0t3p/chaincoord/internal/application/ports"
 	"github.com/ny4rl4th0t3p/chaincoord/internal/domain/joinrequest"
 	"github.com/ny4rl4th0t3p/chaincoord/internal/domain/launch"
 )
 
 func newJoinReqSvc(launchRepo *fakeLaunchRepo, jrRepo *fakeJoinRequestRepo) *JoinRequestService {
-	return NewJoinRequestService(launchRepo, jrRepo, newFakeNonceStore(), &fakeVerifier{})
+	return NewJoinRequestService(launchRepo, jrRepo, newFakeNonceStore(), &fakeVerifier{}, &fakeGentxValidator{})
+}
+
+// fakeGentxValidator is a stub ports.GentxValidator. By default it reports a
+// fully passing gentx carrying the osmosis consensus pubkey; set failResults to
+// simulate invariant failures. It records the last params it received.
+type fakeGentxValidator struct {
+	failResults []gentxvalidate.Result
+	gotParams   gentxvalidate.Params
+}
+
+func (f *fakeGentxValidator) Validate(_ []byte, p gentxvalidate.Params) ports.GentxValidationOutcome {
+	f.gotParams = p
+	if f.failResults != nil {
+		return ports.GentxValidationOutcome{Results: f.failResults}
+	}
+	return ports.GentxValidationOutcome{
+		Results:            []gentxvalidate.Result{{Invariant: gentxvalidate.InvWellFormed, OK: true}},
+		ConsensusPubKeyB64: osmosisPubKey,
+	}
 }
 
 // osmosisPubKey is the real Ed25519 consensus key from the Bi23Labs Osmosis gentx (32 bytes).
@@ -61,7 +82,7 @@ func TestJoinRequestService_Submit_NonceConflict(t *testing.T) {
 	l.Status = launch.StatusWindowOpen
 	nonces := newFakeNonceStore()
 	nonces.consumeErr = ports.ErrConflict
-	svc := NewJoinRequestService(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), nonces, &fakeVerifier{})
+	svc := NewJoinRequestService(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), nonces, &fakeVerifier{}, &fakeGentxValidator{})
 
 	input := validSubmitInput(l)
 	_, err := svc.Submit(context.Background(), l.ID, input)
@@ -87,7 +108,7 @@ func TestJoinRequestService_Submit_SigFails(t *testing.T) {
 	l := testLaunch()
 	l.Status = launch.StatusWindowOpen
 	verifier := &fakeVerifier{err: ports.ErrUnauthorized}
-	svc := NewJoinRequestService(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeNonceStore(), verifier)
+	svc := NewJoinRequestService(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeNonceStore(), verifier, &fakeGentxValidator{})
 
 	_, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
 	if err == nil {
@@ -146,6 +167,73 @@ func TestJoinRequestService_Submit_Success(t *testing.T) {
 	}
 	if _, ok := jrRepo.data[jr.ID]; !ok {
 		t.Fatal("join request not persisted")
+	}
+}
+
+func TestJoinRequestService_Submit_GentxInvalid(t *testing.T) {
+	l := testLaunch()
+	l.Status = launch.StatusWindowOpen
+	validator := &fakeGentxValidator{failResults: []gentxvalidate.Result{
+		{Invariant: gentxvalidate.InvBondDenom, OK: false, Reason: "denom mismatch"},
+	}}
+	svc := NewJoinRequestService(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeNonceStore(), &fakeVerifier{}, validator)
+
+	_, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
+	var gErr *ports.GentxInvalidError
+	if !errors.As(err, &gErr) {
+		t.Fatalf("want *ports.GentxInvalidError, got %v", err)
+	}
+	if !errors.Is(err, ports.ErrBadRequest) {
+		t.Error("GentxInvalidError should unwrap to ErrBadRequest")
+	}
+}
+
+func TestJoinRequestService_Submit_BuildsParamsFromLaunch(t *testing.T) {
+	// Mainnet carries the self-delegation floor from the record.
+	lm := testLaunch()
+	lm.Status = launch.StatusWindowOpen
+	lm.LaunchType = launch.LaunchTypeMainnet
+	vm := &fakeGentxValidator{}
+	svcM := NewJoinRequestService(newFakeLaunchRepo(lm), newFakeJoinRequestRepo(), newFakeNonceStore(), &fakeVerifier{}, vm)
+	if _, err := svcM.Submit(context.Background(), lm.ID, validSubmitInput(lm)); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if vm.gotParams.ChainID != lm.Record.ChainID ||
+		vm.gotParams.BondDenom != lm.Record.Denom ||
+		vm.gotParams.Bech32Prefix != lm.Record.Bech32Prefix {
+		t.Errorf("params not mapped from record: %+v", vm.gotParams)
+	}
+	if vm.gotParams.MinSelfDelegation != lm.Record.MinSelfDelegation {
+		t.Errorf("mainnet must carry the self-delegation floor, got %q want %q",
+			vm.gotParams.MinSelfDelegation, lm.Record.MinSelfDelegation)
+	}
+
+	// Testnet does not carry the floor.
+	lt := testLaunch()
+	lt.Status = launch.StatusWindowOpen
+	lt.LaunchType = launch.LaunchTypeTestnet
+	vt := &fakeGentxValidator{}
+	svcT := NewJoinRequestService(newFakeLaunchRepo(lt), newFakeJoinRequestRepo(), newFakeNonceStore(), &fakeVerifier{}, vt)
+	if _, err := svcT.Submit(context.Background(), lt.ID, validSubmitInput(lt)); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if vt.gotParams.MinSelfDelegation != "" {
+		t.Errorf("testnet must not carry a self-delegation floor, got %q", vt.gotParams.MinSelfDelegation)
+	}
+}
+
+func TestJoinRequestService_Submit_DeadlinePassed(t *testing.T) {
+	l := testLaunch()
+	l.Status = launch.StatusWindowOpen
+	l.Record.GentxDeadline = time.Now().Add(-1 * time.Hour)
+	svc := newJoinReqSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo())
+
+	_, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
+	if err == nil {
+		t.Fatal("expected error: gentx submission deadline passed")
+	}
+	if !errors.Is(err, ports.ErrBadRequest) {
+		t.Errorf("deadline-passed should be a bad request, got %v", err)
 	}
 }
 
@@ -244,17 +332,14 @@ func makeJoinRequest(t *testing.T, launchID uuid.UUID, addr string) *joinrequest
 	peer, _ := launch.NewPeerAddress("abcdef1234567890abcdef1234567890abcdef12@192.168.1.1:26656")
 	rpc, _ := launch.NewRPCEndpoint("https://192.168.1.1:26657")
 
-	jr, err := joinrequest.New(
+	jr := joinrequest.New(
 		uuid.New(), launchID,
 		mustAddr(addr),
 		gentx,
 		peer, rpc, "test-memo",
 		mustSig(),
-		rec, launch.LaunchTypeTestnet,
+		osmosisPubKey,
 		time.Now().UTC(),
 	)
-	if err != nil {
-		t.Fatalf("makeJoinRequest: %v", err)
-	}
 	return jr
 }
