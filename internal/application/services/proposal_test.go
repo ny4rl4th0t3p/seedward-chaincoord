@@ -451,6 +451,22 @@ func TestProposalService_applyRemoveValidator_Success(t *testing.T) {
 	}
 }
 
+func TestProposalService_applyRemoveValidator_WrongStatus(t *testing.T) {
+	// REMOVE_APPROVED_VALIDATOR is only allowed in WINDOW_OPEN or WINDOW_CLOSED.
+	l := test1of1Launch()
+	l.Status = launch.StatusGenesisReady
+	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
+
+	_, err := raiseWith(t, svc, l.ID, proposal.ActionRemoveApprovedValidator, proposal.RemoveApprovedValidatorPayload{
+		JoinRequestID:   uuid.New(),
+		OperatorAddress: testAddr2,
+		Reason:          "should be blocked",
+	})
+	if err == nil {
+		t.Fatal("expected error: REMOVE_APPROVED_VALIDATOR not allowed at GENESIS_READY")
+	}
+}
+
 func TestProposalService_applyPublishGenesis_Success(t *testing.T) {
 	l := test1of1Launch()
 	l.Status = launch.StatusWindowClosed
@@ -557,6 +573,20 @@ func TestProposalService_applyUpdateGenesisTime_InvalidatesReadiness(t *testing.
 	}
 	if readinessRepo.data[rc.ID].IsValid() {
 		t.Error("readiness confirmation should have been invalidated")
+	}
+}
+
+func TestProposalService_applyUpdateGenesisTime_AfterLaunched(t *testing.T) {
+	// UPDATE_GENESIS_TIME is blocked once the chain has LAUNCHED.
+	l := test1of1Launch()
+	l.Status = launch.StatusLaunched
+	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
+
+	_, err := raiseWith(t, svc, l.ID, proposal.ActionUpdateGenesisTime, proposal.UpdateGenesisTimePayload{
+		NewGenesisTime: time.Now().Add(48 * time.Hour).UTC(),
+	})
+	if err == nil {
+		t.Fatal("expected error: UPDATE_GENESIS_TIME not allowed at LAUNCHED")
 	}
 }
 

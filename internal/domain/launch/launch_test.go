@@ -802,6 +802,21 @@ func TestLaunch_ModifyGenesisAccount_NotFound(t *testing.T) {
 	}
 }
 
+func TestLaunch_GenesisAccountsLockedAfterPublish(t *testing.T) {
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
+	l.Status = launch.StatusGenesisReady // genesis published — account set is frozen
+
+	if err := l.AddGenesisAccount(launch.GenesisAccount{Address: testAddr2, Amount: "1000utest"}); err == nil {
+		t.Error("AddGenesisAccount: expected error once genesis is published")
+	}
+	if err := l.RemoveGenesisAccount(testAddr2); err == nil {
+		t.Error("RemoveGenesisAccount: expected error once genesis is published")
+	}
+	if err := l.ModifyGenesisAccount(testAddr2, "2000utest", nil); err == nil {
+		t.Error("ModifyGenesisAccount: expected error once genesis is published")
+	}
+}
+
 // ---- Cancel -----------------------------------------------------------------
 
 func TestCancel_FromAllNonTerminalStatuses(t *testing.T) {

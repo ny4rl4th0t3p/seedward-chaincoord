@@ -363,6 +363,9 @@ func (s *ProposalService) applyRejectValidator(ctx context.Context, p *proposal.
 }
 
 func (s *ProposalService) applyRemoveValidator(ctx context.Context, l *launch.Launch, p *proposal.Proposal) error {
+	if l.Status != launch.StatusWindowOpen && l.Status != launch.StatusWindowClosed {
+		return fmt.Errorf("apply remove validator: only allowed in WINDOW_OPEN or WINDOW_CLOSED, current: %s: %w", l.Status, ports.ErrBadRequest)
+	}
 	var pl proposal.RemoveApprovedValidatorPayload
 	if err := json.Unmarshal(p.Payload, &pl); err != nil {
 		return fmt.Errorf("apply remove validator: payload: %w", err)
@@ -443,6 +446,9 @@ func (s *ProposalService) applyPublishGenesis(ctx context.Context, l *launch.Lau
 }
 
 func (s *ProposalService) applyUpdateGenesisTime(ctx context.Context, l *launch.Launch, p *proposal.Proposal) error {
+	if l.Status == launch.StatusLaunched || l.Status == launch.StatusCancelled {
+		return fmt.Errorf("apply update genesis time: not allowed in %s status: %w", l.Status, ports.ErrBadRequest)
+	}
 	var pl proposal.UpdateGenesisTimePayload
 	if err := json.Unmarshal(p.Payload, &pl); err != nil {
 		return fmt.Errorf("apply update genesis time: payload: %w", err)

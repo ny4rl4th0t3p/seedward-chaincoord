@@ -361,9 +361,20 @@ func (l *Launch) ShrinkCommittee(removeAddr OperatorAddress, newThresholdM int) 
 	return nil
 }
 
+// genesisAccountsLocked reports whether the genesis-account set is frozen: once
+// the genesis is published (GENESIS_READY) or the launch is terminal, account
+// changes can no longer affect the published genesis, so they are rejected.
+func (l *Launch) genesisAccountsLocked() bool {
+	return l.Status == StatusGenesisReady || l.Status == StatusLaunched || l.Status == StatusCancelled
+}
+
 // AddGenesisAccount appends a new pre-funded account to the launch.
-// Returns an error if an account with the same address already exists.
+// Returns an error if an account with the same address already exists, or if the
+// genesis-account set is locked (genesis already published).
 func (l *Launch) AddGenesisAccount(account GenesisAccount) error {
+	if l.genesisAccountsLocked() {
+		return fmt.Errorf("launch: genesis accounts cannot be changed in %s status", l.Status)
+	}
 	for _, a := range l.GenesisAccounts {
 		if a.Address == account.Address {
 			return fmt.Errorf("launch: genesis account %s already exists", account.Address)
@@ -375,8 +386,12 @@ func (l *Launch) AddGenesisAccount(account GenesisAccount) error {
 }
 
 // RemoveGenesisAccount removes the account with the given address.
-// Returns an error if no such account exists.
+// Returns an error if no such account exists, or if the genesis-account set is
+// locked (genesis already published).
 func (l *Launch) RemoveGenesisAccount(address string) error {
+	if l.genesisAccountsLocked() {
+		return fmt.Errorf("launch: genesis accounts cannot be changed in %s status", l.Status)
+	}
 	for i, a := range l.GenesisAccounts {
 		if a.Address == address {
 			l.GenesisAccounts = append(l.GenesisAccounts[:i], l.GenesisAccounts[i+1:]...)
@@ -388,8 +403,12 @@ func (l *Launch) RemoveGenesisAccount(address string) error {
 }
 
 // ModifyGenesisAccount updates the amount and vesting schedule of an existing account.
-// Returns an error if no such account exists.
+// Returns an error if no such account exists, or if the genesis-account set is
+// locked (genesis already published).
 func (l *Launch) ModifyGenesisAccount(address, amount string, vesting *string) error {
+	if l.genesisAccountsLocked() {
+		return fmt.Errorf("launch: genesis accounts cannot be changed in %s status", l.Status)
+	}
 	for i, a := range l.GenesisAccounts {
 		if a.Address == address {
 			l.GenesisAccounts[i].Amount = amount
