@@ -91,10 +91,19 @@ func (s *LaunchService) CreateLaunch(ctx context.Context, input CreateLaunchInpu
 // SHA256, and transitions the launch to PUBLISHED once committee quorum is reached.
 // For now this method stores the genesis and records the hash; the PUBLISH transition
 // is triggered by the ProposalService when the PUBLISH_GENESIS proposal executes.
-func (s *LaunchService) UploadInitialGenesis(ctx context.Context, launchID uuid.UUID, genesisData []byte) (sha256Hash string, err error) {
+func (s *LaunchService) UploadInitialGenesis(
+	ctx context.Context,
+	launchID uuid.UUID,
+	genesisData []byte,
+	callerAddr string,
+) (sha256Hash string, err error) {
 	l, err := s.launches.FindByID(ctx, launchID)
 	if err != nil {
 		return "", fmt.Errorf("upload genesis: %w", err)
+	}
+	callerOp, err := launch.NewOperatorAddress(callerAddr)
+	if err != nil || !l.Committee.HasMember(callerOp) {
+		return "", fmt.Errorf("upload genesis: caller is not a committee member: %w", ports.ErrForbidden)
 	}
 	if l.Status != launch.StatusDraft {
 		return "", fmt.Errorf("upload genesis: launch must be in DRAFT status, current: %s", l.Status)
@@ -121,10 +130,19 @@ func (s *LaunchService) UploadInitialGenesis(ctx context.Context, launchID uuid.
 // UploadFinalGenesis stores the coordinator-assembled final genesis file and
 // validates its structure. The PUBLISH_GENESIS proposal is raised separately by
 // the coordinator; this endpoint just accepts and validates the file.
-func (s *LaunchService) UploadFinalGenesis(ctx context.Context, launchID uuid.UUID, genesisData []byte) (sha256Hash string, err error) {
+func (s *LaunchService) UploadFinalGenesis(
+	ctx context.Context,
+	launchID uuid.UUID,
+	genesisData []byte,
+	callerAddr string,
+) (sha256Hash string, err error) {
 	l, err := s.launches.FindByID(ctx, launchID)
 	if err != nil {
 		return "", fmt.Errorf("upload final genesis: %w", err)
+	}
+	callerOp, err := launch.NewOperatorAddress(callerAddr)
+	if err != nil || !l.Committee.HasMember(callerOp) {
+		return "", fmt.Errorf("upload final genesis: caller is not a committee member: %w", ports.ErrForbidden)
 	}
 	if l.Status != launch.StatusWindowClosed {
 		return "", fmt.Errorf("upload final genesis: launch must be in WINDOW_CLOSED status, current: %s", l.Status)
@@ -168,8 +186,8 @@ func (s *LaunchService) UploadFinalGenesis(ctx context.Context, launchID uuid.UU
 //
 // Structural validation (chain_id, JSON format) is skipped because the file
 // bytes are not available; the hash is the integrity guarantee.
-func (s *LaunchService) UploadInitialGenesisRef(ctx context.Context, launchID uuid.UUID, genesisURL, sha256Hash string) error {
-	if err := s.uploadGenesisRef(ctx, "upload initial genesis ref", launch.StatusDraft, launchID, genesisURL, sha256Hash,
+func (s *LaunchService) UploadInitialGenesisRef(ctx context.Context, launchID uuid.UUID, genesisURL, sha256Hash, callerAddr string) error {
+	if err := s.uploadGenesisRef(ctx, "upload initial genesis ref", launch.StatusDraft, launchID, genesisURL, sha256Hash, callerAddr,
 		s.genesis.SaveInitialRef,
 		func(l *launch.Launch, hash string) { l.InitialGenesisSHA256 = hash },
 	); err != nil {
@@ -187,7 +205,7 @@ func (s *LaunchService) UploadInitialGenesisRef(ctx context.Context, launchID uu
 // genesisTime must be in the future — the same constraint applied in host mode.
 // The time is synced into the launch record so the dashboard countdown is accurate.
 func (s *LaunchService) UploadFinalGenesisRef(
-	ctx context.Context, launchID uuid.UUID, genesisURL, sha256Hash string, genesisTime time.Time,
+	ctx context.Context, launchID uuid.UUID, genesisURL, sha256Hash string, genesisTime time.Time, callerAddr string,
 ) error {
 	if genesisTime.IsZero() {
 		return fmt.Errorf("upload final genesis ref: genesis_time is required: %w", ports.ErrBadRequest)
@@ -196,7 +214,7 @@ func (s *LaunchService) UploadFinalGenesisRef(
 		return fmt.Errorf("upload final genesis ref: genesis_time %s is not in the future: %w",
 			genesisTime.Format(time.RFC3339), ports.ErrBadRequest)
 	}
-	if err := s.uploadGenesisRef(ctx, "upload final genesis ref", launch.StatusWindowClosed, launchID, genesisURL, sha256Hash,
+	if err := s.uploadGenesisRef(ctx, "upload final genesis ref", launch.StatusWindowClosed, launchID, genesisURL, sha256Hash, callerAddr,
 		s.genesis.SaveFinalRef,
 		func(l *launch.Launch, hash string) {
 			l.FinalGenesisSHA256 = hash
@@ -214,13 +232,17 @@ func (s *LaunchService) uploadGenesisRef(
 	op string,
 	requiredStatus launch.Status,
 	launchID uuid.UUID,
-	genesisURL, sha256Hash string,
+	genesisURL, sha256Hash, callerAddr string,
 	saveFn func(ctx context.Context, id, url, hash string) error,
 	setHashFn func(l *launch.Launch, hash string),
 ) error {
 	l, err := s.launches.FindByID(ctx, launchID)
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
+	}
+	callerOp, err := launch.NewOperatorAddress(callerAddr)
+	if err != nil || !l.Committee.HasMember(callerOp) {
+		return fmt.Errorf("%s: caller is not a committee member: %w", op, ports.ErrForbidden)
 	}
 	if l.Status != requiredStatus {
 		return fmt.Errorf("%s: launch must be in %s status, current: %s", op, requiredStatus, l.Status)

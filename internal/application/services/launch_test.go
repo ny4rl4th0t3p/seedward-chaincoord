@@ -68,7 +68,7 @@ func validFinalGenesisJSON(chainID string) []byte {
 
 func TestLaunchService_UploadInitialGenesis_LaunchNotFound(t *testing.T) {
 	svc := newLaunchSvc(newFakeLaunchRepo(), newFakeGenesisStore())
-	_, err := svc.UploadInitialGenesis(context.Background(), uuid.New(), validGenesisJSON("testchain-1"))
+	_, err := svc.UploadInitialGenesis(context.Background(), uuid.New(), validGenesisJSON("testchain-1"), testAddr1)
 	if !errors.Is(err, ports.ErrNotFound) {
 		t.Fatalf("want ErrNotFound, got %v", err)
 	}
@@ -80,7 +80,7 @@ func TestLaunchService_UploadInitialGenesis_WrongStatus(t *testing.T) {
 	repo := newFakeLaunchRepo(l)
 	svc := newLaunchSvc(repo, newFakeGenesisStore())
 
-	_, err := svc.UploadInitialGenesis(context.Background(), l.ID, validGenesisJSON(l.Record.ChainID))
+	_, err := svc.UploadInitialGenesis(context.Background(), l.ID, validGenesisJSON(l.Record.ChainID), testAddr1)
 	if err == nil {
 		t.Fatal("expected error for non-DRAFT launch")
 	}
@@ -91,7 +91,7 @@ func TestLaunchService_UploadInitialGenesis_InvalidJSON(t *testing.T) {
 	repo := newFakeLaunchRepo(l)
 	svc := newLaunchSvc(repo, newFakeGenesisStore())
 
-	_, err := svc.UploadInitialGenesis(context.Background(), l.ID, []byte("not-json"))
+	_, err := svc.UploadInitialGenesis(context.Background(), l.ID, []byte("not-json"), testAddr1)
 	if err == nil {
 		t.Fatal("expected error for invalid JSON genesis")
 	}
@@ -102,7 +102,7 @@ func TestLaunchService_UploadInitialGenesis_ChainIDMismatch(t *testing.T) {
 	repo := newFakeLaunchRepo(l)
 	svc := newLaunchSvc(repo, newFakeGenesisStore())
 
-	_, err := svc.UploadInitialGenesis(context.Background(), l.ID, validGenesisJSON("wrong-chain-id"))
+	_, err := svc.UploadInitialGenesis(context.Background(), l.ID, validGenesisJSON("wrong-chain-id"), testAddr1)
 	if err == nil {
 		t.Fatal("expected error for chain_id mismatch")
 	}
@@ -114,7 +114,7 @@ func TestLaunchService_UploadInitialGenesis_Success(t *testing.T) {
 	genesis := newFakeGenesisStore()
 	svc := newLaunchSvc(repo, genesis)
 
-	hash, err := svc.UploadInitialGenesis(context.Background(), l.ID, validGenesisJSON(l.Record.ChainID))
+	hash, err := svc.UploadInitialGenesis(context.Background(), l.ID, validGenesisJSON(l.Record.ChainID), testAddr1)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -130,6 +130,18 @@ func TestLaunchService_UploadInitialGenesis_Success(t *testing.T) {
 	}
 }
 
+func TestLaunchService_UploadInitialGenesis_NonCommitteeMember(t *testing.T) {
+	l := test1of1Launch() // DRAFT; committee = {testAddr1}
+	repo := newFakeLaunchRepo(l)
+	svc := newLaunchSvc(repo, newFakeGenesisStore())
+
+	// testAddr2 is a valid address but not a member of this launch's committee.
+	_, err := svc.UploadInitialGenesis(context.Background(), l.ID, validGenesisJSON(l.Record.ChainID), testAddr2)
+	if !errors.Is(err, ports.ErrForbidden) {
+		t.Fatalf("want ErrForbidden for non-committee caller, got %v", err)
+	}
+}
+
 // --- UploadFinalGenesis ---
 
 func TestLaunchService_UploadFinalGenesis_WrongStatus(t *testing.T) {
@@ -137,7 +149,7 @@ func TestLaunchService_UploadFinalGenesis_WrongStatus(t *testing.T) {
 	repo := newFakeLaunchRepo(l)
 	svc := newLaunchSvc(repo, newFakeGenesisStore())
 
-	_, err := svc.UploadFinalGenesis(context.Background(), l.ID, validGenesisJSON(l.Record.ChainID))
+	_, err := svc.UploadFinalGenesis(context.Background(), l.ID, validGenesisJSON(l.Record.ChainID), testAddr1)
 	if err == nil {
 		t.Fatal("expected error for DRAFT launch (need WINDOW_CLOSED)")
 	}
@@ -150,7 +162,7 @@ func TestLaunchService_UploadFinalGenesis_Success(t *testing.T) {
 	genesis := newFakeGenesisStore()
 	svc := newLaunchSvc(repo, genesis)
 
-	hash, err := svc.UploadFinalGenesis(context.Background(), l.ID, validFinalGenesisJSON(l.Record.ChainID))
+	hash, err := svc.UploadFinalGenesis(context.Background(), l.ID, validFinalGenesisJSON(l.Record.ChainID), testAddr1)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -185,7 +197,7 @@ func TestLaunchService_UploadFinalGenesis_GenesisTimeZero(t *testing.T) {
 	svc := newLaunchSvc(newFakeLaunchRepo(l), newFakeGenesisStore())
 
 	noTime := []byte(`{"chain_id":"` + l.Record.ChainID + `","genesis_time":"0001-01-01T00:00:00Z","app_state":{"genutil":{"gen_txs":[]}}}`)
-	_, err := svc.UploadFinalGenesis(context.Background(), l.ID, noTime)
+	_, err := svc.UploadFinalGenesis(context.Background(), l.ID, noTime, testAddr1)
 	if err == nil {
 		t.Fatal("expected error for zero genesis_time")
 	}
@@ -197,7 +209,7 @@ func TestLaunchService_UploadFinalGenesis_GenesisTimePast(t *testing.T) {
 	svc := newLaunchSvc(newFakeLaunchRepo(l), newFakeGenesisStore())
 
 	past := []byte(`{"chain_id":"` + l.Record.ChainID + `","genesis_time":"2000-01-01T00:00:00Z","app_state":{"genutil":{"gen_txs":[]}}}`)
-	_, err := svc.UploadFinalGenesis(context.Background(), l.ID, past)
+	_, err := svc.UploadFinalGenesis(context.Background(), l.ID, past, testAddr1)
 	if err == nil {
 		t.Fatal("expected error for past genesis_time")
 	}
@@ -213,7 +225,7 @@ func TestLaunchService_UploadFinalGenesis_MissingApprovedValidator(t *testing.T)
 
 	// No gen_txs but one approved validator → mismatch
 	noGenTx := []byte(`{"chain_id":"` + l.Record.ChainID + `","genesis_time":"2030-01-01T00:00:00Z","app_state":{"genutil":{"gen_txs":[]}}}`)
-	_, err := svc.UploadFinalGenesis(context.Background(), l.ID, noGenTx)
+	_, err := svc.UploadFinalGenesis(context.Background(), l.ID, noGenTx, testAddr1)
 	if err == nil {
 		t.Fatal("expected error: approved validator missing from gen_txs")
 	}
@@ -226,7 +238,7 @@ func TestLaunchService_UploadFinalGenesis_UnapprovedGentx(t *testing.T) {
 	svc := newLaunchSvc(newFakeLaunchRepo(l), newFakeGenesisStore())
 
 	withExtra := []byte(`{"chain_id":"` + l.Record.ChainID + `","genesis_time":"2030-01-01T00:00:00Z","app_state":{"genutil":{"gen_txs":[{"body":{"messages":[{"pubkey":{"key":"AAEC"}}]}}]}}}`)
-	_, err := svc.UploadFinalGenesis(context.Background(), l.ID, withExtra)
+	_, err := svc.UploadFinalGenesis(context.Background(), l.ID, withExtra, testAddr1)
 	if err == nil {
 		t.Fatal("expected error: unapproved gentx in genesis")
 	}
@@ -242,7 +254,7 @@ func TestLaunchService_UploadFinalGenesis_ValidWithApprovedValidator(t *testing.
 	svc := newLaunchSvcWithJR(newFakeLaunchRepo(l), jrRepo, newFakeGenesisStore())
 
 	data := []byte(`{"chain_id":"` + l.Record.ChainID + `","genesis_time":"2030-01-01T00:00:00Z","app_state":{"genutil":{"gen_txs":[{"body":{"messages":[{"pubkey":{"key":"` + pubKey + `"}}]}}]}}}`)
-	hash, err := svc.UploadFinalGenesis(context.Background(), l.ID, data)
+	hash, err := svc.UploadFinalGenesis(context.Background(), l.ID, data, testAddr1)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -260,7 +272,7 @@ func TestLaunchService_UploadInitialGenesisRef_WrongStatus(t *testing.T) {
 	l.Status = launch.StatusPublished
 	svc := newLaunchSvc(newFakeLaunchRepo(l), newFakeGenesisStore())
 
-	err := svc.UploadInitialGenesisRef(context.Background(), l.ID, "https://example.com/genesis.json", validSHA256)
+	err := svc.UploadInitialGenesisRef(context.Background(), l.ID, "https://example.com/genesis.json", validSHA256, testAddr1)
 	if err == nil {
 		t.Fatal("expected error for non-DRAFT launch")
 	}
@@ -270,7 +282,7 @@ func TestLaunchService_UploadInitialGenesisRef_InvalidURL(t *testing.T) {
 	l := testLaunch() // DRAFT
 	svc := newLaunchSvc(newFakeLaunchRepo(l), newFakeGenesisStore())
 
-	err := svc.UploadInitialGenesisRef(context.Background(), l.ID, "not-a-url", validSHA256)
+	err := svc.UploadInitialGenesisRef(context.Background(), l.ID, "not-a-url", validSHA256, testAddr1)
 	if !errors.Is(err, ports.ErrBadRequest) {
 		t.Fatalf("want ErrBadRequest for invalid URL, got %v", err)
 	}
@@ -280,7 +292,7 @@ func TestLaunchService_UploadInitialGenesisRef_InvalidSHA256(t *testing.T) {
 	l := testLaunch() // DRAFT
 	svc := newLaunchSvc(newFakeLaunchRepo(l), newFakeGenesisStore())
 
-	err := svc.UploadInitialGenesisRef(context.Background(), l.ID, "https://example.com/genesis.json", "tooshort")
+	err := svc.UploadInitialGenesisRef(context.Background(), l.ID, "https://example.com/genesis.json", "tooshort", testAddr1)
 	if !errors.Is(err, ports.ErrBadRequest) {
 		t.Fatalf("want ErrBadRequest for invalid sha256, got %v", err)
 	}
@@ -291,7 +303,7 @@ func TestLaunchService_UploadInitialGenesisRef_Success(t *testing.T) {
 	genesis := newFakeGenesisStore()
 	svc := newLaunchSvc(newFakeLaunchRepo(l), genesis)
 
-	err := svc.UploadInitialGenesisRef(context.Background(), l.ID, "https://example.com/genesis.json", validSHA256)
+	err := svc.UploadInitialGenesisRef(context.Background(), l.ID, "https://example.com/genesis.json", validSHA256, testAddr1)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -314,7 +326,7 @@ func TestLaunchService_UploadFinalGenesisRef_WrongStatus(t *testing.T) {
 	svc := newLaunchSvc(newFakeLaunchRepo(l), newFakeGenesisStore())
 	futureTime := time.Now().Add(48 * time.Hour).UTC()
 
-	err := svc.UploadFinalGenesisRef(context.Background(), l.ID, "https://example.com/genesis.json", validSHA256, futureTime)
+	err := svc.UploadFinalGenesisRef(context.Background(), l.ID, "https://example.com/genesis.json", validSHA256, futureTime, testAddr1)
 	if err == nil {
 		t.Fatal("expected error for non-WINDOW_CLOSED launch")
 	}
@@ -325,7 +337,7 @@ func TestLaunchService_UploadFinalGenesisRef_ZeroGenesisTime(t *testing.T) {
 	l.Status = launch.StatusWindowClosed
 	svc := newLaunchSvc(newFakeLaunchRepo(l), newFakeGenesisStore())
 
-	err := svc.UploadFinalGenesisRef(context.Background(), l.ID, "https://example.com/final-genesis.json", validSHA256, time.Time{})
+	err := svc.UploadFinalGenesisRef(context.Background(), l.ID, "https://example.com/final-genesis.json", validSHA256, time.Time{}, testAddr1)
 	if !errors.Is(err, ports.ErrBadRequest) {
 		t.Fatalf("want ErrBadRequest for zero genesis_time, got %v", err)
 	}
@@ -336,7 +348,7 @@ func TestLaunchService_UploadFinalGenesisRef_PastGenesisTime(t *testing.T) {
 	l.Status = launch.StatusWindowClosed
 	svc := newLaunchSvc(newFakeLaunchRepo(l), newFakeGenesisStore())
 
-	err := svc.UploadFinalGenesisRef(context.Background(), l.ID, "https://example.com/final-genesis.json", validSHA256, time.Now().Add(-1*time.Hour).UTC())
+	err := svc.UploadFinalGenesisRef(context.Background(), l.ID, "https://example.com/final-genesis.json", validSHA256, time.Now().Add(-1*time.Hour).UTC(), testAddr1)
 	if !errors.Is(err, ports.ErrBadRequest) {
 		t.Fatalf("want ErrBadRequest for past genesis_time, got %v", err)
 	}
@@ -350,7 +362,7 @@ func TestLaunchService_UploadFinalGenesisRef_Success(t *testing.T) {
 	svc := newLaunchSvc(repo, genesis)
 	futureTime := time.Now().Add(48 * time.Hour).UTC().Truncate(time.Second)
 
-	err := svc.UploadFinalGenesisRef(context.Background(), l.ID, "https://example.com/final-genesis.json", validSHA256, futureTime)
+	err := svc.UploadFinalGenesisRef(context.Background(), l.ID, "https://example.com/final-genesis.json", validSHA256, futureTime, testAddr1)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -933,7 +945,7 @@ func TestLaunchService_UploadInitialGenesis_AuditEvent(t *testing.T) {
 	audit := &fakeAuditLogWriter{}
 	svc := newLaunchSvcWithAudit(newFakeLaunchRepo(l), newFakeGenesisStore(), audit)
 
-	hash, err := svc.UploadInitialGenesis(context.Background(), l.ID, validGenesisJSON(l.Record.ChainID))
+	hash, err := svc.UploadInitialGenesis(context.Background(), l.ID, validGenesisJSON(l.Record.ChainID), testAddr1)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -960,7 +972,7 @@ func TestLaunchService_UploadFinalGenesis_AuditEvent(t *testing.T) {
 	audit := &fakeAuditLogWriter{}
 	svc := newLaunchSvcWithAudit(newFakeLaunchRepo(l), newFakeGenesisStore(), audit)
 
-	_, err := svc.UploadFinalGenesis(context.Background(), l.ID, validFinalGenesisJSON(l.Record.ChainID))
+	_, err := svc.UploadFinalGenesis(context.Background(), l.ID, validFinalGenesisJSON(l.Record.ChainID), testAddr1)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

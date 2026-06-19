@@ -50,6 +50,7 @@ type genesisHashResponse struct {
 // for the pre-gentx initial genesis.
 //
 // @Summary      Upload genesis file
+// @Description  Committee members only.
 // @Description  Attestor mode (default): register external URL + SHA-256.
 // @Description  Host mode: upload raw bytes (requires COORD_GENESIS_HOST_MODE=true).
 // @Tags         genesis
@@ -73,17 +74,18 @@ func (s *Server) handleGenesisUpload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	genesisType := r.URL.Query().Get("type") // "initial" (default) or "final"
+	callerAddr := operatorFromContext(r.Context())
 
 	ct := r.Header.Get("Content-Type")
 	if strings.HasPrefix(ct, "application/json") {
-		s.handleGenesisUploadRef(w, r, id, genesisType)
+		s.handleGenesisUploadRef(w, r, id, genesisType, callerAddr)
 	} else {
-		s.handleGenesisUploadBytes(w, r, id, genesisType)
+		s.handleGenesisUploadBytes(w, r, id, genesisType, callerAddr)
 	}
 }
 
 // handleGenesisUploadRef handles Option A (attestor mode) uploads.
-func (s *Server) handleGenesisUploadRef(w http.ResponseWriter, r *http.Request, id uuid.UUID, genesisType string) {
+func (s *Server) handleGenesisUploadRef(w http.ResponseWriter, r *http.Request, id uuid.UUID, genesisType, callerAddr string) {
 	var req genesisRefRequest
 	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBody)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -110,9 +112,9 @@ func (s *Server) handleGenesisUploadRef(w http.ResponseWriter, r *http.Request, 
 			writeError(w, http.StatusBadRequest, "invalid_genesis_time", "genesis_time must be an RFC 3339 timestamp (e.g. 2026-06-01T12:00:00Z)")
 			return
 		}
-		err = s.launches.UploadFinalGenesisRef(r.Context(), id, req.URL, req.SHA256, gt)
+		err = s.launches.UploadFinalGenesisRef(r.Context(), id, req.URL, req.SHA256, gt, callerAddr)
 	} else {
-		err = s.launches.UploadInitialGenesisRef(r.Context(), id, req.URL, req.SHA256)
+		err = s.launches.UploadInitialGenesisRef(r.Context(), id, req.URL, req.SHA256, callerAddr)
 	}
 	if err != nil {
 		writeServiceError(w, r, err)
@@ -123,7 +125,7 @@ func (s *Server) handleGenesisUploadRef(w http.ResponseWriter, r *http.Request, 
 }
 
 // handleGenesisUploadBytes handles Option C (host mode) uploads.
-func (s *Server) handleGenesisUploadBytes(w http.ResponseWriter, r *http.Request, id uuid.UUID, genesisType string) {
+func (s *Server) handleGenesisUploadBytes(w http.ResponseWriter, r *http.Request, id uuid.UUID, genesisType, callerAddr string) {
 	if !s.genesisHostMode {
 		writeError(w, http.StatusBadRequest, "host_mode_disabled",
 			"raw genesis file uploads are disabled; use attestor mode: "+
@@ -149,9 +151,9 @@ func (s *Server) handleGenesisUploadBytes(w http.ResponseWriter, r *http.Request
 
 	var hash string
 	if genesisType == "final" {
-		hash, err = s.launches.UploadFinalGenesis(r.Context(), id, data)
+		hash, err = s.launches.UploadFinalGenesis(r.Context(), id, data, callerAddr)
 	} else {
-		hash, err = s.launches.UploadInitialGenesis(r.Context(), id, data)
+		hash, err = s.launches.UploadInitialGenesis(r.Context(), id, data, callerAddr)
 	}
 	if err != nil {
 		writeServiceError(w, r, err)
