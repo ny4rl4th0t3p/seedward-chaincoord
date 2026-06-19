@@ -22,7 +22,7 @@ type joinRequestJSON struct {
 	LaunchID           string          `json:"launch_id"`
 	OperatorAddress    string          `json:"operator_address"`
 	ConsensusPubKey    string          `json:"consensus_pubkey"`
-	GentxJSON          json.RawMessage `json:"gentx"`
+	GentxJSON          json.RawMessage `json:"gentx" swaggertype:"object"`
 	PeerAddress        string          `json:"peer_address"`
 	RPCEndpoint        string          `json:"rpc_endpoint"`
 	Memo               string          `json:"memo"`
@@ -51,6 +51,19 @@ func joinRequestToJSON(jr *joinrequest.JoinRequest) joinRequestJSON {
 		out.ApprovedByProposal = &s
 	}
 	return out
+}
+
+// gentxEntry is one approved validator's gentx in the bundle download.
+type gentxEntry struct {
+	JoinRequestID   string          `json:"join_request_id"`
+	OperatorAddress string          `json:"operator_address"`
+	ConsensusPubKey string          `json:"consensus_pubkey"`
+	Gentx           json.RawMessage `json:"gentx" swaggertype:"object"`
+}
+
+// gentxsResponse wraps the approved gentx bundle (GET /launch/{id}/gentxs).
+type gentxsResponse struct {
+	Gentxs []gentxEntry `json:"gentxs"`
 }
 
 // POST /launch/{id}/join
@@ -166,7 +179,7 @@ func (s *Server) handleJoinList(w http.ResponseWriter, r *http.Request) {
 // @Security     BearerAuth
 // @Produce      json
 // @Param        id   path      string  true  "Launch UUID"
-// @Success      200  {object}  map[string]interface{}  "gentxs array"
+// @Success      200  {object}  gentxsResponse
 // @Failure      400  {object}  errorEnvelope
 // @Failure      401  {object}  errorEnvelope
 // @Failure      403  {object}  errorEnvelope
@@ -196,12 +209,6 @@ func (s *Server) handleGentxsGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	type gentxEntry struct {
-		JoinRequestID   string          `json:"join_request_id"`
-		OperatorAddress string          `json:"operator_address"`
-		ConsensusPubKey string          `json:"consensus_pubkey"`
-		Gentx           json.RawMessage `json:"gentx"`
-	}
 	out := make([]gentxEntry, len(items))
 	for i, jr := range items {
 		out[i] = gentxEntry{
@@ -211,7 +218,7 @@ func (s *Server) handleGentxsGet(w http.ResponseWriter, r *http.Request) {
 			Gentx:           jr.GentxJSON,
 		}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"gentxs": out})
+	writeJSON(w, http.StatusOK, gentxsResponse{Gentxs: out})
 }
 
 // GET /launch/{id}/join/{req_id}

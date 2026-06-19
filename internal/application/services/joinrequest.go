@@ -86,7 +86,7 @@ type SubmitInput struct {
 	// PubKeyB64 is the operator's secp256k1 compressed public key (base64, 33 bytes) used to verify the
 	// request signature. Distinct from the consensus key, which is extracted from the gentx.
 	PubKeyB64   string          `json:"pubkey_b64"`
-	GentxJSON   json.RawMessage `json:"gentx"`
+	GentxJSON   json.RawMessage `json:"gentx" swaggertype:"object"`
 	PeerAddress string          `json:"peer_address"`
 	RPCEndpoint string          `json:"rpc_endpoint"`
 	Memo        string          `json:"memo"`

@@ -5,7 +5,7 @@ VERSION             ?= $(shell git describe --tags --always --dirty 2>/dev/null 
 LDFLAGS             := -X $(MODULE)/cmd/coordd/cmd.Version=$(VERSION)
 
 
-.PHONY: build build-server build-smoke-signer build-web test test-integration test-e2e test-jest test-playwright lint lint-web swagger lint-openapi release clean docker-build test-smoke test-down-smoke test-secrets-smoke dev-build dev-up dev-down install-web
+.PHONY: build build-server build-smoke-signer build-web test test-integration test-e2e test-jest test-playwright lint lint-web swagger swagger-check lint-openapi release clean docker-build test-smoke test-down-smoke test-secrets-smoke dev-build dev-up dev-down install-web
 
 build: build-server build-smoke-signer
 
@@ -44,10 +44,18 @@ lint:
 	golangci-lint run --fix
 
 swagger:
-	swag init --generalInfo cmd/coordd/main.go --dir . --output docs/mkdocs/api/ --outputTypes yaml --parseInternal --parseDependency
+	swag init --generalInfo cmd/coordd/main.go --dir . --output docs/mkdocs/api/ --outputTypes yaml --parseInternal
+
+# CI guard against spec drift: regenerate and fail if the result differs from
+# what's committed, so the Go annotations and docs/mkdocs/api/swagger.yaml can't
+# fall out of sync. Fix a failure by running `make swagger` and committing.
+# (Requires the same pinned swag version locally and in CI for deterministic output.)
+swagger-check: swagger
+	@git diff --exit-code HEAD -- docs/mkdocs/api/swagger.yaml \
+		|| { echo "ERROR: docs/mkdocs/api/swagger.yaml is out of date — run 'make swagger' and commit the result." >&2; exit 1; }
 
 lint-openapi: swagger
-	vacuum lint docs/swagger.yaml
+	vacuum lint docs/mkdocs/api/swagger.yaml
 
 release:
 	GOOS=linux  GOARCH=amd64  go build -ldflags "$(LDFLAGS)" -o bin/coordd-linux-amd64  ./cmd/coordd

@@ -35,7 +35,7 @@ type AuditEvent struct {
 	OccurredAt time.Time `json:"occurred_at"`
 	// Payload is the canonical JSON of the domain event, stored as raw JSON
 	// so audit entries are human-readable without base64 decoding.
-	Payload json.RawMessage `json:"payload"`
+	Payload json.RawMessage `json:"payload" swaggertype:"object"`
 	// Signature is a base64 Ed25519 signature over the canonical JSON of this entry
 	// (excluding the signature field itself), signed by the server's audit key.
 	Signature string `json:"signature"`

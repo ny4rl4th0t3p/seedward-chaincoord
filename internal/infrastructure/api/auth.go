@@ -14,6 +14,23 @@ type challengeRequest struct {
 	OperatorAddress string `json:"operator_address" example:"cosmos1abcdef..."`
 }
 
+// challengeResponse is the response to an auth challenge request.
+type challengeResponse struct {
+	Challenge string `json:"challenge"`
+}
+
+// tokenResponse carries an issued session token.
+type tokenResponse struct {
+	Token string `json:"token"`
+}
+
+// sessionInfoJSON describes the current session.
+type sessionInfoJSON struct {
+	OperatorAddress string `json:"operator_address"`
+	ExpiresAt       string `json:"expires_at"`
+	IsCoordinator   bool   `json:"is_coordinator"`
+}
+
 // POST /auth/challenge
 // Body: { "operator_address": "cosmos1..." }
 // Response: { "challenge": "..." }
@@ -24,7 +41,7 @@ type challengeRequest struct {
 // @Accept       json
 // @Produce      json
 // @Param        body  body      challengeRequest  true  "Operator address"
-// @Success      200   {object}  map[string]string "challenge string"
+// @Success      200   {object}  challengeResponse
 // @Failure      400   {object}  errorEnvelope
 // @Failure      429   {object}  errorEnvelope
 // @Router       /auth/challenge [post]
@@ -45,7 +62,7 @@ func (s *Server) handleAuthChallenge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{"challenge": challenge})
+	writeJSON(w, http.StatusOK, challengeResponse{Challenge: challenge})
 }
 
 // POST /auth/verify
@@ -58,7 +75,7 @@ func (s *Server) handleAuthChallenge(w http.ResponseWriter, r *http.Request) {
 // @Accept       json
 // @Produce      json
 // @Param        body  body      services.VerifyChallengeInput  true  "Signed challenge payload"
-// @Success      200   {object}  map[string]string              "session token"
+// @Success      200   {object}  tokenResponse
 // @Failure      400   {object}  errorEnvelope
 // @Failure      401   {object}  errorEnvelope
 // @Router       /auth/verify [post]
@@ -75,7 +92,7 @@ func (s *Server) handleAuthVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{"token": token})
+	writeJSON(w, http.StatusOK, tokenResponse{Token: token})
 }
 
 // DELETE /auth/session
@@ -112,7 +129,7 @@ func (s *Server) handleAuthRevoke(w http.ResponseWriter, r *http.Request) {
 // @Tags         auth
 // @Security     BearerAuth
 // @Produce      json
-// @Success      200  {object}  map[string]any
+// @Success      200  {object}  sessionInfoJSON
 // @Failure      401  {object}  errorEnvelope
 // @Router       /auth/session [get]
 func (s *Server) handleAuthSessionInfo(w http.ResponseWriter, r *http.Request) {
@@ -130,10 +147,10 @@ func (s *Server) handleAuthSessionInfo(w http.ResponseWriter, r *http.Request) {
 
 	isCoordinator, _ := s.coordinatorAllowlist.Contains(r.Context(), info.OperatorAddress)
 
-	writeJSON(w, http.StatusOK, map[string]any{
-		"operator_address": info.OperatorAddress,
-		"expires_at":       info.ExpiresAt.UTC().Format("2006-01-02T15:04:05Z"),
-		"is_coordinator":   isCoordinator,
+	writeJSON(w, http.StatusOK, sessionInfoJSON{
+		OperatorAddress: info.OperatorAddress,
+		ExpiresAt:       info.ExpiresAt.UTC().Format("2006-01-02T15:04:05Z"),
+		IsCoordinator:   isCoordinator,
 	})
 }
 

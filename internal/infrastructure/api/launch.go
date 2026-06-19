@@ -229,6 +229,23 @@ func (s *Server) handleLaunchGet(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, launchToJSON(l))
 }
 
+// patchLaunchRequest is the body for PATCH /launch/{id}. Every field is optional;
+// only the fields present in the request are updated (DRAFT launches only). The
+// handler decodes the raw body to distinguish an absent field from a zero value —
+// this type exists to document the contract for the generated spec.
+type patchLaunchRequest struct {
+	ChainName         *string    `json:"chain_name,omitempty"`
+	BinaryVersion     *string    `json:"binary_version,omitempty"`
+	BinarySHA256      *string    `json:"binary_sha256,omitempty"`
+	RepoURL           *string    `json:"repo_url,omitempty"`
+	RepoCommit        *string    `json:"repo_commit,omitempty"`
+	MonitorRPCURL     *string    `json:"monitor_rpc_url,omitempty"`
+	GenesisTime       *time.Time `json:"genesis_time,omitempty"`
+	MinValidatorCount *int       `json:"min_validator_count,omitempty"`
+	Visibility        *string    `json:"visibility,omitempty" example:"PUBLIC"`
+	Allowlist         []string   `json:"allowlist,omitempty"`
+}
+
 // PATCH /launch/{id}
 // Coordinator only — updates mutable fields on a DRAFT launch.
 //
@@ -238,8 +255,8 @@ func (s *Server) handleLaunchGet(w http.ResponseWriter, r *http.Request) {
 // @Security     BearerAuth
 // @Accept       json
 // @Produce      json
-// @Param        id    path      string              true  "Launch UUID"
-// @Param        body  body      object              false "Partial update (all fields optional)"
+// @Param        id    path      string               true  "Launch UUID"
+// @Param        body  body      patchLaunchRequest   false "Partial update (all fields optional)"
 // @Success      200   {object}  launchJSON
 // @Failure      400   {object}  errorEnvelope
 // @Failure      401   {object}  errorEnvelope

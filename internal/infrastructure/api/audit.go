@@ -10,6 +10,16 @@ import (
 	"github.com/ny4rl4th0t3p/chaincoord/internal/application/ports"
 )
 
+// auditResponse wraps a launch's audit log entries.
+type auditResponse struct {
+	Entries []ports.AuditEvent `json:"entries"`
+}
+
+// auditPubKeyResponse carries the server's Ed25519 audit public key (base64).
+type auditPubKeyResponse struct {
+	PublicKey string `json:"public_key"`
+}
+
 // GET /launch/{id}/audit
 // Returns the audit log entries for a launch.  Post-launch, observer access.
 //
@@ -18,7 +28,7 @@ import (
 // @Tags         audit
 // @Produce      json
 // @Param        id   path      string  true  "Launch UUID"
-// @Success      200  {object}  map[string]interface{}
+// @Success      200  {object}  auditResponse
 // @Failure      400  {object}  errorEnvelope
 // @Failure      404  {object}  errorEnvelope
 // @Router       /launch/{id}/audit [get]
@@ -45,7 +55,7 @@ func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
 		entries = []ports.AuditEvent{}
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"entries": entries})
+	writeJSON(w, http.StatusOK, auditResponse{Entries: entries})
 }
 
 // GET /audit/pubkey
@@ -56,14 +66,15 @@ func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
 // @Description  Returns the server's Ed25519 public key for offline audit log signature verification.
 // @Tags         audit
 // @Produce      json
-// @Success      200  {object}  map[string]string
+// @Success      200  {object}  auditPubKeyResponse
+// @Failure      503  {object}  errorEnvelope
 // @Router       /audit/pubkey [get]
 func (s *Server) handleAuditPubKey(w http.ResponseWriter, _ *http.Request) {
 	if s.auditPubKey == nil {
 		writeError(w, http.StatusServiceUnavailable, "no_audit_key", "server has no audit signing key configured")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{
-		"public_key": base64.StdEncoding.EncodeToString(s.auditPubKey),
+	writeJSON(w, http.StatusOK, auditPubKeyResponse{
+		PublicKey: base64.StdEncoding.EncodeToString(s.auditPubKey),
 	})
 }

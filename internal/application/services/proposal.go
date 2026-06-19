@@ -63,7 +63,7 @@ func NewProposalService(
 // RaiseInput is the payload for creating a new proposal.
 type RaiseInput struct {
 	ActionType      proposal.ActionType `json:"action_type"`
-	Payload         json.RawMessage     `json:"payload"`
+	Payload         json.RawMessage     `json:"payload" swaggertype:"object"`
 	CoordinatorAddr string              `json:"coordinator_address"`
 	Nonce           string              `json:"nonce"`
 	Timestamp       string              `json:"timestamp"`

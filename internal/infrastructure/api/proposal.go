@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/ny4rl4th0t3p/chaincoord/internal/application/services"
-	"github.com/ny4rl4th0t3p/chaincoord/internal/domain/launch"
 	"github.com/ny4rl4th0t3p/chaincoord/internal/domain/proposal"
 )
 
@@ -18,7 +17,7 @@ type proposalJSON struct {
 	ID         string               `json:"id"`
 	LaunchID   string               `json:"launch_id"`
 	ActionType string               `json:"action_type"`
-	Payload    json.RawMessage      `json:"payload"`
+	Payload    json.RawMessage      `json:"payload" swaggertype:"object"`
 	ProposedBy string               `json:"proposed_by"`
 	ProposedAt time.Time            `json:"proposed_at"`
 	TTLExpires time.Time            `json:"ttl_expires"`
@@ -228,7 +227,3 @@ func (s *Server) handleProposalSign(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, proposalToJSON(p))
 }
-
-// Ensure proposal domain types are used (compile-time check via blank import-like reference).
-var _ = launch.NewOperatorAddress
-var _ = proposal.StatusExecuted

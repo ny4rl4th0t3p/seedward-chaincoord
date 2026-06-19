@@ -21,6 +21,17 @@ type genesisRefRequest struct {
 	GenesisTime string `json:"genesis_time"`
 }
 
+// genesisUploadResponse is returned after a successful genesis upload/registration.
+type genesisUploadResponse struct {
+	SHA256 string `json:"sha256"`
+}
+
+// genesisHashResponse carries the current initial/final genesis hashes.
+type genesisHashResponse struct {
+	InitialSHA256 string `json:"initial_sha256"`
+	FinalSHA256   string `json:"final_sha256"`
+}
+
 // POST /launch/{id}/genesis
 //
 // Accepts two modes based on Content-Type:
@@ -48,7 +59,7 @@ type genesisRefRequest struct {
 // @Produce      json
 // @Param        id    path      string  true   "Launch UUID"
 // @Param        type  query     string  false  "Genesis type" Enums(initial,final)
-// @Success      200   {object}  map[string]string  "sha256 hash"
+// @Success      200   {object}  genesisUploadResponse
 // @Failure      400   {object}  errorEnvelope
 // @Failure      401   {object}  errorEnvelope
 // @Failure      403   {object}  errorEnvelope
@@ -108,7 +119,7 @@ func (s *Server) handleGenesisUploadRef(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{"sha256": req.SHA256})
+	writeJSON(w, http.StatusOK, genesisUploadResponse{SHA256: req.SHA256})
 }
 
 // handleGenesisUploadBytes handles Option C (host mode) uploads.
@@ -147,7 +158,7 @@ func (s *Server) handleGenesisUploadBytes(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{"sha256": hash})
+	writeJSON(w, http.StatusOK, genesisUploadResponse{SHA256: hash})
 }
 
 // GET /launch/{id}/genesis
@@ -238,7 +249,7 @@ func (s *Server) handleGenesisGet(w http.ResponseWriter, r *http.Request) {
 // @Tags         genesis
 // @Produce      json
 // @Param        id   path      string  true  "Launch UUID"
-// @Success      200  {object}  map[string]string  "initial_sha256 and final_sha256"
+// @Success      200  {object}  genesisHashResponse
 // @Failure      400  {object}  errorEnvelope
 // @Failure      404  {object}  errorEnvelope
 // @Router       /launch/{id}/genesis/hash [get]
@@ -256,8 +267,8 @@ func (s *Server) handleGenesisHashGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{
-		"initial_sha256": l.InitialGenesisSHA256,
-		"final_sha256":   l.FinalGenesisSHA256,
+	writeJSON(w, http.StatusOK, genesisHashResponse{
+		InitialSHA256: l.InitialGenesisSHA256,
+		FinalSHA256:   l.FinalGenesisSHA256,
 	})
 }
