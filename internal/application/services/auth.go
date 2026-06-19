@@ -47,13 +47,14 @@ func (s *AuthService) IssueChallenge(ctx context.Context, operatorAddr string) (
 // # Signing contract (cross-language)
 //
 // The bytes that are signed are produced by canonicaljson.MarshalForSigning applied to this
-// struct. That function strips "signature", "nonce", and "pubkey_b64", then sorts the
-// remaining keys lexicographically. The resulting canonical JSON is always:
+// struct. That function strips "signature" and "pubkey_b64" (but KEEPS "nonce", so it is
+// bound to the signature for replay protection), then sorts the remaining keys
+// lexicographically. The resulting canonical JSON is always:
 //
-//	{"challenge":"<value>","operator_address":"<value>","timestamp":"<value>"}
+//	{"challenge":"<value>","nonce":"<value>","operator_address":"<value>","timestamp":"<value>"}
 //
 // The TypeScript web client MUST produce byte-identical output before calling
-// signArbitrary. Field order must be: challenge → operator_address → timestamp.
+// signArbitrary. Field order must be: challenge → nonce → operator_address → timestamp.
 // No whitespace. Timestamp must be RFC 3339 UTC with second precision (e.g. "2026-01-01T00:00:00Z").
 // See the contract test in auth_contract_test.go for a known-good example.
 type VerifyChallengeInput struct {
@@ -64,7 +65,8 @@ type VerifyChallengeInput struct {
 	// Stripped before signing — not included in the canonical bytes.
 	PubKeyB64 string `json:"pubkey_b64"`
 	Challenge string `json:"challenge"`
-	// Nonce is stripped before signing — not included in the canonical bytes.
+	// Nonce is included in the signed bytes (replay protection) and consumed once
+	// per (operator, nonce) by the nonce store.
 	Nonce     string `json:"nonce"`
 	Timestamp string `json:"timestamp"`
 	// Signature is stripped before signing — not included in the canonical bytes.

@@ -9,6 +9,10 @@ import (
 	"github.com/ny4rl4th0t3p/chaincoord/internal/application/ports"
 )
 
+// nonceTTL is how long a consumed nonce is remembered. It MUST be >= the signed-payload
+// acceptance window (services.signedPayloadMaxAge, 5m): a nonce has to be
+// remembered for at least as long as a request bearing it can still pass the
+// signed-timestamp freshness check. 10m leaves a comfortable margin.
 const nonceTTL = 10 * time.Minute
 
 // NonceStore implements ports.NonceStore for SQLite.

@@ -8,7 +8,7 @@ package services_test
 // would break the TypeScript client causes an immediate build failure.
 //
 // If this test needs to change, the TypeScript buildAuthPayload function in
-// web/validator/src/auth.ts must be updated to match before merging.
+// web/app/utils/auth.ts must be updated to match before merging.
 
 import (
 	"strings"
@@ -34,9 +34,10 @@ func TestVerifyChallengeInput_CanonicalSigningBytes(t *testing.T) {
 	}
 
 	// This is the exact string the TypeScript client must produce.
-	// Field order: challenge → operator_address → timestamp (lexicographic).
-	// nonce, pubkey_b64, and signature are stripped.
-	want := `{"challenge":"dGVzdC1jaGFsbGVuZ2U=","operator_address":"cosmos1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5lzv7xu","timestamp":"2026-01-01T00:00:00Z"}`
+	// Field order: challenge → nonce → operator_address → timestamp (lexicographic).
+	// nonce is KEPT (bound to the signature for replay protection); pubkey_b64 and
+	// signature are stripped.
+	want := `{"challenge":"dGVzdC1jaGFsbGVuZ2U=","nonce":"unique-nonce-abc","operator_address":"cosmos1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5lzv7xu","timestamp":"2026-01-01T00:00:00Z"}`
 
 	if string(got) != want {
 		t.Errorf("canonical signing bytes mismatch\ngot:  %s\nwant: %s", got, want)
@@ -60,9 +61,13 @@ func TestVerifyChallengeInput_StrippedFields(t *testing.T) {
 	}
 
 	s := string(got)
-	for _, forbidden := range []string{"pubkey_b64", "\"nonce\"", "\"signature\""} {
+	for _, forbidden := range []string{"pubkey_b64", "\"signature\""} {
 		if strings.Contains(s, forbidden) {
 			t.Errorf("signing bytes must not contain %q, got: %s", forbidden, s)
 		}
+	}
+	// nonce must be present — it is bound to the signature for replay protection.
+	if !strings.Contains(s, "\"nonce\"") {
+		t.Errorf("signing bytes must contain nonce, got: %s", s)
 	}
 }

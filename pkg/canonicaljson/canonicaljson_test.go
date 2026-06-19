@@ -80,7 +80,7 @@ func TestMarshalForSigningStripsFields(t *testing.T) {
 		"chain_id":         "mychain-1",
 		"operator_address": "cosmos1abc",
 		"signature":        "shouldberemoved",
-		"nonce":            "shouldberemoved",
+		"nonce":            "kept-for-replay",
 		"pubkey_b64":       "shouldberemoved",
 	}
 
@@ -89,7 +89,8 @@ func TestMarshalForSigningStripsFields(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	want := `{"chain_id":"mychain-1","operator_address":"cosmos1abc"}`
+	// signature and pubkey_b64 are stripped; nonce is KEPT (bound to the signature).
+	want := `{"chain_id":"mychain-1","nonce":"kept-for-replay","operator_address":"cosmos1abc"}`
 	if string(got) != want {
 		t.Errorf("got:  %s\nwant: %s", got, want)
 	}

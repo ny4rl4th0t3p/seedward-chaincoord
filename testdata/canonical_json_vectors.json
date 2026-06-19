@@ -58,7 +58,7 @@
     "expected": "{\"active\":true,\"archived\":false}"
   },
   {
-    "description": "signature, nonce, and pubkey_b64 stripped for signing",
+    "description": "signature and pubkey_b64 stripped for signing; nonce kept",
     "input": {
       "chain_id": "x",
       "nonce": "uuid",
@@ -66,7 +66,7 @@
       "pubkey_b64": "abc123",
       "operator_address": "cosmos1abc"
     },
-    "expected_for_signing": "{\"chain_id\":\"x\",\"operator_address\":\"cosmos1abc\"}"
+    "expected_for_signing": "{\"chain_id\":\"x\",\"nonce\":\"uuid\",\"operator_address\":\"cosmos1abc\"}"
   },
   {
     "description": "deeply nested with array of objects",

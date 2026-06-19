@@ -29,9 +29,14 @@ func Marshal(v any) ([]byte, error) {
 	return canonicalise(json.RawMessage(raw))
 }
 
-// MarshalForSigning strips the "signature" and "nonce" fields from the top-level
-// object before producing canonical JSON. This is the function to use when
-// computing the bytes that will be signed or verified.
+// MarshalForSigning strips the "signature" and "pubkey_b64" fields from the
+// top-level object before producing canonical JSON. This is the function to use
+// when computing the bytes that will be signed or verified.
+//
+// The "nonce" is deliberately kept in the signed bytes: it binds the replay
+// protection nonce to the signature, so a captured request cannot be replayed by
+// swapping in a fresh nonce. (The signature itself and the public key used to
+// verify it are excluded, since they are not part of the signed content.)
 func MarshalForSigning(v any) ([]byte, error) {
 	raw, err := json.Marshal(v)
 	if err != nil {
@@ -44,7 +49,6 @@ func MarshalForSigning(v any) ([]byte, error) {
 	}
 
 	delete(m, "signature")
-	delete(m, "nonce")
 	delete(m, "pubkey_b64")
 
 	return canonicalise(m)
