@@ -1133,40 +1133,46 @@
 </table>
 <hr />
 <h2 id="action-types">Action types<a class="headerlink" href="#action-types" title="Permanent link">&para;</a></h2>
+<p>Every action is gated on the launch's status. Lifecycle transitions are enforced by the domain from-state checks; the
+other actions carry explicit status guards (validator actions additionally check the target join-request state). The
+server enforces the status columns below.</p>
 <h3 id="validator-management">Validator management<a class="headerlink" href="#validator-management" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
 <th>Action</th>
 <th>Effect</th>
-<th>Required status</th>
+<th>Enforced precondition</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>APPROVE_VALIDATOR</code></td>
 <td>Approves a pending join request; adds validator to the approved set</td>
-<td><code>WINDOW_OPEN</code></td>
+<td>Target join request is <code>pending</code></td>
 </tr>
 <tr>
 <td><code>REJECT_VALIDATOR</code></td>
 <td>Rejects a pending join request with a reason</td>
-<td><code>WINDOW_OPEN</code></td>
+<td>Target join request is <code>pending</code></td>
 </tr>
 <tr>
 <td><code>REMOVE_APPROVED_VALIDATOR</code></td>
 <td>Revokes an already-approved validator</td>
-<td><code>WINDOW_OPEN</code> or <code>WINDOW_CLOSED</code></td>
+<td>Target join request is <code>approved</code> <strong>and</strong> launch is <code>WINDOW_OPEN</code> or <code>WINDOW_CLOSED</code></td>
 </tr>
 </tbody>
 </table>
+<p><code>APPROVE</code>/<code>REJECT</code> aren't checked against launch status directly, but pending join requests only exist during
+<code>WINDOW_OPEN</code> (they are expired when the window closes), so they apply only then. <code>REMOVE_APPROVED_VALIDATOR</code> is also
+blocked once the genesis is published — revert to <code>WINDOW_CLOSED</code> via <code>REVISE_GENESIS</code> first.</p>
 <h3 id="lifecycle-transitions">Lifecycle transitions<a class="headerlink" href="#lifecycle-transitions" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
 <th>Action</th>
 <th>Transition</th>
-<th>Required status</th>
+<th>Required status (enforced)</th>
 </tr>
 </thead>
 <tbody>
@@ -1193,34 +1199,37 @@
 </tbody>
 </table>
 <h3 id="genesis-metadata">Genesis metadata<a class="headerlink" href="#genesis-metadata" title="Permanent link">&para;</a></h3>
+<p>Genesis-account changes are rejected once the genesis is published (<code>GENESIS_READY</code>, <code>LAUNCHED</code>, or <code>CANCELED</code>) — they
+could no longer affect the published file. <code>UPDATE_GENESIS_TIME</code> is blocked only after <code>LAUNCHED</code> (it is designed to run
+at <code>GENESIS_READY</code> as part of the revise flow, where it invalidates existing readiness confirmations).</p>
 <table>
 <thead>
 <tr>
 <th>Action</th>
 <th>Effect</th>
-<th>Required status</th>
+<th>Allowed status</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>UPDATE_GENESIS_TIME</code></td>
-<td>Updates the <code>genesis_time</code> field</td>
-<td>Any pre-<code>LAUNCHED</code></td>
+<td>Updates the <code>genesis_time</code> field; invalidates all readiness confirmations</td>
+<td>any pre-<code>LAUNCHED</code></td>
 </tr>
 <tr>
 <td><code>ADD_GENESIS_ACCOUNT</code></td>
 <td>Adds a pre-funded account to the genesis</td>
-<td>Any pre-<code>WINDOW_CLOSED</code></td>
+<td>before <code>GENESIS_READY</code> (address must be new)</td>
 </tr>
 <tr>
 <td><code>REMOVE_GENESIS_ACCOUNT</code></td>
 <td>Removes a pre-funded account</td>
-<td>Any pre-<code>WINDOW_CLOSED</code></td>
+<td>before <code>GENESIS_READY</code> (account must exist)</td>
 </tr>
 <tr>
 <td><code>MODIFY_GENESIS_ACCOUNT</code></td>
 <td>Changes amount or vesting schedule</td>
-<td>Any pre-<code>WINDOW_CLOSED</code></td>
+<td>before <code>GENESIS_READY</code> (account must exist)</td>
 </tr>
 </tbody>
 </table>
@@ -1249,18 +1258,15 @@
 </table>
 <hr />
 <h2 id="signing-a-proposal">Signing a proposal<a class="headerlink" href="#signing-a-proposal" title="Permanent link">&para;</a></h2>
-<p>Each signature is a secp256k1 signature over a canonical JSON payload that includes:</p>
-<ul>
-<li>The coordinator's address</li>
-<li>The decision (<code>SIGN</code> or <code>VETO</code>)</li>
-<li>A nonce (replay protection)</li>
-<li>A timestamp</li>
-</ul>
-<p>The server verifies the signature against the member's declared public key before recording it.</p>
+<p>Each signature is a secp256k1 signature over the <strong>canonical JSON</strong> of the request with the <code>signature</code> and <code>pubkey_b64</code>
+fields removed. The signed bytes therefore include the coordinator's address, the decision (<code>SIGN</code> or <code>VETO</code>), the
+timestamp, and the <code>nonce</code> — the nonce is bound to the signature, so a captured request can't be replayed by swapping it.</p>
+<p>The server verifies the signature against the member's declared public key, then consumes the <code>(coordinator, nonce)</code>
+pair once for replay protection.</p>
 <hr />
 <h2 id="liveness-guard">Liveness guard<a class="headerlink" href="#liveness-guard" title="Permanent link">&para;</a></h2>
-<p>The committee size N and threshold M must always satisfy <code>M &lt; N</code>. This is enforced on <code>EXPAND_COMMITTEE</code> and <code>SHRINK_COMMITTEE</code> proposals. The constraint ensures the committee can still reach quorum even if one member is permanently offline — a 3-of-3 committee, for example, would be permanently deadlocked if any single member lost their key.</p>
-<p>The only exception is a 1-of-1 committee, where M = N = 1 is permitted (there is no other member to lose).</p>
+<p><code>EXPAND_COMMITTEE</code> and <code>SHRINK_COMMITTEE</code> proposals require the resulting threshold to satisfy <code>M &lt; N</code> — strictly less than the new committee size. This keeps the committee able to reach quorum even if one member is permanently offline.</p>
+<p>This guard applies only to committee <strong>modification</strong>. At launch creation (and when setting the committee on a <code>DRAFT</code> launch) any threshold from <code>1</code> to <code>N</code> is accepted, including <code>M = N</code> — so a deadlock-prone committee such as 3-of-3 <em>can</em> be created directly (it just can't be reached afterward via expand/shrink). A 1-of-1 committee (<code>M = N = 1</code>) is always valid, since there is no other member to lose.</p>
 <hr />
 <h2 id="bft-voting-power-warning">BFT voting power warning<a class="headerlink" href="#bft-voting-power-warning" title="Permanent link">&para;</a></h2>
 <p>When a validator is approved, the server recalculates the share of total committed self-delegation held by each operator. If any single entity reaches or exceeds 1/3 of the total, a warning is included in the approval response. The same check is enforced as a hard precondition when closing the application window — a launch cannot move to <code>WINDOW_CLOSED</code> if any entity holds ≥ 1/3 of voting power.</p>

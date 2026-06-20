@@ -1426,7 +1426,7 @@
 <li><strong>Environment variables</strong> (<code>COORD_*</code>)</li>
 <li><strong>Config file</strong> (<code>config.yaml</code> — searched in <code>.</code>, <code>$HOME/.coordd</code>, <code>/etc/coordd</code>)</li>
 </ol>
-<p>All options are available through all three sources. Environment variables are the recommended approach for production deployments; the config file is convenient for local development.</p>
+<p>Most options are available through all three sources, but a few have <strong>no CLI flag</strong> and must come from an env var or the config file: the signing keys (<code>audit_private_key</code>/<code>_file</code>, <code>jwt_private_key</code>/<code>_file</code>), <code>admin_addresses</code>, <code>launch_policy</code>, and <code>insecure_no_ssrf_check</code> (see the Flag column in the reference table below). Environment variables are the recommended approach for production deployments; the config file is convenient for local development.</p>
 <hr />
 <h2 id="development">Development<a class="headerlink" href="#development" title="Permanent link">&para;</a></h2>
 <h3 id="minimal-configyaml">Minimal <code>config.yaml</code><a class="headerlink" href="#minimal-configyaml" title="Permanent link">&para;</a></h3>

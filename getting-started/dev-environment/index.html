@@ -992,6 +992,10 @@
 
 <h1 id="dev-environment">Dev Environment<a class="headerlink" href="#dev-environment" title="Permanent link">&para;</a></h1>
 <p>The dev environment starts <code>coordd</code> and the web frontend together with a single command. It is the fastest way to explore the full system locally — no manual key generation or config files needed.</p>
+<div class="admonition warning">
+<p class="admonition-title">Web frontend is being extracted</p>
+<p>The <code>web</code> service in this environment (and the <a href="../web-app/">Web App</a> page) is <strong>deprecated</strong> — the frontend is moving to its own repository. The <code>coordd</code> backend setup described here remains current and supported, but the bundled <code>web</code> container, the frontend-specific environment variables (<code>NEXT_PUBLIC_API_URL</code>, <code>COORD_BACKEND_URL</code>), and the "local development without Docker" frontend steps may change or stop working in upcoming iterations.</p>
+</div>
 <hr />
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
@@ -1088,8 +1092,8 @@
 </tr>
 <tr>
 <td><code>COORD_BACKEND_URL</code></td>
-<td><code>http://localhost:8080</code></td>
-<td>Backend URL used by Next.js server-side rewrites. Override for Docker deployments where the backend is not on localhost.</td>
+<td><code>http://coordd:8080</code> (dev image); <code>http://localhost:8080</code> (non-Docker fallback)</td>
+<td>Backend URL used by Next.js server-side rewrites. The dev image (<code>Dockerfile.web</code>) bakes the <code>coordd</code> compose service name; outside Docker it falls back to <code>localhost:8080</code>.</td>
 </tr>
 </tbody>
 </table>

@@ -1005,12 +1005,12 @@
 </ul>
 <hr />
 <h2 id="run-it">Run it<a class="headerlink" href="#run-it" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>make<span class="w"> </span>smoke-test
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>make<span class="w"> </span>test-smoke
 </code></pre></div>
 <p>This single target:</p>
 <ol>
-<li>Brings down any previous run (<code>smoke-test-down</code>)</li>
-<li>Generates <code>docker/secrets/audit_key</code> and <code>docker/secrets/jwt_key</code> if missing (<code>smoke-test-secrets</code>)</li>
+<li>Brings down any previous run (<code>test-down-smoke</code>)</li>
+<li>Generates <code>docker/secrets/audit_key</code> and <code>docker/secrets/jwt_key</code> if missing (<code>test-secrets-smoke</code>)</li>
 <li>Builds all Docker images from <code>Dockerfile.smoke</code> (via <code>--build</code>)</li>
 <li>Starts the Compose stack and runs to completion</li>
 <li>Tears everything down on exit</li>
@@ -1110,7 +1110,7 @@
 </table>
 <hr />
 <h2 id="tear-down-only">Tear down only<a class="headerlink" href="#tear-down-only" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>make<span class="w"> </span>smoke-test-down
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>make<span class="w"> </span>test-down-smoke
 </code></pre></div>
 <p>Removes containers and volumes without rebuilding or re-running the test.</p>
 <hr />

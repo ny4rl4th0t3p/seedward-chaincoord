@@ -1091,6 +1091,10 @@
 
 
 <h1 id="web-app">Web App<a class="headerlink" href="#web-app" title="Permanent link">&para;</a></h1>
+<div class="admonition warning">
+<p class="admonition-title">Deprecated — moving to a separate repository</p>
+<p>The web frontend is being extracted into its own repository and reworked. <strong>This page is obsolete and unmaintained</strong> — its contents are not guaranteed to match the current code and it will be removed once the move is complete. Treat everything below as historical.</p>
+</div>
 <p>The <code>web/app/</code> directory is a React + TypeScript frontend that lets coordinators and validators interact with the full launch lifecycle from a browser wallet (Keplr or Leap) — no CLI required.</p>
 <p>For setup and infrastructure, see <a href="../dev-environment/">Dev Environment</a>.</p>
 <div class="admonition danger">
@@ -1164,10 +1168,10 @@
 <h2 id="validator-flows">Validator flows<a class="headerlink" href="#validator-flows" title="Permanent link">&para;</a></h2>
 <p>After signing in via the per-launch path, validators see the validator panel.</p>
 <ol>
-<li><strong>Submit join request</strong> — fill in consensus public key, <code>gentx</code> (paste or file upload), peer address, optional RPC endpoint and memo. Signed with the wallet before submission.</li>
+<li><strong>Submit join request</strong> — fill in the <code>gentx</code> (paste or file upload), peer address, optional RPC endpoint and memo. Signed with the wallet before submission. (The consensus key is read from the <code>gentx</code> — it is not entered separately.)</li>
 <li><strong>Track approval</strong> — the join request status panel polls every 15 seconds and shows pending / approved / rejected state with any rejection reason.</li>
 <li><strong>Download genesis</strong> — once a final genesis is published, download it. The SHA-256 is verified in-browser via the Web Crypto API.</li>
-<li><strong>Confirm readiness</strong> — submit a readiness confirmation with the genesis hash and optional binary hash.</li>
+<li><strong>Confirm readiness</strong> — submit a readiness confirmation with the genesis hash and binary hash (both required).</li>
 <li><strong>Peer list</strong> — once approved, load the <code>persistent_peers</code> string for all approved validators (one click to copy). Paste this into your node's <code>config.toml</code>.</li>
 </ol>
 <hr />

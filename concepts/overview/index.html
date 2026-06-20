@@ -1095,8 +1095,9 @@ action (except opening the application window, which the lead coordinator trigge
 <p>A <strong>Committee</strong> is the M-of-N group of coordinators that governs a launch. Any member can raise a proposal; a proposal
 executes when M members sign it. A single VETO from any member kills it immediately.</p>
 <p>The committee is declared at launch creation and can be modified later via proposals (<code>REPLACE_COMMITTEE_MEMBER</code>,
-<code>EXPAND_COMMITTEE</code>, <code>SHRINK_COMMITTEE</code>). There is always at least one member, and M must be strictly less than N to
-preserve liveness (the committee can still act when one member is absent).</p>
+<code>EXPAND_COMMITTEE</code>, <code>SHRINK_COMMITTEE</code>). There is always at least one member. At creation any threshold from 1 to N is
+allowed (including M = N); the stricter liveness guard (M strictly less than N, so the committee can still act when one
+member is absent) is enforced only when the committee is modified via <code>EXPAND_COMMITTEE</code> / <code>SHRINK_COMMITTEE</code>.</p>
 <h3 id="proposal">Proposal<a class="headerlink" href="#proposal" title="Permanent link">&para;</a></h3>
 <p>A <strong>Proposal</strong> is a signed, time-limited committee action. Every state transition and governance decision goes through a
 proposal. See <a href="../proposals/">Proposals &amp; M-of-N</a> for the full list of action types and how signing works.</p>
@@ -1108,9 +1109,10 @@ proposal. See <a href="../proposals/">Proposals &amp; M-of-N</a> for the full li
 <li>Their peer address and RPC endpoint</li>
 <li>A secp256k1 signature over the full request payload</li>
 </ul>
-<p>The server validates the request structurally (chain ID, self-delegation floor, commission limits) but does not invoke
-the chain binary. Full semantic validation happens when the coordinator runs <code>gaiad genesis collect-gentxs</code> during
-genesis assembly.</p>
+<p>The server validates the <code>gentx</code> at submission against the launch's rules (chain ID, self-delegation floor, commission
+bounds, consensus-key shape, signature) using a shared validation library — an invalid <code>gentx</code> is rejected with a
+<code>gentx_invalid</code> error carrying a per-invariant breakdown of what failed. It does <strong>not</strong> invoke the chain binary; full
+semantic validation happens when the coordinator runs <code>gaiad genesis collect-gentxs</code> during genesis assembly.</p>
 <h3 id="audit-log">Audit Log<a class="headerlink" href="#audit-log" title="Permanent link">&para;</a></h3>
 <p>Every state-changing event is appended to a JSONL file, with each entry signed by the server's Ed25519 key. Each entry
 also carries a <code>prev_hash</code> field — the SHA-256 of the previous line — covered by the current entry's signature. The log
@@ -1124,7 +1126,8 @@ See <a href="../../reference/audit/">Audit Log</a>.</p>
 <li>It does not store private keys for coordinators or validators</li>
 <li>It does not assemble the final genesis file — that step is done locally by the coordinator using
   <code>gaiad genesis collect-gentxs</code></li>
-<li>It does not guarantee BFT safety beyond a warning when a single entity approaches 1/3 of committed voting power</li>
+<li>It does not guarantee BFT safety beyond a warning when a single entity reaches or exceeds 1/3 of committed voting
+  power (and a hard precondition that blocks closing the window in that case)</li>
 </ul>
 <hr />
 <h2 id="further-reading">Further reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h2>

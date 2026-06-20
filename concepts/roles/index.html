@@ -950,7 +950,7 @@
 <p>chaincoord has three distinct roles. A single person or organisation can hold more than one role.</p>
 <hr />
 <h2 id="lead-coordinator">Lead Coordinator<a class="headerlink" href="#lead-coordinator" title="Permanent link">&para;</a></h2>
-<p>The lead coordinator is the committee member who creates the launch. They have one additional privilege beyond ordinary committee members: they can open the application window directly (without a proposal) once the chain record has been published.</p>
+<p>The lead coordinator is the committee member who creates the launch and declares the initial committee. Their one privilege beyond ordinary committee members is the emergency <strong>cancel</strong>: they can cancel the launch from any non-terminal state without a proposal or quorum. (Opening the application window is <em>not</em> lead-exclusive — any committee member may call <code>open-window</code>.)</p>
 <p>Every committee has exactly one lead. The lead can change if the current lead is replaced via a <code>REPLACE_COMMITTEE_MEMBER</code> proposal — the replacement automatically inherits the lead role.</p>
 <p><strong>Responsibilities:</strong></p>
 <ul>
@@ -979,12 +979,12 @@
 </ul>
 <hr />
 <h2 id="validator">Validator<a class="headerlink" href="#validator" title="Permanent link">&para;</a></h2>
-<p>A validator is an operator who wants to participate in the genesis validator set. They interact with <code>coordd</code> during the <code>WINDOW_OPEN</code> phase only.</p>
+<p>A validator is an operator who wants to participate in the genesis validator set. They interact with <code>coordd</code> during <code>WINDOW_OPEN</code> (to apply) and again after <code>GENESIS_READY</code> (to download the final genesis and confirm readiness).</p>
 <p><strong>What validators do:</strong></p>
 <ol>
 <li>Authenticate to <code>coordd</code> (same secp256k1 challenge–response as coordinators)</li>
 <li>Generate a <code>gentx</code> locally using their chain binary (e.g. <code>gaiad genesis gentx</code>)</li>
-<li>Submit a join request carrying the <code>gentx</code>, consensus public key, peer address, and RPC endpoint</li>
+<li>Submit a join request carrying the <code>gentx</code>, peer address, and RPC endpoint (the consensus key is read from the <code>gentx</code>)</li>
 <li>Wait for the committee to approve or reject their application</li>
 <li>After <code>GENESIS_READY</code>: download the final genesis file, verify its SHA256 hash, and submit a readiness confirmation</li>
 </ol>
