@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ny4rl4th0t3p/chaincoord/internal/application/ports"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/ports"
 )
 
 // signedPayloadMaxAge is the maximum age (and future skew) accepted for a

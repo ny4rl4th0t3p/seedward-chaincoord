@@ -11,7 +11,7 @@
 // @description                 Session token obtained from POST /auth/verify. Format: "Bearer <token>"
 package main
 
-import "github.com/ny4rl4th0t3p/chaincoord/cmd/coordd/cmd"
+import "github.com/ny4rl4th0t3p/seedward-chaincoord/cmd/coordd/cmd"
 
 func main() {
 	cmd.Execute()

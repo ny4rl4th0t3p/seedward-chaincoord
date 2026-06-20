@@ -9,8 +9,8 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/ny4rl4th0t3p/chaincoord/internal/application/ports"
-	"github.com/ny4rl4th0t3p/chaincoord/internal/infrastructure/auth"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/ports"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/infrastructure/auth"
 )
 
 // testKey is a valid base64-encoded 32-byte Ed25519 seed.

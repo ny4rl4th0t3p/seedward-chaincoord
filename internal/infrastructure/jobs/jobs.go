@@ -12,8 +12,8 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/ny4rl4th0t3p/chaincoord/internal/domain"
-	"github.com/ny4rl4th0t3p/chaincoord/internal/domain/launch"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/launch"
 )
 
 // proposalExpirer is the subset of ProposalService the TTL job needs.

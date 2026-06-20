@@ -3,7 +3,8 @@
 This document covers how to run and configure the `coordd` server in both development and production environments.
 
 !!! danger "Proof of concept — not for production use"
-    chaincoord is research-grade software. APIs, data formats, and behaviours may change without notice. **Do not use it for mainnet launches or any environment where correctness and availability are required.**
+seedward-chaincoord is research-grade software. APIs, data formats, and behaviours may change without notice. **Do not
+use it for mainnet launches or any environment where correctness and availability are required.**
 
 ---
 
@@ -15,7 +16,10 @@ This document covers how to run and configure the `coordd` server in both develo
 2. **Environment variables** (`COORD_*`)
 3. **Config file** (`config.yaml` — searched in `.`, `$HOME/.coordd`, `/etc/coordd`)
 
-Most options are available through all three sources, but a few have **no CLI flag** and must come from an env var or the config file: the signing keys (`audit_private_key`/`_file`, `jwt_private_key`/`_file`), `admin_addresses`, `launch_policy`, and `insecure_no_ssrf_check` (see the Flag column in the reference table below). Environment variables are the recommended approach for production deployments; the config file is convenient for local development.
+Most options are available through all three sources, but a few have **no CLI flag** and must come from an env var or
+the config file: the signing keys (`audit_private_key`/`_file`, `jwt_private_key`/`_file`), `admin_addresses`,
+`launch_policy`, and `insecure_no_ssrf_check` (see the Flag column in the reference table below). Environment variables
+are the recommended approach for production deployments; the config file is convenient for local development.
 
 ---
 
@@ -43,11 +47,13 @@ bin/coordd keygen > data/jwt_key
 chmod 600 data/audit_key data/jwt_key
 ```
 
-`log_level: debug` enables the human-readable `ConsoleWriter` output instead of JSON, which is easier to read during development.
+`log_level: debug` enables the human-readable `ConsoleWriter` output instead of JSON, which is easier to read during
+development.
 
 ### CORS
 
-The web app (Next.js) runs on `http://localhost:3000` by default. Set `cors_origins` to that origin so the browser allows cross-origin requests (required for the SSE stream, which connects directly from the browser):
+The web app (Next.js) runs on `http://localhost:3000` by default. Set `cors_origins` to that origin so the browser
+allows cross-origin requests (required for the SSE stream, which connects directly from the browser):
 
 ```yaml
 # config.yaml (dev)
@@ -66,7 +72,8 @@ Multiple origins are comma-separated:
 export COORD_CORS_ORIGINS="http://localhost:3000,https://coord.example.com"
 ```
 
-> **Do not use `*` in development** unless you have no other option — `AllowCredentials: true` is set on the server, and browsers will reject credentialed requests to a wildcard origin. Use the exact origin instead.
+> **Do not use `*` in development** unless you have no other option — `AllowCredentials: true` is set on the server, and
+> browsers will reject credentialed requests to a wildcard origin. Use the exact origin instead.
 
 ### Running the server
 
@@ -122,7 +129,8 @@ coordd serve --tls-cert cert.pem --tls-key key.pem ...
 
 #### Infra TLS (reverse proxy / load balancer)
 
-When TLS is terminated upstream, `coordd` binds plain HTTP. Set `COORD_INSECURE_NO_TLS=true` to suppress the startup warning — this makes the intent self-documenting in your deploy config:
+When TLS is terminated upstream, `coordd` binds plain HTTP. Set `COORD_INSECURE_NO_TLS=true` to suppress the startup
+warning — this makes the intent self-documenting in your deploy config:
 
 ```bash
 export COORD_INSECURE_NO_TLS=true
@@ -136,7 +144,8 @@ your.domain {
 }
 ```
 
-For nginx, include `proxy_set_header X-Real-IP $remote_addr;` so IP-based rate limiting on `POST /auth/challenge` sees the real client address rather than the proxy address.
+For nginx, include `proxy_set_header X-Real-IP $remote_addr;` so IP-based rate limiting on `POST /auth/challenge` sees
+the real client address rather than the proxy address.
 
 #### Local dev
 
@@ -146,27 +155,27 @@ Plain HTTP on loopback (`127.0.0.1` or `::1`) suppresses the warning automatical
 
 ## Configuration Reference
 
-| Key | Env var | Flag | Default | Required |
-|---|---|---|---|---|
-| `listen_addr` | `COORD_LISTEN_ADDR` | `--listen-addr` | `:8080` | No |
-| `db_path` | `COORD_DB_PATH` | `--db-path` | — | Yes |
-| `audit_log_path` | `COORD_AUDIT_LOG_PATH` | `--audit-log-path` | — | Yes |
-| `genesis_path` | `COORD_GENESIS_PATH` | `--genesis-path` | — | Yes |
-| `audit_private_key` | `COORD_AUDIT_PRIVATE_KEY` | — | — | Yes¹ |
-| `audit_private_key_file` | `COORD_AUDIT_PRIVATE_KEY_FILE` | — | — | Yes¹ |
-| `jwt_private_key` | `COORD_JWT_PRIVATE_KEY` | — | — | Yes² |
-| `jwt_private_key_file` | `COORD_JWT_PRIVATE_KEY_FILE` | — | — | Yes² |
-| `log_level` | `COORD_LOG_LEVEL` | `--log-level` | `info` | No |
-| `cors_origins` | `COORD_CORS_ORIGINS` | `--cors-origins` | *(disabled)* | No |
-| `admin_addresses` | `COORD_ADMIN_ADDRESSES` | — | *(none)* | No |
-| `launch_policy` | `COORD_LAUNCH_POLICY` | — | `restricted` | No |
-| `genesis_host_mode` | `COORD_GENESIS_HOST_MODE` | `--genesis-host-mode` | `false` | No |
-| `genesis_max_bytes` | `COORD_GENESIS_MAX_BYTES` | `--genesis-max-bytes` | `734003200` (700 MiB) | No |
-| `tls_cert` | `COORD_TLS_CERT` | `--tls-cert` | — | No |
-| `tls_key` | `COORD_TLS_KEY` | `--tls-key` | — | No |
-| `insecure_no_tls` | `COORD_INSECURE_NO_TLS` | `--insecure-no-tls` | `false` | No |
-| `insecure_no_rate_limit` | `COORD_INSECURE_NO_RATE_LIMIT` | `--insecure-no-rate-limit` | `false` | No |
-| `insecure_no_ssrf_check` | `COORD_INSECURE_NO_SSRF_CHECK` | — | `false` | No |
+| Key                      | Env var                        | Flag                       | Default               | Required |
+|--------------------------|--------------------------------|----------------------------|-----------------------|----------|
+| `listen_addr`            | `COORD_LISTEN_ADDR`            | `--listen-addr`            | `:8080`               | No       |
+| `db_path`                | `COORD_DB_PATH`                | `--db-path`                | —                     | Yes      |
+| `audit_log_path`         | `COORD_AUDIT_LOG_PATH`         | `--audit-log-path`         | —                     | Yes      |
+| `genesis_path`           | `COORD_GENESIS_PATH`           | `--genesis-path`           | —                     | Yes      |
+| `audit_private_key`      | `COORD_AUDIT_PRIVATE_KEY`      | —                          | —                     | Yes¹     |
+| `audit_private_key_file` | `COORD_AUDIT_PRIVATE_KEY_FILE` | —                          | —                     | Yes¹     |
+| `jwt_private_key`        | `COORD_JWT_PRIVATE_KEY`        | —                          | —                     | Yes²     |
+| `jwt_private_key_file`   | `COORD_JWT_PRIVATE_KEY_FILE`   | —                          | —                     | Yes²     |
+| `log_level`              | `COORD_LOG_LEVEL`              | `--log-level`              | `info`                | No       |
+| `cors_origins`           | `COORD_CORS_ORIGINS`           | `--cors-origins`           | *(disabled)*          | No       |
+| `admin_addresses`        | `COORD_ADMIN_ADDRESSES`        | —                          | *(none)*              | No       |
+| `launch_policy`          | `COORD_LAUNCH_POLICY`          | —                          | `restricted`          | No       |
+| `genesis_host_mode`      | `COORD_GENESIS_HOST_MODE`      | `--genesis-host-mode`      | `false`               | No       |
+| `genesis_max_bytes`      | `COORD_GENESIS_MAX_BYTES`      | `--genesis-max-bytes`      | `734003200` (700 MiB) | No       |
+| `tls_cert`               | `COORD_TLS_CERT`               | `--tls-cert`               | —                     | No       |
+| `tls_key`                | `COORD_TLS_KEY`                | `--tls-key`                | —                     | No       |
+| `insecure_no_tls`        | `COORD_INSECURE_NO_TLS`        | `--insecure-no-tls`        | `false`               | No       |
+| `insecure_no_rate_limit` | `COORD_INSECURE_NO_RATE_LIMIT` | `--insecure-no-rate-limit` | `false`               | No       |
+| `insecure_no_ssrf_check` | `COORD_INSECURE_NO_SSRF_CHECK` | —                          | `false`               | No       |
 
 ¹ Exactly one of `audit_private_key` (inline base64) or `audit_private_key_file` (path) must be set.  
 ² Exactly one of `jwt_private_key` (inline base64) or `jwt_private_key_file` (path) must be set.
@@ -175,7 +184,8 @@ Plain HTTP on loopback (`127.0.0.1` or `::1`) suppresses the warning automatical
 
 ### `audit_private_key` / `audit_private_key_file`
 
-Ed25519 seed for signing audit log entries. Generate with `coordd keygen`. In production, prefer `_FILE` so the raw seed never appears in environment variable listings or container inspection output:
+Ed25519 seed for signing audit log entries. Generate with `coordd keygen`. In production, prefer `_FILE` so the raw seed
+never appears in environment variable listings or container inspection output:
 
 ```bash
 coordd keygen | docker secret create audit_key -
@@ -188,7 +198,8 @@ Ed25519 seed for signing session JWTs. Must be **different** from the audit key.
 
 ### `admin_addresses`
 
-Comma-separated list of operator addresses that have admin privileges (`/admin/*` endpoints). If empty, no address has admin access.
+Comma-separated list of operator addresses that have admin privileges (`/admin/*` endpoints). If empty, no address has
+admin access.
 
 ```bash
 export COORD_ADMIN_ADDRESSES="cosmos1abc...,cosmos1def..."
@@ -203,34 +214,46 @@ Controls who may create new launches:
 
 ### `genesis_host_mode`
 
-When `true`, `coordd` accepts raw genesis file uploads (`POST /launch/:id/genesis`) and serves them directly from disk. When `false` (the default), only attestor mode is available — coordinators register an external URL and SHA-256 hash.
+When `true`, `coordd` accepts raw genesis file uploads (`POST /launch/:id/genesis`) and serves them directly from disk.
+When `false` (the default), only attestor mode is available — coordinators register an external URL and SHA-256 hash.
 
 ### `genesis_max_bytes`
 
-Maximum raw genesis upload size in bytes when host mode is enabled. Defaults to 700 MiB. Ignored when `genesis_host_mode` is `false`.
+Maximum raw genesis upload size in bytes when host mode is enabled. Defaults to 700 MiB. Ignored when
+`genesis_host_mode` is `false`.
 
 ### `cors_origins`
 
-Comma-separated list of allowed origins for cross-origin requests. Only needed when a browser-based client (the validator web app) connects to `coordd` from a different origin.
+Comma-separated list of allowed origins for cross-origin requests. Only needed when a browser-based client (the
+validator web app) connects to `coordd` from a different origin.
 
 - Leave empty to disable CORS headers entirely (default — safe for API-only or same-origin deployments).
-- Set to the exact origin(s) of the web app in both dev and prod. Wildcards are not supported when credentials are involved.
+- Set to the exact origin(s) of the web app in both dev and prod. Wildcards are not supported when credentials are
+  involved.
 
 ### `tls_cert` / `tls_key`
 
-Paths to a PEM-encoded TLS certificate and private key. Both must be set together, or both left empty. When set, `coordd` calls `ListenAndServeTLS` and handles TLS termination itself (native TLS mode). See the [TLS section](#tls) above for all deployment modes.
+Paths to a PEM-encoded TLS certificate and private key. Both must be set together, or both left empty. When set,
+`coordd` calls `ListenAndServeTLS` and handles TLS termination itself (native TLS mode). See the [TLS section](#tls)
+above for all deployment modes.
 
 ### `insecure_no_tls`
 
-Suppresses the startup warning when TLS is not configured and the listen address is not loopback. Set this when TLS is terminated upstream (load balancer, ingress, reverse proxy) and `coordd` binds plain HTTP on a private network interface. The Docker Compose file sets this automatically.
+Suppresses the startup warning when TLS is not configured and the listen address is not loopback. Set this when TLS is
+terminated upstream (load balancer, ingress, reverse proxy) and `coordd` binds plain HTTP on a private network
+interface. The Docker Compose file sets this automatically.
 
 ### `insecure_no_rate_limit`
 
-Disables all rate limiters: the HTTP per-IP middleware on `POST /auth/challenge` (10 req/IP/min) and validator write endpoints (60 req/IP/min), and the storage-layer per-operator limit on challenge issuance (5 req/operator/5 min). **Only for automated test environments** — do not enable in production.
+Disables all rate limiters: the HTTP per-IP middleware on `POST /auth/challenge` (10 req/IP/min) and validator write
+endpoints (60 req/IP/min), and the storage-layer per-operator limit on challenge issuance (5 req/operator/5 min). **Only
+for automated test environments** — do not enable in production.
 
 ### `insecure_no_ssrf_check`
 
-Disables DNS-resolution and private-IP validation on user-supplied RPC URLs (`monitor_rpc_url`) and genesis attestor URLs. Only enable this in trusted environments — for example, the smoke-test Docker network, where RPC hostnames are internal container names that would fail the SSRF check. **Do not enable in production.**
+Disables DNS-resolution and private-IP validation on user-supplied RPC URLs (`monitor_rpc_url`) and genesis attestor
+URLs. Only enable this in trusted environments — for example, the smoke-test Docker network, where RPC hostnames are
+internal container names that would fail the SSRF check. **Do not enable in production.**
 
 ### `log_level`
 

@@ -8,8 +8,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/ny4rl4th0t3p/chaincoord/internal/application/services"
-	"github.com/ny4rl4th0t3p/chaincoord/internal/domain/proposal"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/services"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/proposal"
 )
 
 // proposalJSON is the wire representation of a Proposal.

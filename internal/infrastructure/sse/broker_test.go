@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/ny4rl4th0t3p/chaincoord/internal/domain"
-	"github.com/ny4rl4th0t3p/chaincoord/internal/infrastructure/sse"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/infrastructure/sse"
 )
 
 // windowClosed builds a minimal WindowClosed event for the given launchID.

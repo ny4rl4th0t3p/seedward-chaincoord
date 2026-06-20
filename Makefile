@@ -1,6 +1,6 @@
 BINARY_SERVER       := bin/coordd
 BINARY_SMOKE_SIGNER := bin/smoke-signer
-MODULE              := github.com/ny4rl4th0t3p/chaincoord
+MODULE              := github.com/ny4rl4th0t3p/seedward-chaincoord
 VERSION             ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS             := -X $(MODULE)/cmd/coordd/cmd.Version=$(VERSION)
 

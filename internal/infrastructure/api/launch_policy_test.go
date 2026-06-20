@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/ny4rl4th0t3p/chaincoord/internal/config"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/config"
 )
 
 // minimalLaunchBody is a POST /launch payload that passes all parsing.

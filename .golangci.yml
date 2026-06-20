@@ -148,4 +148,4 @@ formatters:
           replacement: 'any'
     goimports:
       local-prefixes:
-        - github.com/ny4rl4th0t3p/chaincoord
+        - github.com/ny4rl4th0t3p/seedward-chaincoord

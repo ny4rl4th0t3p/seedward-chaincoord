@@ -1,4 +1,4 @@
-module github.com/ny4rl4th0t3p/chaincoord
+module github.com/ny4rl4th0t3p/seedward-chaincoord
 
 go 1.25.9
 

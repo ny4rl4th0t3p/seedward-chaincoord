@@ -3,7 +3,7 @@ package netutil_test
 import (
 	"testing"
 
-	"github.com/ny4rl4th0t3p/chaincoord/internal/netutil"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/netutil"
 )
 
 func TestValidateRPCURL(t *testing.T) {

@@ -13,7 +13,7 @@
 // limitations under the License.
 package main
 
-import "github.com/ny4rl4th0t3p/chaincoord/cmd/smoke-signer/cmd"
+import "github.com/ny4rl4th0t3p/seedward-chaincoord/cmd/smoke-signer/cmd"
 
 func main() {
 	cmd.Execute()

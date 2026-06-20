@@ -9,7 +9,7 @@ import (
 
 	"github.com/rs/zerolog/hlog"
 
-	"github.com/ny4rl4th0t3p/chaincoord/internal/application/ports"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/ports"
 )
 
 // timeNow is the clock used by handlers. Override in tests.

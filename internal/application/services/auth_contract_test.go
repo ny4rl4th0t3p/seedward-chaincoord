@@ -14,8 +14,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ny4rl4th0t3p/chaincoord/internal/application/services"
-	"github.com/ny4rl4th0t3p/chaincoord/pkg/canonicaljson"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/services"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/pkg/canonicaljson"
 )
 
 func TestVerifyChallengeInput_CanonicalSigningBytes(t *testing.T) {

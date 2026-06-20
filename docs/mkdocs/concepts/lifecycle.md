@@ -1,6 +1,7 @@
 # Launch Lifecycle
 
-A launch moves through seven states. Transitions are one-way (except `GENESIS_READY → WINDOW_CLOSED` for genesis revision) and each is gated by a committee proposal, except for opening the application window.
+A launch moves through seven states. Transitions are one-way (except `GENESIS_READY → WINDOW_CLOSED` for genesis
+revision) and each is gated by a committee proposal, except for opening the application window.
 
 ```mermaid
 stateDiagram-v2
@@ -35,7 +36,8 @@ The launch exists but is not visible to validators. The lead coordinator uses th
 - Declare the initial committee (members, threshold M, total N)
 - Upload the initial genesis file (`POST /launch/:id/genesis?type=initial`)
 
-The initial genesis is typically a bare `gaiad init` output with no accounts and no validators — just the base app state with the correct parameters.
+The initial genesis is typically a bare `gaiad init` output with no accounts and no validators — just the base app state
+with the correct parameters.
 
 No proposals are required in this phase. The lead coordinator sets everything up unilaterally before publishing.
 
@@ -45,9 +47,11 @@ No proposals are required in this phase. The lead coordinator sets everything up
 
 Triggered by: `PUBLISH_CHAIN_RECORD` proposal executing.
 
-The committee attests to the chain record and the initial genesis SHA256. From this point the chain record is immutable (no further edits to chain ID, binary name, denom, etc.).
+The committee attests to the chain record and the initial genesis SHA256. From this point the chain record is
+immutable (no further edits to chain ID, binary name, denom, etc.).
 
-The launch is visible to validators if `visibility = PUBLIC`. Allowlist launches remain hidden to non-allowlisted addresses.
+The launch is visible to validators if `visibility = PUBLIC`. Allowlist launches remain hidden to non-allowlisted
+addresses.
 
 Validators cannot apply yet — the application window is not open.
 
@@ -55,11 +59,15 @@ Validators cannot apply yet — the application window is not open.
 
 ## WINDOW_OPEN
 
-Triggered by: Any committee member calls `POST /launch/:id/open-window` (no proposal required). If the launch is still in `DRAFT` and the initial genesis hash has already been uploaded, this call auto-publishes first — a single-coordinator shortcut equivalent to executing a `PUBLISH_CHAIN_RECORD` proposal.
+Triggered by: Any committee member calls `POST /launch/:id/open-window` (no proposal required). If the launch is still
+in `DRAFT` and the initial genesis hash has already been uploaded, this call auto-publishes first — a single-coordinator
+shortcut equivalent to executing a `PUBLISH_CHAIN_RECORD` proposal.
 
 Validators can now submit join requests. The window stays open until the committee closes it via proposal.
 
-During this phase coordinators review incoming join requests and raise `APPROVE_VALIDATOR` or `REJECT_VALIDATOR` proposals. Approved validators accumulate; the server tracks committed voting power and warns if any single entity reaches or exceeds 1/3 of the total.
+During this phase coordinators review incoming join requests and raise `APPROVE_VALIDATOR` or `REJECT_VALIDATOR`
+proposals. Approved validators accumulate; the server tracks committed voting power and warns if any single entity
+reaches or exceeds 1/3 of the total.
 
 ---
 
@@ -104,17 +112,23 @@ The committee attests to the final genesis SHA256. Validators can now:
 2. Verify the hash: `GET /launch/:id/genesis/hash`
 3. Submit readiness: `POST /launch/:id/ready` (signed confirmation of genesis hash + binary hash)
 
-The server validates each confirmation: the reported genesis hash must equal the published final genesis hash, and — when the coordinator declared a `binary_sha256` in the chain record — the reported binary hash must match it. A mismatch is rejected. If no `binary_sha256` was declared, the binary hash is stored but not checked.
+The server validates each confirmation: the reported genesis hash must equal the published final genesis hash, and —
+when the coordinator declared a `binary_sha256` in the chain record — the reported binary hash must match it. A mismatch
+is rejected. If no `binary_sha256` was declared, the binary hash is stored but not checked.
 
-Once any committee member sets a monitor RPC URL (`PATCH /launch/:id`), `coordd` starts polling the CometBFT RPC endpoint once per minute for the first block.
+Once any committee member sets a monitor RPC URL (`PATCH /launch/:id`), `coordd` starts polling the CometBFT RPC
+endpoint once per minute for the first block.
 
-**Genesis revision:** If the genesis file needs to be corrected, the committee can raise a `REVISE_GENESIS` proposal, which reverts the status to `WINDOW_CLOSED` and clears the final genesis hash. The lead then re-uploads a corrected file and the committee re-raises `PUBLISH_GENESIS`.
+**Genesis revision:** If the genesis file needs to be corrected, the committee can raise a `REVISE_GENESIS` proposal,
+which reverts the status to `WINDOW_CLOSED` and clears the final genesis hash. The lead then re-uploads a corrected file
+and the committee re-raises `PUBLISH_GENESIS`.
 
 ---
 
 ## LAUNCHED
 
-Triggered by: The block monitor observes block 1 at the configured RPC endpoint — it polls `GET <rpc>/block?height=1` once per minute and transitions to `LAUNCHED` on a non-null block.
+Triggered by: The block monitor observes block 1 at the configured RPC endpoint — it polls `GET <rpc>/block?height=1`
+once per minute and transitions to `LAUNCHED` on a non-null block.
 
 Terminal state. The chain is live.
 

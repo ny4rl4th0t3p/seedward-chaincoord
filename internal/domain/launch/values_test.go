@@ -3,7 +3,7 @@ package launch_test
 import (
 	"testing"
 
-	"github.com/ny4rl4th0t3p/chaincoord/internal/domain/launch"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/launch"
 )
 
 // ---- OperatorAddress --------------------------------------------------------

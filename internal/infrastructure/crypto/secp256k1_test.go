@@ -11,7 +11,7 @@ import (
 	secp "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4/ecdsa"
 
-	"github.com/ny4rl4th0t3p/chaincoord/internal/infrastructure/crypto"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/infrastructure/crypto"
 )
 
 // deriveSecp256k1Address computes the Cosmos SDK bech32 address for a

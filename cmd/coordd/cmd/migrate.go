@@ -6,7 +6,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/ny4rl4th0t3p/chaincoord/internal/infrastructure/storage/sqlite"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/infrastructure/storage/sqlite"
 )
 
 func newMigrateCmd() *cobra.Command {

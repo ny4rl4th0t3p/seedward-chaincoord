@@ -9,7 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/ny4rl4th0t3p/chaincoord/internal/domain/launch"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/launch"
 )
 
 // committeeMemberJSON is the wire representation of a single committee member.

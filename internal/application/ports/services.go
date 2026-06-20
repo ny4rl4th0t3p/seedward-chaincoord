@@ -8,7 +8,7 @@ import (
 
 	"github.com/ny4rl4th0t3p/seedward-libs/gentxvalidate"
 
-	"github.com/ny4rl4th0t3p/chaincoord/internal/domain"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain"
 )
 
 // Transactor runs fn inside a single database transaction.

@@ -9,7 +9,7 @@ import (
 
 	"github.com/cosmos/btcutil/bech32"
 
-	"github.com/ny4rl4th0t3p/chaincoord/internal/infrastructure/crypto"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/infrastructure/crypto"
 )
 
 // deriveTestAddress computes the Cosmos SDK bech32 address for a given Ed25519

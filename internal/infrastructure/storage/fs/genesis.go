@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ny4rl4th0t3p/chaincoord/internal/application/ports"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/ports"
 )
 
 // GenesisStore is a filesystem-backed implementation of ports.GenesisStore.

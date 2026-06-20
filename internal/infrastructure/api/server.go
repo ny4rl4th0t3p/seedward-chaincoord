@@ -15,9 +15,9 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/hlog"
 
-	"github.com/ny4rl4th0t3p/chaincoord/internal/application/ports"
-	"github.com/ny4rl4th0t3p/chaincoord/internal/application/services"
-	"github.com/ny4rl4th0t3p/chaincoord/internal/domain"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/ports"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/services"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain"
 )
 
 // Server holds every dependency that HTTP handlers need and owns the

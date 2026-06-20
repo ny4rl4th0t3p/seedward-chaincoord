@@ -3,15 +3,16 @@
 Run `coordd` locally in a few minutes. This guide assumes you have Go 1.25+ installed.
 
 !!! danger "Proof of concept — not for production use"
-    chaincoord is research-grade software. APIs, data formats, and behaviours may change without notice. **Do not use it for mainnet launches or any environment where correctness and availability are required.**
+seedward-chaincoord is research-grade software. APIs, data formats, and behaviours may change without notice. **Do not
+use it for mainnet launches or any environment where correctness and availability are required.**
 
 ---
 
 ## 1. Build
 
 ```bash
-git clone https://github.com/ny4rl4th0t3p/chaincoord.git
-cd chaincoord
+git clone https://github.com/ny4rl4th0t3p/seedward-chaincoord.git
+cd seedward-chaincoord
 make build
 ```
 
@@ -24,7 +25,8 @@ This produces two binaries:
 
 ## 2. Generate keys
 
-`coordd` requires two Ed25519 keys at startup: one for signing audit log entries, one for JWT session tokens. Generate them with the built-in `keygen` command:
+`coordd` requires two Ed25519 keys at startup: one for signing audit log entries, one for JWT session tokens. Generate
+them with the built-in `keygen` command:
 
 ```bash
 mkdir -p data

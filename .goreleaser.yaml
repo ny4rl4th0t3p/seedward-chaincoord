@@ -1,11 +1,11 @@
-project_name: chaincoord
+project_name: seedward-chaincoord
 
 builds:
   - id: coordd
     main: ./cmd/coordd
     binary: coordd
     ldflags:
-      - -X github.com/ny4rl4th0t3p/chaincoord/cmd/coordd/cmd.Version={{ .Version }}
+      - -X github.com/ny4rl4th0t3p/seedward-chaincoord/cmd/coordd/cmd.Version={{ .Version }}
     env:
       - CGO_ENABLED=0
     goos:
@@ -54,4 +54,4 @@ changelog:
 release:
   github:
     owner: ny4rl4th0t3p
-    name: chaincoord
+    name: seedward-chaincoord

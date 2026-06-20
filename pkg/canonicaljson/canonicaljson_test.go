@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/ny4rl4th0t3p/chaincoord/pkg/canonicaljson"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/pkg/canonicaljson"
 )
 
 type vector struct {

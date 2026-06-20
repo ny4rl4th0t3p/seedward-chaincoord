@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/ny4rl4th0t3p/chaincoord/internal/domain/joinrequest"
-	"github.com/ny4rl4th0t3p/chaincoord/internal/domain/launch"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/joinrequest"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/launch"
 )
 
 // Gentx correctness is validated by the shared gentxvalidate library and the

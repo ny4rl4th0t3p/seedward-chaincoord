@@ -8,7 +8,7 @@ import (
 
 	"github.com/ny4rl4th0t3p/seedward-libs/gentxvalidate"
 
-	"github.com/ny4rl4th0t3p/chaincoord/internal/application/ports"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/ports"
 )
 
 // Validator runs the server invariant set (RunAll) and, on a fully-passing

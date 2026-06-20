@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ny4rl4th0t3p/chaincoord/internal/application/ports"
-	"github.com/ny4rl4th0t3p/chaincoord/internal/infrastructure/auditlog"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/ports"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/infrastructure/auditlog"
 )
 
 func writeAuditEntries(t *testing.T, path string, names []string) {

@@ -1,6 +1,7 @@
 # Concepts Overview
 
-chaincoord coordinates the genesis launch of a **Cosmos SDK** chain between a group of coordinators and a set of
+seedward-chaincoord coordinates the genesis launch of a **Cosmos SDK** chain between a group of coordinators and a set
+of
 validator applicants. It provides a structured protocol, an HTTP API, and a tamper-evident audit log — but it does not
 run a chain node, does not hold keys on behalf of anyone, and does not require trust in a central authority beyond the
 declared committee.
@@ -13,7 +14,7 @@ Launching a Cosmos SDK chain requires assembling a genesis file from validator c
 content, and ensuring every participant starts with the same file at the same time. Doing this informally — over chat,
 shared drives, or ad-hoc scripts — introduces opportunities for error, manipulation, and lack of accountability.
 
-chaincoord makes the process explicit, auditable, and multi-party.
+seedward-chaincoord makes the process explicit, auditable, and multi-party.
 
 ---
 
@@ -69,7 +70,7 @@ See [Audit Log](../reference/audit.md).
 
 ---
 
-## What chaincoord does not do
+## What seedward-chaincoord does not do
 
 - It does not run or connect to a chain node during the launch (monitoring polls CometBFT RPC only after
   `GENESIS_READY`)

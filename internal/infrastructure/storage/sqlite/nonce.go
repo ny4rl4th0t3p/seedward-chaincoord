@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ny4rl4th0t3p/chaincoord/internal/application/ports"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/ports"
 )
 
 // nonceTTL is how long a consumed nonce is remembered. It MUST be >= the signed-payload

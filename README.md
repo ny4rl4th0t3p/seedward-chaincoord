@@ -14,7 +14,7 @@ of launching and running a Cosmos chain. All three are Apache 2.0 and self-hosta
 > **Warning:** The web UI has not been fully validated end-to-end. Visual and interaction regressions may exist even
 > when the full test suite passes.
 
-📖 **[Full documentation](https://ny4rl4th0t3p.github.io/chaincoord)** · 🏗️ **[Design document](docs/DESIGN.md)**
+📖 **[Full documentation](https://ny4rl4th0t3p.github.io/seedward-chaincoord)** · 🏗️ **[Design document](docs/DESIGN.md)**
 
 ---
 
@@ -24,7 +24,7 @@ Launching a Cosmos SDK chain requires assembling a genesis file from validator c
 multi-party agreement on its content, and ensuring every participant starts from the same file at the
 same time. Doing this informally — over chat or shared drives — is error-prone and unaccountable.
 
-**chaincoord** makes the process explicit, auditable, and multi-party. It covers the full launch lifecycle:
+**seedward-chaincoord** makes the process explicit, auditable, and multi-party. It covers the full launch lifecycle:
 
 ```mermaid
 flowchart LR
@@ -66,8 +66,8 @@ before it executes. A tamper-evident audit log records every action and can be v
 Requires Docker with Compose v2, `make`, and a Keplr or Leap wallet extension in your browser.
 
 ```bash
-git clone https://github.com/ny4rl4th0t3p/chaincoord.git
-cd chaincoord
+git clone https://github.com/ny4rl4th0t3p/seedward-chaincoord.git
+cd seedward-chaincoord
 cp .env.example .env          # set COORD_ADMIN_ADDRESSES to your wallet address
 make dev-up
 ```
@@ -81,8 +81,8 @@ with (Cosmos Hub, Osmosis, or Juno).
 
 ```bash
 # Build
-git clone https://github.com/ny4rl4th0t3p/chaincoord.git
-cd chaincoord
+git clone https://github.com/ny4rl4th0t3p/seedward-chaincoord.git
+cd seedward-chaincoord
 make build
 
 # Generate keys
@@ -115,25 +115,25 @@ curl http://localhost:8080/healthz
 
 ## Documentation
 
-Full documentation is available at **https://ny4rl4th0t3p.github.io/chaincoord/**
+Full documentation is available at **https://ny4rl4th0t3p.github.io/seedward-chaincoord/**
 
-- [Dev Environment](https://ny4rl4th0t3p.github.io/chaincoord/getting-started/dev-environment/) — full-stack setup,
+- [Dev Environment](https://ny4rl4th0t3p.github.io/seedward-chaincoord/getting-started/dev-environment/) — full-stack setup,
   admin config, local dev
-- [Web App](https://ny4rl4th0t3p.github.io/chaincoord/getting-started/web-app/) — sign-in paths, coordinator and
+- [Web App](https://ny4rl4th0t3p.github.io/seedward-chaincoord/getting-started/web-app/) — sign-in paths, coordinator and
   validator flows, admin panel
-- [Concepts overview](https://ny4rl4th0t3p.github.io/chaincoord/concepts/overview/) — roles, proposals, and the audit
+- [Concepts overview](https://ny4rl4th0t3p.github.io/seedward-chaincoord/concepts/overview/) — roles, proposals, and the audit
   log
-- [Launch lifecycle](https://ny4rl4th0t3p.github.io/chaincoord/concepts/lifecycle/) — all seven states in detail
-- [Roles](https://ny4rl4th0t3p.github.io/chaincoord/concepts/roles/) — lead coordinator, coordinator, validator
-- [Proposals & M-of-N](https://ny4rl4th0t3p.github.io/chaincoord/concepts/proposals/) — all action types and signing
+- [Launch lifecycle](https://ny4rl4th0t3p.github.io/seedward-chaincoord/concepts/lifecycle/) — all seven states in detail
+- [Roles](https://ny4rl4th0t3p.github.io/seedward-chaincoord/concepts/roles/) — lead coordinator, coordinator, validator
+- [Proposals & M-of-N](https://ny4rl4th0t3p.github.io/seedward-chaincoord/concepts/proposals/) — all action types and signing
   rules
-- [Setup & Configuration](https://ny4rl4th0t3p.github.io/chaincoord/reference/setup/) — full config reference, TLS,
+- [Setup & Configuration](https://ny4rl4th0t3p.github.io/seedward-chaincoord/reference/setup/) — full config reference, TLS,
   CORS, production options
-- [Quickstart](https://ny4rl4th0t3p.github.io/chaincoord/getting-started/quickstart/) — step-by-step local setup
-- [Smoke test](https://ny4rl4th0t3p.github.io/chaincoord/getting-started/smoke-test/) — end-to-end protocol against a
+- [Quickstart](https://ny4rl4th0t3p.github.io/seedward-chaincoord/getting-started/quickstart/) — step-by-step local setup
+- [Smoke test](https://ny4rl4th0t3p.github.io/seedward-chaincoord/getting-started/smoke-test/) — end-to-end protocol against a
   live chain
-- [API reference](https://ny4rl4th0t3p.github.io/chaincoord/reference/api/) — HTTP endpoints
-- [Audit CLI](https://ny4rl4th0t3p.github.io/chaincoord/reference/audit/) — offline log verification
+- [API reference](https://ny4rl4th0t3p.github.io/seedward-chaincoord/reference/api/) — HTTP endpoints
+- [Audit CLI](https://ny4rl4th0t3p.github.io/seedward-chaincoord/reference/audit/) — offline log verification
 
 ---
 

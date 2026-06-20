@@ -8,10 +8,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/ny4rl4th0t3p/chaincoord/internal/application/ports"
-	"github.com/ny4rl4th0t3p/chaincoord/internal/domain/joinrequest"
-	"github.com/ny4rl4th0t3p/chaincoord/internal/domain/launch"
-	"github.com/ny4rl4th0t3p/chaincoord/pkg/canonicaljson"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/ports"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/joinrequest"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/launch"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/pkg/canonicaljson"
 )
 
 func isNotFound(err error) bool { return errors.Is(err, ports.ErrNotFound) }

@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ny4rl4th0t3p/chaincoord/internal/application/ports"
-	fstore "github.com/ny4rl4th0t3p/chaincoord/internal/infrastructure/storage/fs"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/ports"
+	fstore "github.com/ny4rl4th0t3p/seedward-chaincoord/internal/infrastructure/storage/fs"
 )
 
 func TestNewGenesisStore(t *testing.T) {

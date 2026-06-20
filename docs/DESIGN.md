@@ -1,8 +1,8 @@
-# chaincoord — design
+# seedward-chaincoord — design
 
 A self-hosted coordination system for Cosmos SDK chain launches. This document explains the design decisions behind it,
 the alternatives that were considered, and the consequences of each choice. It is not a user guide; for that, see the
-README and the [documentation site](https://ny4rl4th0t3p.github.io/chaincoord).
+README and the [documentation site](https://ny4rl4th0t3p.github.io/seedward-chaincoord).
 
 ## Context
 
@@ -26,7 +26,8 @@ with this state of the art:
 - **Validator gentx errors are caught late.** Validators submit gentxs informally; errors are discovered when the chain
   fails to boot or when post-launch audits reveal discrepancies.
 
-`chaincoord` is the coordination layer that addresses these problems with explicit committee governance, a state machine
+`seedward-chaincoord` is the coordination layer that addresses these problems with explicit committee governance, a
+state machine
 for the launch lifecycle, and a tamper-evident audit log. It does not replace the chain binary or the genesis-assembly
 tool (`gentool`); it wraps the social process around them.
 
@@ -258,7 +259,7 @@ accountability for the final result, which is the correct allocation of responsi
 
 - The server has no dependency on any chain binary
 - A new chain on a new SDK version requires zero changes to the server
-- `gentool` and `chaincoord` compose: chaincoord coordinates the human process; gentool deterministically assembles the
+- `gentool` and `coordd` compose: coordd coordinates the human process; gentool deterministically assembles the
   result; the chain binary validates and runs it
 - The handoff from coordination to assembly is explicit and auditable; the audit log records the moment the coordinator
   marked the gentxs as final

@@ -1,7 +1,7 @@
-site_name: chaincoord
+site_name: seedward-chaincoord
 site_description: Self-hosted coordination server for Cosmos SDK chain genesis launches.
-repo_url: https://github.com/ny4rl4th0t3p/chaincoord
-repo_name: ny4rl4th0t3p/chaincoord
+repo_url: https://github.com/ny4rl4th0t3p/seedward-chaincoord
+repo_name: ny4rl4th0t3p/seedward-chaincoord
 docs_dir: ./mkdocs
 
 theme:

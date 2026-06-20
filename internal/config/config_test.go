@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/viper"
 
-	"github.com/ny4rl4th0t3p/chaincoord/internal/config"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/config"
 )
 
 func newViper() *viper.Viper { return viper.New() }

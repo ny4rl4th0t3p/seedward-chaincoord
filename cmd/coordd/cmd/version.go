@@ -9,7 +9,7 @@ import (
 
 // Version is set at build time via:
 //
-//	go build -ldflags "-X github.com/ny4rl4th0t3p/chaincoord/cmd/coordd/cmd.Version=<tag>"
+//	go build -ldflags "-X github.com/ny4rl4th0t3p/seedward-chaincoord/cmd/coordd/cmd.Version=<tag>"
 var Version = "dev"
 
 func resolvedVersion() string {

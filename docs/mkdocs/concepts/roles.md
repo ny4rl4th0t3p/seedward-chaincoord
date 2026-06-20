@@ -1,14 +1,18 @@
 # Roles
 
-chaincoord has three distinct roles. A single person or organisation can hold more than one role.
+seedward-chaincoord has three distinct roles. A single person or organisation can hold more than one role.
 
 ---
 
 ## Lead Coordinator
 
-The lead coordinator is the committee member who creates the launch and declares the initial committee. Their one privilege beyond ordinary committee members is the emergency **cancel**: they can cancel the launch from any non-terminal state without a proposal or quorum. (Opening the application window is *not* lead-exclusive — any committee member may call `open-window`.)
+The lead coordinator is the committee member who creates the launch and declares the initial committee. Their one
+privilege beyond ordinary committee members is the emergency **cancel**: they can cancel the launch from any
+non-terminal state without a proposal or quorum. (Opening the application window is *not* lead-exclusive — any committee
+member may call `open-window`.)
 
-Every committee has exactly one lead. The lead can change if the current lead is replaced via a `REPLACE_COMMITTEE_MEMBER` proposal — the replacement automatically inherits the lead role.
+Every committee has exactly one lead. The lead can change if the current lead is replaced via a
+`REPLACE_COMMITTEE_MEMBER` proposal — the replacement automatically inherits the lead role.
 
 **Responsibilities:**
 
@@ -22,7 +26,8 @@ Every committee has exactly one lead. The lead can change if the current lead is
 
 ## Coordinator
 
-Any member of the launch committee. Coordinators govern every state transition and governance decision through proposals.
+Any member of the launch committee. Coordinators govern every state transition and governance decision through
+proposals.
 
 **Key facts:**
 
@@ -42,17 +47,20 @@ Any member of the launch committee. Coordinators govern every state transition a
 
 ## Validator
 
-A validator is an operator who wants to participate in the genesis validator set. They interact with `coordd` during `WINDOW_OPEN` (to apply) and again after `GENESIS_READY` (to download the final genesis and confirm readiness).
+A validator is an operator who wants to participate in the genesis validator set. They interact with `coordd` during
+`WINDOW_OPEN` (to apply) and again after `GENESIS_READY` (to download the final genesis and confirm readiness).
 
 **What validators do:**
 
 1. Authenticate to `coordd` (same secp256k1 challenge–response as coordinators)
 2. Generate a `gentx` locally using their chain binary (e.g. `gaiad genesis gentx`)
-3. Submit a join request carrying the `gentx`, peer address, and RPC endpoint (the consensus key is read from the `gentx`)
+3. Submit a join request carrying the `gentx`, peer address, and RPC endpoint (the consensus key is read from the
+   `gentx`)
 4. Wait for the committee to approve or reject their application
 5. After `GENESIS_READY`: download the final genesis file, verify its SHA256 hash, and submit a readiness confirmation
 
-Validators have no proposal rights and cannot influence governance decisions. Their only active contribution beyond the join request is the readiness confirmation (attesting they have the correct genesis and binary).
+Validators have no proposal rights and cannot influence governance decisions. Their only active contribution beyond the
+join request is the readiness confirmation (attesting they have the correct genesis and binary).
 
 ---
 
@@ -67,4 +75,4 @@ All three roles authenticate identically: secp256k1 challenge–response.
 The JWT is short-lived and must be included as a `Bearer` token on all subsequent requests.
 
 !!! note
-    `coordd` does not store or manage private keys. Signing always happens client-side.
+`coordd` does not store or manage private keys. Signing always happens client-side.

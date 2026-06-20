@@ -14,7 +14,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/ny4rl4th0t3p/chaincoord/pkg/canonicaljson"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/pkg/canonicaljson"
 )
 
 func newAuditCmd() *cobra.Command {
