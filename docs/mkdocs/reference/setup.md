@@ -15,7 +15,7 @@ This document covers how to run and configure the `coordd` server in both develo
 2. **Environment variables** (`COORD_*`)
 3. **Config file** (`config.yaml` — searched in `.`, `$HOME/.coordd`, `/etc/coordd`)
 
-All options are available through all three sources. Environment variables are the recommended approach for production deployments; the config file is convenient for local development.
+Most options are available through all three sources, but a few have **no CLI flag** and must come from an env var or the config file: the signing keys (`audit_private_key`/`_file`, `jwt_private_key`/`_file`), `admin_addresses`, `launch_policy`, and `insecure_no_ssrf_check` (see the Flag column in the reference table below). Environment variables are the recommended approach for production deployments; the config file is convenient for local development.
 
 ---
 

@@ -124,8 +124,10 @@ a separate system from the one that handles their actual transactions.
 - One regression path exists: GENESIS_READY → WINDOW_CLOSED via the `REVISE_GENESIS` proposal, allowing the committee
   to correct a genesis file after it has been published; this requires a proposal, making the regression auditable
 - The `open-window` and `cancel` direct-action paths are intentional exceptions to the proposal-for-everything model:
-  `open-window` is gated by the prior `PUBLISH_CHAIN_RECORD` proposal having executed and carries low risk on its own;
-  `cancel` gives the lead coordinator an emergency stop that cannot be blocked by an absent quorum
+  `open-window` (callable by any committee member) is normally used from `PUBLISHED`, but from `DRAFT` it auto-publishes
+  first when the initial genesis hash is already set — a single-coordinator shortcut equivalent to executing
+  `PUBLISH_CHAIN_RECORD` — and carries low risk on its own; `cancel` gives the lead coordinator an emergency stop that
+  cannot be blocked by an absent quorum
 - The GENESIS_READY → LAUNCHED transition is informational: the coordination work is complete at GENESIS_READY; LAUNCHED
   records that the chain actually produced block 1
 
@@ -335,7 +337,8 @@ about who decides what.
 
 - The lead coordinator is always a committee member — the lead designation is a property of one of the existing members,
   not a separate seat. The lead participates in all committee votes like any other member, and additionally holds
-  exclusive authority over `open-window` and `cancel`
+  exclusive authority over `cancel` (the emergency stop). `open-window` is not lead-exclusive — any committee member may
+  call it
 - Validators have a defined seat at the table (their join request) without sitting on the committee
 - The role assignments are themselves audited, so changes in a role are visible
 - A coordinator can also be a validator, with the two roles cleanly separated in the audit trail

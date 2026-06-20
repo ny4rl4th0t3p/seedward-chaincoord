@@ -18,13 +18,13 @@ The smoke test runs the full chaincoord protocol end-to-end inside Docker: coord
 ## Run it
 
 ```bash
-make smoke-test
+make test-smoke
 ```
 
 This single target:
 
-1. Brings down any previous run (`smoke-test-down`)
-2. Generates `docker/secrets/audit_key` and `docker/secrets/jwt_key` if missing (`smoke-test-secrets`)
+1. Brings down any previous run (`test-down-smoke`)
+2. Generates `docker/secrets/audit_key` and `docker/secrets/jwt_key` if missing (`test-secrets-smoke`)
 3. Builds all Docker images from `Dockerfile.smoke` (via `--build`)
 4. Starts the Compose stack and runs to completion
 5. Tears everything down on exit
@@ -63,7 +63,7 @@ The smoke test script (`docker/smoke-test.sh`) drives the full 20-step protocol:
 ## Tear down only
 
 ```bash
-make smoke-test-down
+make test-down-smoke
 ```
 
 Removes containers and volumes without rebuilding or re-running the test.

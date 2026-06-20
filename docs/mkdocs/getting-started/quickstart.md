@@ -1,6 +1,6 @@
 # Quickstart
 
-Run `coordd` locally in a few minutes. This guide assumes you have Go 1.22+ installed.
+Run `coordd` locally in a few minutes. This guide assumes you have Go 1.25+ installed.
 
 !!! danger "Proof of concept — not for production use"
     chaincoord is research-grade software. APIs, data formats, and behaviours may change without notice. **Do not use it for mainnet launches or any environment where correctness and availability are required.**

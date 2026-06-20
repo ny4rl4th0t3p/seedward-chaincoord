@@ -1,5 +1,8 @@
 # Web App
 
+!!! warning "Deprecated — moving to a separate repository"
+    The web frontend is being extracted into its own repository and reworked. **This page is obsolete and unmaintained** — its contents are not guaranteed to match the current code and it will be removed once the move is complete. Treat everything below as historical.
+
 The `web/app/` directory is a React + TypeScript frontend that lets coordinators and validators interact with the full launch lifecycle from a browser wallet (Keplr or Leap) — no CLI required.
 
 For setup and infrastructure, see [Dev Environment](dev-environment.md).
@@ -63,10 +66,10 @@ After signing in, coordinators whose address appears in the launch committee see
 
 After signing in via the per-launch path, validators see the validator panel.
 
-1. **Submit join request** — fill in consensus public key, `gentx` (paste or file upload), peer address, optional RPC endpoint and memo. Signed with the wallet before submission.
+1. **Submit join request** — fill in the `gentx` (paste or file upload), peer address, optional RPC endpoint and memo. Signed with the wallet before submission. (The consensus key is read from the `gentx` — it is not entered separately.)
 2. **Track approval** — the join request status panel polls every 15 seconds and shows pending / approved / rejected state with any rejection reason.
 3. **Download genesis** — once a final genesis is published, download it. The SHA-256 is verified in-browser via the Web Crypto API.
-4. **Confirm readiness** — submit a readiness confirmation with the genesis hash and optional binary hash.
+4. **Confirm readiness** — submit a readiness confirmation with the genesis hash and binary hash (both required).
 5. **Peer list** — once approved, load the `persistent_peers` string for all approved validators (one click to copy). Paste this into your node's `config.toml`.
 
 ---

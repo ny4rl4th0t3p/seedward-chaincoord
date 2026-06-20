@@ -33,7 +33,7 @@ flowchart LR
 | **LAUNCHED** | Block monitoring detects the chain is live |
 | **CANCELED** | Launch aborted from any non-terminal state |
 
-All state transitions are driven by **proposals** — committee actions that require M-of-N coordinator signatures before they execute.
+Most state transitions are driven by **proposals** — committee actions that require M-of-N coordinator signatures before they execute. The exceptions are direct actions: any committee member can open the application window, the lead coordinator can cancel, and the move to LAUNCHED is detected automatically from the chain.
 
 ---
 

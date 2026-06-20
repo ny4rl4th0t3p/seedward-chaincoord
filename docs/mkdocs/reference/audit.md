@@ -57,6 +57,7 @@ by `coordd audit verify`.
 | `ValidatorRejected`       | `REJECT_VALIDATOR` proposal executed                                                  |
 | `ValidatorRemoved`        | `REMOVE_APPROVED_VALIDATOR` proposal executed                                         |
 | `LaunchCancelled`         | Lead coordinator cancels the launch                                                   |
+| `LaunchDetected`          | Block monitor observes block 1 — launch moves to `LAUNCHED`                           |
 
 !!! note
 Proposal actions that do not directly transition launch state (e.g. `ADD_GENESIS_ACCOUNT`, `REPLACE_COMMITTEE_MEMBER`)

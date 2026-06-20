@@ -37,8 +37,9 @@ A **Committee** is the M-of-N group of coordinators that governs a launch. Any m
 executes when M members sign it. A single VETO from any member kills it immediately.
 
 The committee is declared at launch creation and can be modified later via proposals (`REPLACE_COMMITTEE_MEMBER`,
-`EXPAND_COMMITTEE`, `SHRINK_COMMITTEE`). There is always at least one member, and M must be strictly less than N to
-preserve liveness (the committee can still act when one member is absent).
+`EXPAND_COMMITTEE`, `SHRINK_COMMITTEE`). There is always at least one member. At creation any threshold from 1 to N is
+allowed (including M = N); the stricter liveness guard (M strictly less than N, so the committee can still act when one
+member is absent) is enforced only when the committee is modified via `EXPAND_COMMITTEE` / `SHRINK_COMMITTEE`.
 
 ### Proposal
 
@@ -54,9 +55,10 @@ A **Join Request** is a validator's application to participate in a genesis. It 
 - Their peer address and RPC endpoint
 - A secp256k1 signature over the full request payload
 
-The server validates the request structurally (chain ID, self-delegation floor, commission limits) but does not invoke
-the chain binary. Full semantic validation happens when the coordinator runs `gaiad genesis collect-gentxs` during
-genesis assembly.
+The server validates the `gentx` at submission against the launch's rules (chain ID, self-delegation floor, commission
+bounds, consensus-key shape, signature) using a shared validation library — an invalid `gentx` is rejected with a
+`gentx_invalid` error carrying a per-invariant breakdown of what failed. It does **not** invoke the chain binary; full
+semantic validation happens when the coordinator runs `gaiad genesis collect-gentxs` during genesis assembly.
 
 ### Audit Log
 
@@ -74,7 +76,8 @@ See [Audit Log](../reference/audit.md).
 - It does not store private keys for coordinators or validators
 - It does not assemble the final genesis file — that step is done locally by the coordinator using
   `gaiad genesis collect-gentxs`
-- It does not guarantee BFT safety beyond a warning when a single entity approaches 1/3 of committed voting power
+- It does not guarantee BFT safety beyond a warning when a single entity reaches or exceeds 1/3 of committed voting
+  power (and a hard precondition that blocks closing the window in that case)
 
 ---
 

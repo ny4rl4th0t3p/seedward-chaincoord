@@ -30,17 +30,25 @@ If M=1 (a 1-of-1 or 1-of-N committee), the proposal executes the moment it is ra
 
 ## Action types
 
+Every action is gated on the launch's status. Lifecycle transitions are enforced by the domain from-state checks; the
+other actions carry explicit status guards (validator actions additionally check the target join-request state). The
+server enforces the status columns below.
+
 ### Validator management
 
-| Action | Effect | Required status |
+| Action | Effect | Enforced precondition |
 |---|---|---|
-| `APPROVE_VALIDATOR` | Approves a pending join request; adds validator to the approved set | `WINDOW_OPEN` |
-| `REJECT_VALIDATOR` | Rejects a pending join request with a reason | `WINDOW_OPEN` |
-| `REMOVE_APPROVED_VALIDATOR` | Revokes an already-approved validator | `WINDOW_OPEN` or `WINDOW_CLOSED` |
+| `APPROVE_VALIDATOR` | Approves a pending join request; adds validator to the approved set | Target join request is `pending` |
+| `REJECT_VALIDATOR` | Rejects a pending join request with a reason | Target join request is `pending` |
+| `REMOVE_APPROVED_VALIDATOR` | Revokes an already-approved validator | Target join request is `approved` **and** launch is `WINDOW_OPEN` or `WINDOW_CLOSED` |
+
+`APPROVE`/`REJECT` aren't checked against launch status directly, but pending join requests only exist during
+`WINDOW_OPEN` (they are expired when the window closes), so they apply only then. `REMOVE_APPROVED_VALIDATOR` is also
+blocked once the genesis is published — revert to `WINDOW_CLOSED` via `REVISE_GENESIS` first.
 
 ### Lifecycle transitions
 
-| Action | Transition | Required status |
+| Action | Transition | Required status (enforced) |
 |---|---|---|
 | `PUBLISH_CHAIN_RECORD` | `DRAFT` → `PUBLISHED` | `DRAFT` |
 | `CLOSE_APPLICATION_WINDOW` | `WINDOW_OPEN` → `WINDOW_CLOSED` | `WINDOW_OPEN` |
@@ -49,12 +57,16 @@ If M=1 (a 1-of-1 or 1-of-N committee), the proposal executes the moment it is ra
 
 ### Genesis metadata
 
-| Action | Effect | Required status |
+Genesis-account changes are rejected once the genesis is published (`GENESIS_READY`, `LAUNCHED`, or `CANCELED`) — they
+could no longer affect the published file. `UPDATE_GENESIS_TIME` is blocked only after `LAUNCHED` (it is designed to run
+at `GENESIS_READY` as part of the revise flow, where it invalidates existing readiness confirmations).
+
+| Action | Effect | Allowed status |
 |---|---|---|
-| `UPDATE_GENESIS_TIME` | Updates the `genesis_time` field | Any pre-`LAUNCHED` |
-| `ADD_GENESIS_ACCOUNT` | Adds a pre-funded account to the genesis | Any pre-`WINDOW_CLOSED` |
-| `REMOVE_GENESIS_ACCOUNT` | Removes a pre-funded account | Any pre-`WINDOW_CLOSED` |
-| `MODIFY_GENESIS_ACCOUNT` | Changes amount or vesting schedule | Any pre-`WINDOW_CLOSED` |
+| `UPDATE_GENESIS_TIME` | Updates the `genesis_time` field; invalidates all readiness confirmations | any pre-`LAUNCHED` |
+| `ADD_GENESIS_ACCOUNT` | Adds a pre-funded account to the genesis | before `GENESIS_READY` (address must be new) |
+| `REMOVE_GENESIS_ACCOUNT` | Removes a pre-funded account | before `GENESIS_READY` (account must exist) |
+| `MODIFY_GENESIS_ACCOUNT` | Changes amount or vesting schedule | before `GENESIS_READY` (account must exist) |
 
 ### Committee management
 
@@ -68,22 +80,20 @@ If M=1 (a 1-of-1 or 1-of-N committee), the proposal executes the moment it is ra
 
 ## Signing a proposal
 
-Each signature is a secp256k1 signature over a canonical JSON payload that includes:
+Each signature is a secp256k1 signature over the **canonical JSON** of the request with the `signature` and `pubkey_b64`
+fields removed. The signed bytes therefore include the coordinator's address, the decision (`SIGN` or `VETO`), the
+timestamp, and the `nonce` — the nonce is bound to the signature, so a captured request can't be replayed by swapping it.
 
-- The coordinator's address
-- The decision (`SIGN` or `VETO`)
-- A nonce (replay protection)
-- A timestamp
-
-The server verifies the signature against the member's declared public key before recording it.
+The server verifies the signature against the member's declared public key, then consumes the `(coordinator, nonce)`
+pair once for replay protection.
 
 ---
 
 ## Liveness guard
 
-The committee size N and threshold M must always satisfy `M < N`. This is enforced on `EXPAND_COMMITTEE` and `SHRINK_COMMITTEE` proposals. The constraint ensures the committee can still reach quorum even if one member is permanently offline — a 3-of-3 committee, for example, would be permanently deadlocked if any single member lost their key.
+`EXPAND_COMMITTEE` and `SHRINK_COMMITTEE` proposals require the resulting threshold to satisfy `M < N` — strictly less than the new committee size. This keeps the committee able to reach quorum even if one member is permanently offline.
 
-The only exception is a 1-of-1 committee, where M = N = 1 is permitted (there is no other member to lose).
+This guard applies only to committee **modification**. At launch creation (and when setting the committee on a `DRAFT` launch) any threshold from `1` to `N` is accepted, including `M = N` — so a deadlock-prone committee such as 3-of-3 *can* be created directly (it just can't be reached afterward via expand/shrink). A 1-of-1 committee (`M = N = 1`) is always valid, since there is no other member to lose.
 
 ---
 

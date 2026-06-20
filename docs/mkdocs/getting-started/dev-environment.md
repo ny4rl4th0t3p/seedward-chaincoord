@@ -2,6 +2,9 @@
 
 The dev environment starts `coordd` and the web frontend together with a single command. It is the fastest way to explore the full system locally — no manual key generation or config files needed.
 
+!!! warning "Web frontend is being extracted"
+    The `web` service in this environment (and the [Web App](web-app.md) page) is **deprecated** — the frontend is moving to its own repository. The `coordd` backend setup described here remains current and supported, but the bundled `web` container, the frontend-specific environment variables (`NEXT_PUBLIC_API_URL`, `COORD_BACKEND_URL`), and the "local development without Docker" frontend steps may change or stop working in upcoming iterations.
+
 ---
 
 ## Prerequisites
@@ -99,4 +102,4 @@ See [Quickstart](quickstart.md) to build `bin/coordd` and create a minimal `conf
 |---|---|---|
 | `COORD_ADMIN_ADDRESSES` | *(empty)* | Comma-separated operator addresses with admin access |
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8080` | Backend URL used by the browser for SSE. Baked at build time. |
-| `COORD_BACKEND_URL` | `http://localhost:8080` | Backend URL used by Next.js server-side rewrites. Override for Docker deployments where the backend is not on localhost. |
+| `COORD_BACKEND_URL` | `http://coordd:8080` (dev image); `http://localhost:8080` (non-Docker fallback) | Backend URL used by Next.js server-side rewrites. The dev image (`Dockerfile.web`) bakes the `coordd` compose service name; outside Docker it falls back to `localhost:8080`. |

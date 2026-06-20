@@ -1,155 +1,23 @@
 basePath: /
 definitions:
-  github_com_ny4rl4th0t3p_chaincoord_internal_application_services.ConfirmInput:
-    properties:
-      binary_hash_confirmed:
-        type: string
-      genesis_hash_confirmed:
-        type: string
-      nonce:
-        type: string
-      operator_address:
-        type: string
-      pubkey_b64:
-        description: |-
-          PubKeyB64 is the operator's secp256k1 compressed public key (base64, 33 bytes) used to verify the
-          confirmation signature.
-        type: string
-      signature:
-        type: string
-      timestamp:
-        type: string
-    type: object
-  github_com_ny4rl4th0t3p_chaincoord_internal_application_services.RaiseInput:
-    properties:
-      action_type:
-        $ref: '#/definitions/github_com_ny4rl4th0t3p_chaincoord_internal_domain_proposal.ActionType'
-      coordinator_address:
-        type: string
-      nonce:
-        type: string
-      payload:
-        items:
-          type: integer
-        type: array
-      signature:
-        type: string
-      timestamp:
-        type: string
-    type: object
-  github_com_ny4rl4th0t3p_chaincoord_internal_application_services.SignInput:
-    properties:
-      coordinator_address:
-        type: string
-      decision:
-        $ref: '#/definitions/github_com_ny4rl4th0t3p_chaincoord_internal_domain_proposal.Decision'
-      nonce:
-        type: string
-      signature:
-        type: string
-      timestamp:
-        type: string
-    type: object
-  github_com_ny4rl4th0t3p_chaincoord_internal_application_services.SubmitInput:
-    properties:
-      chain_id:
-        type: string
-      consensus_pubkey:
-        type: string
-      gentx:
-        items:
-          type: integer
-        type: array
-      memo:
-        type: string
-      nonce:
-        type: string
-      operator_address:
-        type: string
-      peer_address:
-        type: string
-      pubkey_b64:
-        description: |-
-          PubKeyB64 is the operator's secp256k1 compressed public key (base64, 33 bytes) used to verify the
-          request signature. Distinct from ConsensusPubKey (the validator consensus key).
-        type: string
-      rpc_endpoint:
-        type: string
-      signature:
-        type: string
-      timestamp:
-        type: string
-    type: object
-  github_com_ny4rl4th0t3p_chaincoord_internal_application_services.VerifyChallengeInput:
-    properties:
-      challenge:
-        type: string
-      nonce:
-        description: Nonce is stripped before signing — not included in the canonical
-          bytes.
-        type: string
-      operator_address:
-        type: string
-      pubkey_b64:
-        description: |-
-          PubKeyB64 is the caller's secp256k1 compressed public key (33 bytes, base64-encoded).
-          Required so the server can verify the signature — bech32 addresses are hashes
-          and the public key cannot be recovered from them.
-          Stripped before signing — not included in the canonical bytes.
-        type: string
-      signature:
-        description: Signature is stripped before signing — not included in the canonical
-          bytes.
-        type: string
-      timestamp:
-        type: string
-    type: object
-  github_com_ny4rl4th0t3p_chaincoord_internal_domain_proposal.ActionType:
-    enum:
-    - APPROVE_VALIDATOR
-    - REJECT_VALIDATOR
-    - REMOVE_APPROVED_VALIDATOR
-    - ADD_GENESIS_ACCOUNT
-    - REMOVE_GENESIS_ACCOUNT
-    - MODIFY_GENESIS_ACCOUNT
-    - PUBLISH_CHAIN_RECORD
-    - CLOSE_APPLICATION_WINDOW
-    - PUBLISH_GENESIS
-    - UPDATE_GENESIS_TIME
-    - REPLACE_COMMITTEE_MEMBER
-    - REVISE_GENESIS
-    - EXPAND_COMMITTEE
-    - SHRINK_COMMITTEE
-    type: string
-    x-enum-varnames:
-    - ActionApproveValidator
-    - ActionRejectValidator
-    - ActionRemoveApprovedValidator
-    - ActionAddGenesisAccount
-    - ActionRemoveGenesisAccount
-    - ActionModifyGenesisAccount
-    - ActionPublishChainRecord
-    - ActionCloseApplicationWindow
-    - ActionPublishGenesis
-    - ActionUpdateGenesisTime
-    - ActionReplaceCommitteeMember
-    - ActionReviseGenesis
-    - ActionExpandCommittee
-    - ActionShrinkCommittee
-  github_com_ny4rl4th0t3p_chaincoord_internal_domain_proposal.Decision:
-    enum:
-    - SIGN
-    - VETO
-    type: string
-    x-enum-varnames:
-    - DecisionSign
-    - DecisionVeto
-  internal_infrastructure_api.addCoordinatorRequest:
+  api.addCoordinatorRequest:
     properties:
       address:
         type: string
     type: object
-  internal_infrastructure_api.chainHintJSON:
+  api.auditPubKeyResponse:
+    properties:
+      public_key:
+        type: string
+    type: object
+  api.auditResponse:
+    properties:
+      entries:
+        items:
+          $ref: '#/definitions/ports.AuditEvent'
+        type: array
+    type: object
+  api.chainHintJSON:
     properties:
       bech32_prefix:
         type: string
@@ -160,7 +28,7 @@ definitions:
       denom:
         type: string
     type: object
-  internal_infrastructure_api.chainRecordJSON:
+  api.chainRecordJSON:
     properties:
       application_window_open:
         type: string
@@ -195,13 +63,18 @@ definitions:
       repo_url:
         type: string
     type: object
-  internal_infrastructure_api.challengeRequest:
+  api.challengeRequest:
     properties:
       operator_address:
         example: cosmos1abcdef...
         type: string
     type: object
-  internal_infrastructure_api.committeeJSON:
+  api.challengeResponse:
+    properties:
+      challenge:
+        type: string
+    type: object
+  api.committeeJSON:
     properties:
       created_at:
         type: string
@@ -213,14 +86,14 @@ definitions:
         type: string
       members:
         items:
-          $ref: '#/definitions/internal_infrastructure_api.committeeMemberJSON'
+          $ref: '#/definitions/api.committeeMemberJSON'
         type: array
       threshold_m:
         type: integer
       total_n:
         type: integer
     type: object
-  internal_infrastructure_api.committeeMemberJSON:
+  api.committeeMemberJSON:
     properties:
       address:
         type: string
@@ -229,7 +102,7 @@ definitions:
       pub_key_b64:
         type: string
     type: object
-  internal_infrastructure_api.committeeRequestJSON:
+  api.committeeRequestJSON:
     properties:
       creation_signature:
         type: string
@@ -237,14 +110,14 @@ definitions:
         type: string
       members:
         items:
-          $ref: '#/definitions/internal_infrastructure_api.committeeMemberJSON'
+          $ref: '#/definitions/api.committeeMemberJSON'
         type: array
       threshold_m:
         type: integer
       total_n:
         type: integer
     type: object
-  internal_infrastructure_api.coordinatorAllowlistEntryJSON:
+  api.coordinatorAllowlistEntryJSON:
     properties:
       added_at:
         type: string
@@ -253,47 +126,113 @@ definitions:
       address:
         type: string
     type: object
-  internal_infrastructure_api.createLaunchRequest:
+  api.createLaunchRequest:
     properties:
       allowlist:
         items:
           type: string
         type: array
       committee:
-        $ref: '#/definitions/internal_infrastructure_api.committeeRequestJSON'
+        $ref: '#/definitions/api.committeeRequestJSON'
       launch_type:
         example: MAINNET
         type: string
       record:
-        $ref: '#/definitions/internal_infrastructure_api.chainRecordJSON'
+        $ref: '#/definitions/api.chainRecordJSON'
       visibility:
         example: PUBLIC
         type: string
     type: object
-  internal_infrastructure_api.errorBody:
+  api.dashboardJSON:
+    properties:
+      chain_id:
+        type: string
+      confirmed_ready:
+        type: integer
+      final_genesis_sha256:
+        type: string
+      genesis_time:
+        type: string
+      launch_id:
+        type: string
+      status:
+        type: string
+      threshold_status:
+        type: string
+      total_approved:
+        type: integer
+      validators:
+        items:
+          $ref: '#/definitions/api.validatorReadinessJSON'
+        type: array
+      voting_power_confirmed:
+        type: number
+    type: object
+  api.errorBody:
     properties:
       code:
         type: string
+      invariants:
+        items:
+          $ref: '#/definitions/api.invariantResultJSON'
+        type: array
       message:
         type: string
       request_id:
         type: string
     type: object
-  internal_infrastructure_api.errorEnvelope:
+  api.errorEnvelope:
     properties:
       error:
-        $ref: '#/definitions/internal_infrastructure_api.errorBody'
+        $ref: '#/definitions/api.errorBody'
     type: object
-  internal_infrastructure_api.joinRequestJSON:
+  api.genesisHashResponse:
+    properties:
+      final_sha256:
+        type: string
+      initial_sha256:
+        type: string
+    type: object
+  api.genesisUploadResponse:
+    properties:
+      sha256:
+        type: string
+    type: object
+  api.gentxEntry:
+    properties:
+      consensus_pubkey:
+        type: string
+      gentx:
+        type: object
+      join_request_id:
+        type: string
+      operator_address:
+        type: string
+    type: object
+  api.gentxsResponse:
+    properties:
+      gentxs:
+        items:
+          $ref: '#/definitions/api.gentxEntry'
+        type: array
+    type: object
+  api.invariantResultJSON:
+    properties:
+      invariant:
+        type: string
+      ok:
+        type: boolean
+      reason:
+        type: string
+    type: object
+  api.joinRequestJSON:
     properties:
       approved_by_proposal:
         type: string
       consensus_pubkey:
         type: string
       gentx:
-        items:
-          type: integer
-        type: array
+        type: object
       id:
         type: string
       launch_id:
@@ -313,7 +252,7 @@ definitions:
       submitted_at:
         type: string
     type: object
-  internal_infrastructure_api.launchJSON:
+  api.launchJSON:
     properties:
       created_at:
         type: string
@@ -328,7 +267,7 @@ definitions:
       monitor_rpc_url:
         type: string
       record:
-        $ref: '#/definitions/internal_infrastructure_api.chainRecordJSON'
+        $ref: '#/definitions/api.chainRecordJSON'
       status:
         type: string
       updated_at:
@@ -336,11 +275,11 @@ definitions:
       visibility:
         type: string
     type: object
-  internal_infrastructure_api.pageEnvelope-array_internal_infrastructure_api_coordinatorAllowlistEntryJSON:
+  api.pageEnvelope-array_api_coordinatorAllowlistEntryJSON:
     properties:
       items:
         items:
-          $ref: '#/definitions/internal_infrastructure_api.coordinatorAllowlistEntryJSON'
+          $ref: '#/definitions/api.coordinatorAllowlistEntryJSON'
         type: array
       page:
         type: integer
@@ -349,11 +288,11 @@ definitions:
       total:
         type: integer
     type: object
-  internal_infrastructure_api.pageEnvelope-array_internal_infrastructure_api_joinRequestJSON:
+  api.pageEnvelope-array_api_joinRequestJSON:
     properties:
       items:
         items:
-          $ref: '#/definitions/internal_infrastructure_api.joinRequestJSON'
+          $ref: '#/definitions/api.joinRequestJSON'
         type: array
       page:
         type: integer
@@ -362,11 +301,11 @@ definitions:
       total:
         type: integer
     type: object
-  internal_infrastructure_api.pageEnvelope-array_internal_infrastructure_api_launchJSON:
+  api.pageEnvelope-array_api_launchJSON:
     properties:
       items:
         items:
-          $ref: '#/definitions/internal_infrastructure_api.launchJSON'
+          $ref: '#/definitions/api.launchJSON'
         type: array
       page:
         type: integer
@@ -375,11 +314,11 @@ definitions:
       total:
         type: integer
     type: object
-  internal_infrastructure_api.pageEnvelope-array_internal_infrastructure_api_proposalJSON:
+  api.pageEnvelope-array_api_proposalJSON:
     properties:
       items:
         items:
-          $ref: '#/definitions/internal_infrastructure_api.proposalJSON'
+          $ref: '#/definitions/api.proposalJSON'
         type: array
       page:
         type: integer
@@ -388,7 +327,47 @@ definitions:
       total:
         type: integer
     type: object
-  internal_infrastructure_api.proposalJSON:
+  api.patchLaunchRequest:
+    properties:
+      allowlist:
+        items:
+          type: string
+        type: array
+      binary_sha256:
+        type: string
+      binary_version:
+        type: string
+      chain_name:
+        type: string
+      genesis_time:
+        type: string
+      min_validator_count:
+        type: integer
+      monitor_rpc_url:
+        type: string
+      repo_commit:
+        type: string
+      repo_url:
+        type: string
+      visibility:
+        example: PUBLIC
+        type: string
+    type: object
+  api.peerJSON:
+    properties:
+      operator_address:
+        type: string
+      peer_address:
+        type: string
+    type: object
+  api.peersResponse:
+    properties:
+      peers:
+        items:
+          $ref: '#/definitions/api.peerJSON'
+        type: array
+    type: object
+  api.proposalJSON:
     properties:
       action_type:
         type: string
@@ -399,27 +378,234 @@ definitions:
       launch_id:
         type: string
       payload:
-        items:
-          type: integer
-        type: array
+        type: object
       proposed_at:
         type: string
       proposed_by:
         type: string
       signatures:
         items:
-          $ref: '#/definitions/internal_infrastructure_api.signatureEntryJSON'
+          $ref: '#/definitions/api.signatureEntryJSON'
         type: array
       status:
         type: string
       ttl_expires:
         type: string
     type: object
-  internal_infrastructure_api.signatureEntryJSON:
+  api.readinessConfirmJSON:
+    properties:
+      confirmed_at:
+        type: string
+      id:
+        type: string
+      launch_id:
+        type: string
+    type: object
+  api.sessionInfoJSON:
+    properties:
+      expires_at:
+        type: string
+      is_coordinator:
+        type: boolean
+      operator_address:
+        type: string
+    type: object
+  api.signatureEntryJSON:
     properties:
       coordinator_address:
         type: string
       decision:
+        type: string
+      timestamp:
+        type: string
+    type: object
+  api.tokenResponse:
+    properties:
+      token:
+        type: string
+    type: object
+  api.validatorReadinessJSON:
+    properties:
+      binary_hash_confirmed:
+        type: string
+      genesis_hash_confirmed:
+        type: string
+      is_ready:
+        type: boolean
+      join_request_id:
+        type: string
+      last_confirmed_at:
+        type: string
+      moniker:
+        type: string
+      operator_address:
+        type: string
+      voting_power_pct:
+        type: number
+    type: object
+  ports.AuditEvent:
+    properties:
+      event_name:
+        description: EventName matches domain.DomainEvent.EventName()
+        type: string
+      launch_id:
+        description: LaunchID scopes the event to a specific launch for per-launch
+          filtering.
+        type: string
+      occurred_at:
+        type: string
+      payload:
+        description: |-
+          Payload is the canonical JSON of the domain event, stored as raw JSON
+          so audit entries are human-readable without base64 decoding.
+        type: object
+      prev_hash:
+        description: |-
+          PrevHash is the SHA-256 hex digest of the previous entry's raw JSON bytes
+          (the full marshaled line, signature included). Empty for the first entry.
+          Included in the signature of the current entry so it cannot be silently altered.
+        type: string
+      signature:
+        description: |-
+          Signature is a base64 Ed25519 signature over the canonical JSON of this entry
+          (excluding the signature field itself), signed by the server's audit key.
+        type: string
+    type: object
+  proposal.ActionType:
+    enum:
+    - APPROVE_VALIDATOR
+    - REJECT_VALIDATOR
+    - REMOVE_APPROVED_VALIDATOR
+    - ADD_GENESIS_ACCOUNT
+    - REMOVE_GENESIS_ACCOUNT
+    - MODIFY_GENESIS_ACCOUNT
+    - PUBLISH_CHAIN_RECORD
+    - CLOSE_APPLICATION_WINDOW
+    - PUBLISH_GENESIS
+    - UPDATE_GENESIS_TIME
+    - REPLACE_COMMITTEE_MEMBER
+    - REVISE_GENESIS
+    - EXPAND_COMMITTEE
+    - SHRINK_COMMITTEE
+    type: string
+    x-enum-varnames:
+    - ActionApproveValidator
+    - ActionRejectValidator
+    - ActionRemoveApprovedValidator
+    - ActionAddGenesisAccount
+    - ActionRemoveGenesisAccount
+    - ActionModifyGenesisAccount
+    - ActionPublishChainRecord
+    - ActionCloseApplicationWindow
+    - ActionPublishGenesis
+    - ActionUpdateGenesisTime
+    - ActionReplaceCommitteeMember
+    - ActionReviseGenesis
+    - ActionExpandCommittee
+    - ActionShrinkCommittee
+  proposal.Decision:
+    enum:
+    - SIGN
+    - VETO
+    type: string
+    x-enum-varnames:
+    - DecisionSign
+    - DecisionVeto
+  services.ConfirmInput:
+    properties:
+      binary_hash_confirmed:
+        type: string
+      genesis_hash_confirmed:
+        type: string
+      nonce:
+        type: string
+      operator_address:
+        type: string
+      pubkey_b64:
+        description: |-
+          PubKeyB64 is the operator's secp256k1 compressed public key (base64, 33 bytes) used to verify the
+          confirmation signature.
+        type: string
+      signature:
+        type: string
+      timestamp:
+        type: string
+    type: object
+  services.RaiseInput:
+    properties:
+      action_type:
+        $ref: '#/definitions/proposal.ActionType'
+      coordinator_address:
+        type: string
+      nonce:
+        type: string
+      payload:
+        type: object
+      signature:
+        type: string
+      timestamp:
+        type: string
+    type: object
+  services.SignInput:
+    properties:
+      coordinator_address:
+        type: string
+      decision:
+        $ref: '#/definitions/proposal.Decision'
+      nonce:
+        type: string
+      signature:
+        type: string
+      timestamp:
+        type: string
+    type: object
+  services.SubmitInput:
+    properties:
+      chain_id:
+        type: string
+      gentx:
+        type: object
+      memo:
+        type: string
+      nonce:
+        type: string
+      operator_address:
+        type: string
+      peer_address:
+        type: string
+      pubkey_b64:
+        description: |-
+          PubKeyB64 is the operator's secp256k1 compressed public key (base64, 33 bytes) used to verify the
+          request signature. Distinct from the consensus key, which is extracted from the gentx.
+        type: string
+      rpc_endpoint:
+        type: string
+      signature:
+        type: string
+      timestamp:
+        type: string
+    type: object
+  services.VerifyChallengeInput:
+    properties:
+      challenge:
+        type: string
+      nonce:
+        description: |-
+          Nonce is included in the signed bytes (replay protection) and consumed once
+          per (operator, nonce) by the nonce store.
+        type: string
+      operator_address:
+        type: string
+      pubkey_b64:
+        description: |-
+          PubKeyB64 is the caller's secp256k1 compressed public key (33 bytes, base64-encoded).
+          Required so the server can verify the signature — bech32 addresses are hashes
+          and the public key cannot be recovered from them.
+          Stripped before signing — not included in the canonical bytes.
+        type: string
+      signature:
+        description: Signature is stripped before signing — not included in the canonical
+          bytes.
         type: string
       timestamp:
         type: string
@@ -454,15 +640,15 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.pageEnvelope-array_internal_infrastructure_api_coordinatorAllowlistEntryJSON'
+            $ref: '#/definitions/api.pageEnvelope-array_api_coordinatorAllowlistEntryJSON'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
       security:
       - BearerAuth: []
       summary: List coordinator allowlist
@@ -478,26 +664,26 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_infrastructure_api.addCoordinatorRequest'
+          $ref: '#/definitions/api.addCoordinatorRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.coordinatorAllowlistEntryJSON'
+            $ref: '#/definitions/api.coordinatorAllowlistEntryJSON'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
       security:
       - BearerAuth: []
       summary: Add coordinator to allowlist
@@ -520,15 +706,15 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
       security:
       - BearerAuth: []
       summary: Remove coordinator from allowlist
@@ -548,15 +734,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
       security:
       - BearerAuth: []
       summary: Revoke all sessions for an operator (admin)
@@ -572,9 +758,11 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/api.auditPubKeyResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
       summary: Get audit public key
       tags:
       - audit
@@ -590,24 +778,22 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_infrastructure_api.challengeRequest'
+          $ref: '#/definitions/api.challengeRequest'
       produces:
       - application/json
       responses:
         "200":
-          description: challenge string
+          description: OK
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/api.challengeResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "429":
           description: Too Many Requests
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
       summary: Request an auth challenge
       tags:
       - auth
@@ -619,7 +805,7 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
       security:
       - BearerAuth: []
       summary: Revoke the current session
@@ -634,12 +820,11 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/api.sessionInfoJSON'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
       security:
       - BearerAuth: []
       summary: Get current session info
@@ -653,7 +838,7 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
       security:
       - BearerAuth: []
       summary: Revoke all sessions for the current operator
@@ -670,24 +855,22 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_ny4rl4th0t3p_chaincoord_internal_application_services.VerifyChallengeInput'
+          $ref: '#/definitions/services.VerifyChallengeInput'
       produces:
       - application/json
       responses:
         "200":
-          description: session token
+          description: OK
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/api.tokenResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
       summary: Verify a signed challenge
       tags:
       - auth
@@ -705,15 +888,15 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.committeeJSON'
+            $ref: '#/definitions/api.committeeJSON'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
       summary: Get committee
       tags:
       - committee
@@ -743,26 +926,26 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_infrastructure_api.createLaunchRequest'
+          $ref: '#/definitions/api.createLaunchRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.launchJSON'
+            $ref: '#/definitions/api.launchJSON'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
       security:
       - BearerAuth: []
       summary: Create a launch
@@ -782,19 +965,19 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.launchJSON'
+            $ref: '#/definitions/api.launchJSON'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
       summary: Get a launch
       tags:
       - launches
@@ -813,30 +996,30 @@ paths:
         in: body
         name: body
         schema:
-          type: object
+          $ref: '#/definitions/api.patchLaunchRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.launchJSON'
+            $ref: '#/definitions/api.launchJSON'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
       security:
       - BearerAuth: []
       summary: Update a launch
@@ -858,16 +1041,15 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/api.auditResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
       summary: Get audit log
       tags:
       - audit
@@ -888,23 +1070,23 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.launchJSON'
+            $ref: '#/definitions/api.launchJSON'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "409":
           description: Launch is already in a terminal status
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
       security:
       - BearerAuth: []
       summary: Cancel a launch
@@ -926,15 +1108,15 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.chainHintJSON'
+            $ref: '#/definitions/api.chainHintJSON'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
       summary: Chain hint
       tags:
       - launches
@@ -954,30 +1136,30 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_infrastructure_api.committeeRequestJSON'
+          $ref: '#/definitions/api.committeeRequestJSON'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.committeeJSON'
+            $ref: '#/definitions/api.committeeJSON'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
       security:
       - BearerAuth: []
       summary: Set committee
@@ -998,16 +1180,15 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/api.dashboardJSON'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
       summary: Get launch dashboard
       tags:
       - readiness
@@ -1031,11 +1212,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
       summary: Subscribe to launch events (SSE)
       tags:
       - events
@@ -1063,11 +1244,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
       summary: Download genesis file
       tags:
       - genesis
@@ -1076,6 +1257,7 @@ paths:
       - application/json
       - application/octet-stream
       description: |-
+        Committee members only.
         Attestor mode (default): register external URL + SHA-256.
         Host mode: upload raw bytes (requires COORD_GENESIS_HOST_MODE=true).
       parameters:
@@ -1095,27 +1277,25 @@ paths:
       - application/json
       responses:
         "200":
-          description: sha256 hash
+          description: OK
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/api.genesisUploadResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "413":
           description: Request Entity Too Large
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
       security:
       - BearerAuth: []
       summary: Upload genesis file
@@ -1133,19 +1313,17 @@ paths:
       - application/json
       responses:
         "200":
-          description: initial_sha256 and final_sha256
+          description: OK
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/api.genesisHashResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
       summary: Get genesis hashes
       tags:
       - genesis
@@ -1163,22 +1341,21 @@ paths:
       - application/json
       responses:
         "200":
-          description: gentxs array
+          description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/api.gentxsResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
       security:
       - BearerAuth: []
       summary: Download approved gentxs
@@ -1218,19 +1395,19 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.pageEnvelope-array_internal_infrastructure_api_joinRequestJSON'
+            $ref: '#/definitions/api.pageEnvelope-array_api_joinRequestJSON'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
       security:
       - BearerAuth: []
       summary: List join requests
@@ -1251,26 +1428,26 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_ny4rl4th0t3p_chaincoord_internal_application_services.SubmitInput'
+          $ref: '#/definitions/services.SubmitInput'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.joinRequestJSON'
+            $ref: '#/definitions/api.joinRequestJSON'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
       security:
       - BearerAuth: []
       summary: Submit a join request
@@ -1296,23 +1473,23 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.joinRequestJSON'
+            $ref: '#/definitions/api.joinRequestJSON'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
       security:
       - BearerAuth: []
       summary: Get a join request
@@ -1333,23 +1510,23 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.launchJSON'
+            $ref: '#/definitions/api.launchJSON'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
       security:
       - BearerAuth: []
       summary: Open the application window
@@ -1376,18 +1553,17 @@ paths:
       - application/json
       responses:
         "200":
-          description: OK
+          description: JSON format; with ?format=text returns comma-separated text/plain
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/api.peersResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
       summary: Get approved validator peers
       tags:
       - readiness
@@ -1407,26 +1583,26 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_ny4rl4th0t3p_chaincoord_internal_application_services.RaiseInput'
+          $ref: '#/definitions/services.RaiseInput'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.proposalJSON'
+            $ref: '#/definitions/api.proposalJSON'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
       security:
       - BearerAuth: []
       summary: Raise a proposal
@@ -1451,19 +1627,19 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.proposalJSON'
+            $ref: '#/definitions/api.proposalJSON'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
       security:
       - BearerAuth: []
       summary: Get a proposal
@@ -1491,30 +1667,30 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_ny4rl4th0t3p_chaincoord_internal_application_services.SignInput'
+          $ref: '#/definitions/services.SignInput'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.proposalJSON'
+            $ref: '#/definitions/api.proposalJSON'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
       security:
       - BearerAuth: []
       summary: Sign or veto a proposal
@@ -1545,15 +1721,15 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.pageEnvelope-array_internal_infrastructure_api_proposalJSON'
+            $ref: '#/definitions/api.pageEnvelope-array_api_proposalJSON'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
       security:
       - BearerAuth: []
       summary: List proposals
@@ -1576,24 +1752,22 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_ny4rl4th0t3p_chaincoord_internal_application_services.ConfirmInput'
+          $ref: '#/definitions/services.ConfirmInput'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/api.readinessConfirmJSON'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
       security:
       - BearerAuth: []
       summary: Confirm readiness
@@ -1621,11 +1795,11 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.pageEnvelope-array_internal_infrastructure_api_launchJSON'
+            $ref: '#/definitions/api.pageEnvelope-array_api_launchJSON'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_infrastructure_api.errorEnvelope'
+            $ref: '#/definitions/api.errorEnvelope'
       summary: List launches
       tags:
       - launches
