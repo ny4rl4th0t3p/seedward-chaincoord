@@ -43,19 +43,24 @@ lint:
 	go vet ./...
 	golangci-lint run --fix
 
+# swag and vacuum are pinned as go.mod tool dependencies (the `tool` directives),
+# so `go tool` runs the exact same version on every machine and in CI — keeping
+# generated output deterministic. Add/update with:
+#   go get -tool github.com/swaggo/swag/cmd/swag@<version>
+#   go get -tool github.com/daveshanley/vacuum@<version>
 swagger:
-	swag init --generalInfo cmd/coordd/main.go --dir . --output docs/mkdocs/api/ --outputTypes yaml --parseInternal
+	go tool swag init --generalInfo cmd/coordd/main.go --dir . --output docs/mkdocs/api/ --outputTypes yaml --parseInternal
 
 # CI guard against spec drift: regenerate and fail if the result differs from
 # what's committed, so the Go annotations and docs/mkdocs/api/swagger.yaml can't
 # fall out of sync. Fix a failure by running `make swagger` and committing.
-# (Requires the same pinned swag version locally and in CI for deterministic output.)
+# Deterministic because swag is pinned via the go.mod tool directive (see above).
 swagger-check: swagger
 	@git diff --exit-code HEAD -- docs/mkdocs/api/swagger.yaml \
 		|| { echo "ERROR: docs/mkdocs/api/swagger.yaml is out of date — run 'make swagger' and commit the result." >&2; exit 1; }
 
 lint-openapi: swagger
-	vacuum lint docs/mkdocs/api/swagger.yaml
+	go tool vacuum lint docs/mkdocs/api/swagger.yaml
 
 release:
 	GOOS=linux  GOARCH=amd64  go build -ldflags "$(LDFLAGS)" -o bin/coordd-linux-amd64  ./cmd/coordd

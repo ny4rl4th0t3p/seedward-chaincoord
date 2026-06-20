@@ -1803,6 +1803,9 @@ paths:
       summary: List launches
       tags:
       - launches
+schemes:
+- http
+- https
 securityDefinitions:
   BearerAuth:
     description: 'Session token obtained from POST /auth/verify. Format: "Bearer <token>"'
