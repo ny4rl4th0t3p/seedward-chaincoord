@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/launch"
 )
@@ -56,62 +58,40 @@ func validSig() string {
 
 func TestNewLaunch_HappyPath(t *testing.T) {
 	l, err := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if l.Status != launch.StatusDraft {
-		t.Errorf("expected DRAFT, got %s", l.Status)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, launch.StatusDraft, l.Status)
 }
 
 func TestNewLaunch_InvalidRecord(t *testing.T) {
 	r := testRecord()
 	r.ChainID = ""
 	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
-	if err == nil {
-		t.Error("expected error for empty chain_id")
-	}
+	assert.Error(t, err, "expected error for empty chain_id")
 }
 
 func TestNewLaunch_InvalidCommitteeThreshold(t *testing.T) {
 	c := testCommittee()
 	c.ThresholdM = 0
 	_, err := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, c)
-	if err == nil {
-		t.Error("expected error for threshold 0")
-	}
+	assert.Error(t, err, "expected error for threshold 0")
 }
 
 func TestStateMachine_HappyPath(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
 
-	if err := l.Publish("abc123"); err != nil {
-		t.Fatalf("Publish: %v", err)
-	}
-	if l.Status != launch.StatusPublished {
-		t.Errorf("expected PUBLISHED after Publish, got %s", l.Status)
-	}
+	require.NoError(t, l.Publish("abc123"))
+	assert.Equal(t, launch.StatusPublished, l.Status)
 
-	if err := l.OpenWindow(); err != nil {
-		t.Fatalf("OpenWindow: %v", err)
-	}
-	if l.Status != launch.StatusWindowOpen {
-		t.Errorf("expected WINDOW_OPEN after OpenWindow, got %s", l.Status)
-	}
+	require.NoError(t, l.OpenWindow())
+	assert.Equal(t, launch.StatusWindowOpen, l.Status)
 }
 
 func TestStateMachine_InvalidTransitions(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
 
-	if err := l.OpenWindow(); err == nil {
-		t.Error("expected error: cannot open window from DRAFT")
-	}
-	if err := l.CloseWindow(10); err == nil {
-		t.Error("expected error: cannot close window from DRAFT")
-	}
-	if err := l.PublishGenesis("abc"); err == nil {
-		t.Error("expected error: cannot publish genesis from DRAFT")
-	}
+	assert.Error(t, l.OpenWindow(), "cannot open window from DRAFT")
+	assert.Error(t, l.CloseWindow(10), "cannot close window from DRAFT")
+	assert.Error(t, l.PublishGenesis("abc"), "cannot publish genesis from DRAFT")
 }
 
 func TestCloseWindow_MinValidatorCount(t *testing.T) {
@@ -119,12 +99,8 @@ func TestCloseWindow_MinValidatorCount(t *testing.T) {
 	_ = l.Publish("abc123")
 	_ = l.OpenWindow()
 
-	if err := l.CloseWindow(3); err == nil {
-		t.Error("expected error: below min_validator_count (4)")
-	}
-	if err := l.CloseWindow(4); err != nil {
-		t.Errorf("unexpected error at min count: %v", err)
-	}
+	assert.Error(t, l.CloseWindow(3), "below min_validator_count (4)")
+	assert.NoError(t, l.CloseWindow(4))
 }
 
 func TestVotingPowerWarning(t *testing.T) {
@@ -135,9 +111,7 @@ func TestVotingPowerWarning(t *testing.T) {
 
 	l.RecordValidatorApproval(addr1, 40)
 	warning := l.RecordValidatorApproval(addr2, 60)
-	if warning == "" {
-		t.Error("expected 33%% warning for addr2 at 60%% voting power")
-	}
+	assert.NotEmpty(t, warning, "expected 33%% warning for addr2 at 60%% voting power")
 }
 
 func TestVotingPowerWarning_NoWarningBelow33(t *testing.T) {
@@ -148,9 +122,7 @@ func TestVotingPowerWarning_NoWarningBelow33(t *testing.T) {
 	l.RecordValidatorApproval(launch.MustNewOperatorAddress(testAddr2), 25)
 	l.RecordValidatorApproval(launch.MustNewOperatorAddress(testAddr3), 25)
 	warning := l.RecordValidatorApproval(launch.MustNewOperatorAddress(testAddr4), 25)
-	if warning != "" {
-		t.Errorf("unexpected warning: %s", warning)
-	}
+	assert.Empty(t, warning)
 }
 
 func TestCloseWindow_DominantVotingPowerBlocked(t *testing.T) {
@@ -160,9 +132,7 @@ func TestCloseWindow_DominantVotingPowerBlocked(t *testing.T) {
 
 	l.RecordValidatorApproval(launch.MustNewOperatorAddress(testAddr1), 100) // 100% voting power
 
-	if err := l.CloseWindow(4); err == nil {
-		t.Error("expected error: single entity holds 100%% of voting power")
-	}
+	assert.Error(t, l.CloseWindow(4), "single entity holds 100%% of voting power")
 }
 
 func TestIsVisibleTo(t *testing.T) {
@@ -173,22 +143,14 @@ func TestIsVisibleTo(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypePermissioned, launch.VisibilityAllowlist, testCommittee())
 	l.Allowlist = al
 
-	if !l.IsVisibleTo(addr.String()) {
-		t.Error("addr on allowlist should be visible")
-	}
-	if l.IsVisibleTo(otherAddr.String()) {
-		t.Error("addr not on allowlist should not be visible")
-	}
-	if l.IsVisibleTo("") {
-		t.Error("unauthenticated should not see ALLOWLIST chain")
-	}
+	assert.True(t, l.IsVisibleTo(addr.String()), "addr on allowlist should be visible")
+	assert.False(t, l.IsVisibleTo(otherAddr.String()), "addr not on allowlist should not be visible")
+	assert.False(t, l.IsVisibleTo(""), "unauthenticated should not see ALLOWLIST chain")
 }
 
 func TestPublicChainVisibleToAll(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
-	if !l.IsVisibleTo("") {
-		t.Error("public chain should be visible to unauthenticated callers")
-	}
+	assert.True(t, l.IsVisibleTo(""), "public chain should be visible to unauthenticated callers")
 }
 
 // ---- New — additional error paths -------------------------------------------
@@ -197,54 +159,42 @@ func TestNewLaunch_ThresholdExceedsN(t *testing.T) {
 	c := testCommittee()
 	c.ThresholdM = 4 // TotalN is 3
 	_, err := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, c)
-	if err == nil {
-		t.Error("expected error: threshold (4) > TotalN (3)")
-	}
+	assert.Error(t, err, "threshold (4) > TotalN (3)")
 }
 
 func TestNewLaunch_MemberCountMismatch(t *testing.T) {
 	c := testCommittee()
 	c.TotalN = 5 // Members has only 3 elements
 	_, err := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, c)
-	if err == nil {
-		t.Error("expected error: member count (3) != TotalN (5)")
-	}
+	assert.Error(t, err, "member count (3) != TotalN (5)")
 }
 
 func TestNewLaunch_EmptyBinaryName(t *testing.T) {
 	r := testRecord()
 	r.BinaryName = ""
 	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
-	if err == nil {
-		t.Error("expected error for empty binary_name")
-	}
+	assert.Error(t, err, "expected error for empty binary_name")
 }
 
 func TestNewLaunch_EmptyDenom(t *testing.T) {
 	r := testRecord()
 	r.Denom = ""
 	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
-	if err == nil {
-		t.Error("expected error for empty denom")
-	}
+	assert.Error(t, err, "expected error for empty denom")
 }
 
 func TestNewLaunch_MinValidatorCountZero(t *testing.T) {
 	r := testRecord()
 	r.MinValidatorCount = 0
 	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
-	if err == nil {
-		t.Error("expected error for min_validator_count = 0")
-	}
+	assert.Error(t, err, "expected error for min_validator_count = 0")
 }
 
 func TestNewLaunch_ZeroGentxDeadline(t *testing.T) {
 	r := testRecord()
 	r.GentxDeadline = time.Time{}
 	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
-	if err == nil {
-		t.Error("expected error for zero gentx_deadline")
-	}
+	assert.Error(t, err, "expected error for zero gentx_deadline")
 }
 
 // ---- Publish error paths ----------------------------------------------------
@@ -252,16 +202,12 @@ func TestNewLaunch_ZeroGentxDeadline(t *testing.T) {
 func TestPublish_NotFromDraft(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
 	_ = l.Publish("abc123") // now PUBLISHED
-	if err := l.Publish("def456"); err == nil {
-		t.Error("expected error: cannot publish from PUBLISHED")
-	}
+	assert.Error(t, l.Publish("def456"), "cannot publish from PUBLISHED")
 }
 
 func TestPublish_EmptyGenesisHash(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
-	if err := l.Publish(""); err == nil {
-		t.Error("expected error: empty genesis hash")
-	}
+	assert.Error(t, l.Publish(""), "empty genesis hash")
 }
 
 // ---- OpenWindow error paths --------------------------------------------------
@@ -269,24 +215,18 @@ func TestPublish_EmptyGenesisHash(t *testing.T) {
 func TestOpenWindow_NotFromPublished(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
 	// Still in DRAFT — OpenWindow should fail.
-	if err := l.OpenWindow(); err == nil {
-		t.Error("expected error: cannot open window from DRAFT")
-	}
+	assert.Error(t, l.OpenWindow(), "cannot open window from DRAFT")
 	// Advance to WINDOW_OPEN and confirm it cannot be re-opened.
 	_ = l.Publish("abc123")
 	_ = l.OpenWindow()
-	if err := l.OpenWindow(); err == nil {
-		t.Error("expected error: cannot open window from WINDOW_OPEN")
-	}
+	assert.Error(t, l.OpenWindow(), "cannot open window from WINDOW_OPEN")
 }
 
 // ---- CloseWindow error paths ------------------------------------------------
 
 func TestCloseWindow_NotFromWindowOpen(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
-	if err := l.CloseWindow(10); err == nil {
-		t.Error("expected error: cannot close window from DRAFT")
-	}
+	assert.Error(t, l.CloseWindow(10), "cannot close window from DRAFT")
 }
 
 func TestCloseWindow_DominantVotingPower_JustAboveThreshold(t *testing.T) {
@@ -298,9 +238,7 @@ func TestCloseWindow_DominantVotingPower_JustAboveThreshold(t *testing.T) {
 	_ = l.OpenWindow()
 	l.RecordValidatorApproval(launch.MustNewOperatorAddress(testAddr1), 34) // 34/100 = 34%
 	l.RecordValidatorApproval(launch.MustNewOperatorAddress(testAddr2), 66)
-	if err := l.CloseWindow(1); err == nil {
-		t.Error("expected error: addr1 holds 34%% (≥ 1/3) of voting power")
-	}
+	assert.Error(t, l.CloseWindow(1), "addr1 holds 34%% (≥ 1/3) of voting power")
 }
 
 func TestCloseWindow_DominantVotingPower_JustBelowThreshold(t *testing.T) {
@@ -313,22 +251,16 @@ func TestCloseWindow_DominantVotingPower_JustBelowThreshold(t *testing.T) {
 	for _, a := range []string{testAddr1, testAddr2, testAddr3, testAddr4} {
 		l.RecordValidatorApproval(launch.MustNewOperatorAddress(a), 25)
 	}
-	if err := l.CloseWindow(1); err != nil {
-		t.Errorf("unexpected error at 25%% each: %v", err)
-	}
+	assert.NoError(t, l.CloseWindow(1))
 }
 
 // ---- PublishGenesis error paths ---------------------------------------------
 
 func TestPublishGenesis_NotFromWindowClosed(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
-	if err := l.PublishGenesis("abc"); err == nil {
-		t.Error("expected error: cannot publish genesis from DRAFT")
-	}
+	assert.Error(t, l.PublishGenesis("abc"), "cannot publish genesis from DRAFT")
 	_ = l.Publish("abc123")
-	if err := l.PublishGenesis("abc"); err == nil {
-		t.Error("expected error: cannot publish genesis from PUBLISHED")
-	}
+	assert.Error(t, l.PublishGenesis("abc"), "cannot publish genesis from PUBLISHED")
 }
 
 func TestPublishGenesis_EmptyHash(t *testing.T) {
@@ -338,9 +270,7 @@ func TestPublishGenesis_EmptyHash(t *testing.T) {
 	_ = l.Publish("abc123")
 	_ = l.OpenWindow()
 	_ = l.CloseWindow(1)
-	if err := l.PublishGenesis(""); err == nil {
-		t.Error("expected error: empty final genesis hash")
-	}
+	assert.Error(t, l.PublishGenesis(""), "empty final genesis hash")
 }
 
 // ---- MarkLaunched -----------------------------------------------------------
@@ -353,19 +283,13 @@ func TestMarkLaunched_Success(t *testing.T) {
 	_ = l.OpenWindow()
 	_ = l.CloseWindow(1)
 	_ = l.PublishGenesis("def456")
-	if err := l.MarkLaunched(); err != nil {
-		t.Fatalf("MarkLaunched: %v", err)
-	}
-	if l.Status != launch.StatusLaunched {
-		t.Errorf("expected LAUNCHED, got %s", l.Status)
-	}
+	require.NoError(t, l.MarkLaunched())
+	assert.Equal(t, launch.StatusLaunched, l.Status)
 }
 
 func TestMarkLaunched_NotFromGenesisReady(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
-	if err := l.MarkLaunched(); err == nil {
-		t.Error("expected error: cannot mark launched from DRAFT")
-	}
+	assert.Error(t, l.MarkLaunched(), "cannot mark launched from DRAFT")
 }
 
 // ---- Full state machine happy path ------------------------------------------
@@ -374,9 +298,7 @@ func TestStateMachine_FullPath(t *testing.T) {
 	r := testRecord()
 	r.MinValidatorCount = 1
 	l, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
+	require.NoError(t, err)
 	steps := []struct {
 		name string
 		fn   func() error
@@ -389,12 +311,8 @@ func TestStateMachine_FullPath(t *testing.T) {
 		{"MarkLaunched", l.MarkLaunched, launch.StatusLaunched},
 	}
 	for _, s := range steps {
-		if err := s.fn(); err != nil {
-			t.Fatalf("%s: %v", s.name, err)
-		}
-		if l.Status != s.want {
-			t.Errorf("after %s: want %s, got %s", s.name, s.want, l.Status)
-		}
+		require.NoError(t, s.fn(), s.name)
+		assert.Equal(t, s.want, l.Status, "after %s", s.name)
 	}
 }
 
@@ -405,23 +323,17 @@ func TestCanValidatorApply_WindowOpen_Public(t *testing.T) {
 	_ = l.Publish("abc123")
 	_ = l.OpenWindow()
 	addr := launch.MustNewOperatorAddress(testAddr4)
-	if err := l.CanValidatorApply(addr); err != nil {
-		t.Errorf("expected success for public WINDOW_OPEN, got: %v", err)
-	}
+	assert.NoError(t, l.CanValidatorApply(addr))
 }
 
 func TestCanValidatorApply_NotWindowOpen(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
 	addr := launch.MustNewOperatorAddress(testAddr4)
 	// DRAFT
-	if err := l.CanValidatorApply(addr); err == nil {
-		t.Error("expected error: window not open (DRAFT)")
-	}
+	assert.Error(t, l.CanValidatorApply(addr), "window not open (DRAFT)")
 	// PUBLISHED
 	_ = l.Publish("abc123")
-	if err := l.CanValidatorApply(addr); err == nil {
-		t.Error("expected error: window not open (PUBLISHED)")
-	}
+	assert.Error(t, l.CanValidatorApply(addr), "window not open (PUBLISHED)")
 }
 
 func TestCanValidatorApply_AllowlistAddressOnList(t *testing.T) {
@@ -431,9 +343,7 @@ func TestCanValidatorApply_AllowlistAddressOnList(t *testing.T) {
 	l.Allowlist = al
 	_ = l.Publish("abc123")
 	_ = l.OpenWindow()
-	if err := l.CanValidatorApply(addr); err != nil {
-		t.Errorf("expected success for allowlisted address, got: %v", err)
-	}
+	assert.NoError(t, l.CanValidatorApply(addr))
 }
 
 func TestCanValidatorApply_AllowlistAddressNotOnList(t *testing.T) {
@@ -442,9 +352,7 @@ func TestCanValidatorApply_AllowlistAddressNotOnList(t *testing.T) {
 	l.Allowlist = launch.NewAllowlist(nil) // empty allowlist
 	_ = l.Publish("abc123")
 	_ = l.OpenWindow()
-	if err := l.CanValidatorApply(addr); err == nil {
-		t.Error("expected error: address not on allowlist")
-	}
+	assert.Error(t, l.CanValidatorApply(addr), "address not on allowlist")
 }
 
 // ---- Voting power helpers ---------------------------------------------------
@@ -454,9 +362,7 @@ func TestRecordValidatorApproval_UpdatesExisting(t *testing.T) {
 	addr := launch.MustNewOperatorAddress(testAddr1)
 	l.RecordValidatorApproval(addr, 100)
 	l.RecordValidatorApproval(addr, 50) // update
-	if got := l.ApprovedVotingPowerOf(addr); got != 50 {
-		t.Errorf("want 50, got %d", got)
-	}
+	assert.Equal(t, int64(50), l.ApprovedVotingPowerOf(addr))
 }
 
 func TestRemoveValidatorApproval(t *testing.T) {
@@ -464,26 +370,20 @@ func TestRemoveValidatorApproval(t *testing.T) {
 	addr := launch.MustNewOperatorAddress(testAddr1)
 	l.RecordValidatorApproval(addr, 100)
 	l.RemoveValidatorApproval(addr)
-	if got := l.ApprovedVotingPowerOf(addr); got != 0 {
-		t.Errorf("want 0 after removal, got %d", got)
-	}
+	assert.Equal(t, int64(0), l.ApprovedVotingPowerOf(addr), "want 0 after removal")
 }
 
 func TestApprovedVotingPowerOf_NotFound(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
 	addr := launch.MustNewOperatorAddress(testAddr1)
-	if got := l.ApprovedVotingPowerOf(addr); got != 0 {
-		t.Errorf("want 0 for unknown addr, got %d", got)
-	}
+	assert.Equal(t, int64(0), l.ApprovedVotingPowerOf(addr), "want 0 for unknown addr")
 }
 
 func TestInitVotingPower(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
 	addr := launch.MustNewOperatorAddress(testAddr1)
 	l.InitVotingPower(map[string]int64{addr.String(): 500})
-	if got := l.ApprovedVotingPowerOf(addr); got != 500 {
-		t.Errorf("want 500, got %d", got)
-	}
+	assert.Equal(t, int64(500), l.ApprovedVotingPowerOf(addr))
 }
 
 // ---- Committee.HasMember ----------------------------------------------------
@@ -492,12 +392,8 @@ func TestHasMember_PresentAndAbsent(t *testing.T) {
 	c := testCommittee()
 	addr1 := launch.MustNewOperatorAddress(testAddr1)
 	addr4 := launch.MustNewOperatorAddress(testAddr4)
-	if !c.HasMember(addr1) {
-		t.Error("addr1 should be a member")
-	}
-	if c.HasMember(addr4) {
-		t.Error("addr4 should not be a member")
-	}
+	assert.True(t, c.HasMember(addr1), "addr1 should be a member")
+	assert.False(t, c.HasMember(addr4), "addr4 should not be a member")
 }
 
 // ---- IsVisibleTo edge cases -------------------------------------------------
@@ -507,9 +403,7 @@ func TestIsVisibleTo_InvalidAddress(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypePermissioned, launch.VisibilityAllowlist, testCommittee())
 	l.Allowlist = al
 	// An invalid bech32 string should be treated as "not visible".
-	if l.IsVisibleTo("not-a-bech32-address") {
-		t.Error("invalid address should not be visible")
-	}
+	assert.False(t, l.IsVisibleTo("not-a-bech32-address"), "invalid address should not be visible")
 }
 
 // ---- ReplaceCommitteeMember -------------------------------------------------
@@ -523,22 +417,16 @@ func TestLaunch_ReplaceCommitteeMember_Success(t *testing.T) {
 		PubKeyB64: "DDDD",
 	}
 
-	if err := l.ReplaceCommitteeMember(oldAddr, newMember); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, l.ReplaceCommitteeMember(oldAddr, newMember))
 
 	found := false
 	for _, m := range l.Committee.Members {
 		if m.Address.String() == testAddr4 {
 			found = true
 		}
-		if m.Address.String() == testAddr2 {
-			t.Error("old member still in committee")
-		}
+		assert.NotEqual(t, testAddr2, m.Address.String(), "old member still in committee")
 	}
-	if !found {
-		t.Error("new member not in committee")
-	}
+	assert.True(t, found, "new member not in committee")
 }
 
 func TestLaunch_ReplaceCommitteeMember_UpdatesLead(t *testing.T) {
@@ -550,12 +438,8 @@ func TestLaunch_ReplaceCommitteeMember_UpdatesLead(t *testing.T) {
 		PubKeyB64: "DDDD",
 	}
 
-	if err := l.ReplaceCommitteeMember(leadAddr, newMember); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if l.Committee.LeadAddress.String() != testAddr4 {
-		t.Errorf("lead not updated: got %s", l.Committee.LeadAddress)
-	}
+	require.NoError(t, l.ReplaceCommitteeMember(leadAddr, newMember))
+	assert.Equal(t, testAddr4, l.Committee.LeadAddress.String(), "lead not updated")
 }
 
 func TestLaunch_ReplaceCommitteeMember_NotFound(t *testing.T) {
@@ -563,9 +447,7 @@ func TestLaunch_ReplaceCommitteeMember_NotFound(t *testing.T) {
 	unknownAddr := launch.MustNewOperatorAddress(testAddr5)
 	newMember := launch.CommitteeMember{Address: launch.MustNewOperatorAddress(testAddr4)}
 
-	if err := l.ReplaceCommitteeMember(unknownAddr, newMember); err == nil {
-		t.Fatal("expected error for unknown old address")
-	}
+	require.Error(t, l.ReplaceCommitteeMember(unknownAddr, newMember), "expected error for unknown old address")
 }
 
 // ---- ExpandCommittee --------------------------------------------------------
@@ -578,28 +460,18 @@ func TestLaunch_ExpandCommittee_Success(t *testing.T) {
 		PubKeyB64: "DDDD",
 	}
 
-	if err := l.ExpandCommittee(newMember, 2); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, l.ExpandCommittee(newMember, 2))
 
-	if l.Committee.TotalN != 4 {
-		t.Errorf("TotalN: want 4, got %d", l.Committee.TotalN)
-	}
-	if l.Committee.ThresholdM != 2 {
-		t.Errorf("ThresholdM: want 2, got %d", l.Committee.ThresholdM)
-	}
-	if len(l.Committee.Members) != 4 {
-		t.Errorf("len(Members): want 4, got %d", len(l.Committee.Members))
-	}
+	assert.Equal(t, 4, l.Committee.TotalN)
+	assert.Equal(t, 2, l.Committee.ThresholdM)
+	assert.Len(t, l.Committee.Members, 4)
 	found := false
 	for _, m := range l.Committee.Members {
 		if m.Address.String() == testAddr4 {
 			found = true
 		}
 	}
-	if !found {
-		t.Error("new member not found in committee")
-	}
+	assert.True(t, found, "new member not found in committee")
 }
 
 func TestLaunch_ExpandCommittee_ExplicitThreshold(t *testing.T) {
@@ -610,12 +482,8 @@ func TestLaunch_ExpandCommittee_ExplicitThreshold(t *testing.T) {
 		PubKeyB64: "DDDD",
 	}
 
-	if err := l.ExpandCommittee(newMember, 3); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if l.Committee.ThresholdM != 3 {
-		t.Errorf("ThresholdM: want 3, got %d", l.Committee.ThresholdM)
-	}
+	require.NoError(t, l.ExpandCommittee(newMember, 3))
+	assert.Equal(t, 3, l.Committee.ThresholdM)
 }
 
 func TestLaunch_ExpandCommittee_DuplicateMember(t *testing.T) {
@@ -626,9 +494,7 @@ func TestLaunch_ExpandCommittee_DuplicateMember(t *testing.T) {
 		PubKeyB64: "BBBB",
 	}
 
-	if err := l.ExpandCommittee(duplicate, 2); err == nil {
-		t.Error("expected error for duplicate member address")
-	}
+	assert.Error(t, l.ExpandCommittee(duplicate, 2), "expected error for duplicate member address")
 }
 
 func TestLaunch_ExpandCommittee_LivenessGuard(t *testing.T) {
@@ -640,9 +506,7 @@ func TestLaunch_ExpandCommittee_LivenessGuard(t *testing.T) {
 		PubKeyB64: "DDDD",
 	}
 
-	if err := l.ExpandCommittee(newMember, 4); err == nil {
-		t.Error("expected liveness guard error: threshold must be < N")
-	}
+	assert.Error(t, l.ExpandCommittee(newMember, 4), "expected liveness guard error: threshold must be < N")
 }
 
 // ---- ShrinkCommittee --------------------------------------------------------
@@ -652,23 +516,13 @@ func TestLaunch_ShrinkCommittee_Success(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
 	removeAddr := launch.MustNewOperatorAddress(testAddr3)
 
-	if err := l.ShrinkCommittee(removeAddr, 1); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, l.ShrinkCommittee(removeAddr, 1))
 
-	if l.Committee.TotalN != 2 {
-		t.Errorf("TotalN: want 2, got %d", l.Committee.TotalN)
-	}
-	if l.Committee.ThresholdM != 1 {
-		t.Errorf("ThresholdM: want 1, got %d", l.Committee.ThresholdM)
-	}
-	if len(l.Committee.Members) != 2 {
-		t.Errorf("len(Members): want 2, got %d", len(l.Committee.Members))
-	}
+	assert.Equal(t, 2, l.Committee.TotalN)
+	assert.Equal(t, 1, l.Committee.ThresholdM)
+	assert.Len(t, l.Committee.Members, 2)
 	for _, m := range l.Committee.Members {
-		if m.Address.String() == testAddr3 {
-			t.Error("removed member still present in committee")
-		}
+		assert.NotEqual(t, testAddr3, m.Address.String(), "removed member still present in committee")
 	}
 }
 
@@ -677,33 +531,23 @@ func TestLaunch_ShrinkCommittee_TransfersLeadWhenRemoved(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
 	leadAddr := launch.MustNewOperatorAddress(testAddr1)
 
-	if err := l.ShrinkCommittee(leadAddr, 1); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if l.Committee.LeadAddress.String() == testAddr1 {
-		t.Error("lead not transferred after removed member was the lead")
-	}
+	require.NoError(t, l.ShrinkCommittee(leadAddr, 1))
+	assert.NotEqual(t, testAddr1, l.Committee.LeadAddress.String(), "lead not transferred after removed member was the lead")
 }
 
 func TestLaunch_ShrinkCommittee_NonLeadDoesNotChangeLead(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
 	removeAddr := launch.MustNewOperatorAddress(testAddr3) // not the lead
 
-	if err := l.ShrinkCommittee(removeAddr, 1); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if l.Committee.LeadAddress.String() != testAddr1 {
-		t.Errorf("lead changed unexpectedly: got %s", l.Committee.LeadAddress)
-	}
+	require.NoError(t, l.ShrinkCommittee(removeAddr, 1))
+	assert.Equal(t, testAddr1, l.Committee.LeadAddress.String(), "lead changed unexpectedly")
 }
 
 func TestLaunch_ShrinkCommittee_MemberNotFound(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
 	unknownAddr := launch.MustNewOperatorAddress(testAddr5)
 
-	if err := l.ShrinkCommittee(unknownAddr, 1); err == nil {
-		t.Error("expected error for unknown member address")
-	}
+	assert.Error(t, l.ShrinkCommittee(unknownAddr, 1), "expected error for unknown member address")
 }
 
 func TestLaunch_ShrinkCommittee_LivenessGuard(t *testing.T) {
@@ -711,9 +555,7 @@ func TestLaunch_ShrinkCommittee_LivenessGuard(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
 	removeAddr := launch.MustNewOperatorAddress(testAddr3)
 
-	if err := l.ShrinkCommittee(removeAddr, 2); err == nil {
-		t.Error("expected liveness guard error: threshold must be < N")
-	}
+	assert.Error(t, l.ShrinkCommittee(removeAddr, 2), "expected liveness guard error: threshold must be < N")
 }
 
 func TestLaunch_ShrinkCommittee_CannotShrinkBelowOneActiveMember(t *testing.T) {
@@ -733,88 +575,95 @@ func TestLaunch_ShrinkCommittee_CannotShrinkBelowOneActiveMember(t *testing.T) {
 	}
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, smallCommittee)
 
-	if err := l.ShrinkCommittee(launch.MustNewOperatorAddress(testAddr2), 1); err == nil {
-		t.Error("expected error: cannot shrink to a 1-of-1 committee (liveness guard)")
-	}
+	assert.Error(t, l.ShrinkCommittee(launch.MustNewOperatorAddress(testAddr2), 1),
+		"expected error: cannot shrink to a 1-of-1 committee (liveness guard)")
 }
 
-// ---- GenesisAccount ---------------------------------------------------------
+// ---- AllocationFile ---------------------------------------------------------
 
-func TestLaunch_AddGenesisAccount_Success(t *testing.T) {
+const testHashA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+const testHashB = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+func TestLaunch_UploadAllocationFile_Success(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
-	acc := launch.GenesisAccount{Address: testAddr2, Amount: "1000utest"}
 
-	if err := l.AddGenesisAccount(acc); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(l.GenesisAccounts) != 1 || l.GenesisAccounts[0].Address != testAddr2 {
-		t.Errorf("genesis account not added: %+v", l.GenesisAccounts)
-	}
+	require.NoError(t, l.UploadAllocationFile(launch.AllocationClaims, testHashA))
+	f, ok := l.AllocationFileOf(launch.AllocationClaims)
+	require.True(t, ok, "allocation file not stored")
+	assert.Equal(t, testHashA, f.SHA256)
+	assert.Equal(t, launch.AllocationPending, f.Status)
+	assert.Nil(t, f.ApprovedByProposal)
 }
 
-func TestLaunch_AddGenesisAccount_Duplicate(t *testing.T) {
+func TestLaunch_UploadAllocationFile_InvalidType(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
-	acc := launch.GenesisAccount{Address: testAddr2, Amount: "1000utest"}
-	_ = l.AddGenesisAccount(acc)
-
-	if err := l.AddGenesisAccount(acc); err == nil {
-		t.Fatal("expected error for duplicate genesis account")
-	}
+	require.ErrorIs(t, l.UploadAllocationFile(launch.AllocationType("bogus"), testHashA), launch.ErrUnknownAllocationType)
+	require.ErrorIs(t, l.UploadAllocationFile(launch.AllocationAccounts, ""), launch.ErrAllocationEmptyHash)
 }
 
-func TestLaunch_RemoveGenesisAccount_Success(t *testing.T) {
+func TestLaunch_UploadAllocationFile_ReuploadResetsToPending(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
-	_ = l.AddGenesisAccount(launch.GenesisAccount{Address: testAddr2, Amount: "1000utest"})
+	pid := uuid.New()
+	_ = l.UploadAllocationFile(launch.AllocationClaims, testHashA)
+	_ = l.ApproveAllocationFile(launch.AllocationClaims, testHashA, pid)
 
-	if err := l.RemoveGenesisAccount(testAddr2); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(l.GenesisAccounts) != 0 {
-		t.Errorf("genesis account not removed")
-	}
+	// Re-upload with a new hash must invalidate the prior approval.
+	require.NoError(t, l.UploadAllocationFile(launch.AllocationClaims, testHashB))
+	f, _ := l.AllocationFileOf(launch.AllocationClaims)
+	assert.Equal(t, testHashB, f.SHA256)
+	assert.Equal(t, launch.AllocationPending, f.Status, "status not reset to PENDING")
+	assert.Nil(t, f.ApprovedByProposal, "ApprovedByProposal not cleared on re-upload")
+	assert.Len(t, l.AllocationFiles, 1, "re-upload should replace, not append")
 }
 
-func TestLaunch_RemoveGenesisAccount_NotFound(t *testing.T) {
+func TestLaunch_ApproveAllocationFile_Success(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
+	pid := uuid.New()
+	_ = l.UploadAllocationFile(launch.AllocationGrants, testHashA)
 
-	if err := l.RemoveGenesisAccount(testAddr2); err == nil {
-		t.Fatal("expected error for non-existent account")
-	}
+	require.NoError(t, l.ApproveAllocationFile(launch.AllocationGrants, testHashA, pid))
+	f, _ := l.AllocationFileOf(launch.AllocationGrants)
+	assert.Equal(t, launch.AllocationApproved, f.Status)
+	require.NotNil(t, f.ApprovedByProposal)
+	assert.Equal(t, pid, *f.ApprovedByProposal)
 }
 
-func TestLaunch_ModifyGenesisAccount_Success(t *testing.T) {
+func TestLaunch_ApproveAllocationFile_StaleHash(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
-	_ = l.AddGenesisAccount(launch.GenesisAccount{Address: testAddr2, Amount: "1000utest"})
+	_ = l.UploadAllocationFile(launch.AllocationGrants, testHashA)
 
-	if err := l.ModifyGenesisAccount(testAddr2, "9999utest", nil); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if l.GenesisAccounts[0].Amount != "9999utest" {
-		t.Errorf("amount not updated: %s", l.GenesisAccounts[0].Amount)
-	}
+	require.ErrorIs(t, l.ApproveAllocationFile(launch.AllocationGrants, testHashB, uuid.New()), launch.ErrAllocationStaleHash)
 }
 
-func TestLaunch_ModifyGenesisAccount_NotFound(t *testing.T) {
+func TestLaunch_ApproveAllocationFile_NotFound(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
-
-	if err := l.ModifyGenesisAccount(testAddr2, "9999utest", nil); err == nil {
-		t.Fatal("expected error for non-existent account")
-	}
+	require.ErrorIs(t, l.ApproveAllocationFile(launch.AllocationAuthz, testHashA, uuid.New()), launch.ErrAllocationNotFound)
 }
 
-func TestLaunch_GenesisAccountsLockedAfterPublish(t *testing.T) {
+func TestLaunch_RejectAllocationFile(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
-	l.Status = launch.StatusGenesisReady // genesis published — account set is frozen
+	_ = l.UploadAllocationFile(launch.AllocationFeegrant, testHashA)
 
-	if err := l.AddGenesisAccount(launch.GenesisAccount{Address: testAddr2, Amount: "1000utest"}); err == nil {
-		t.Error("AddGenesisAccount: expected error once genesis is published")
-	}
-	if err := l.RemoveGenesisAccount(testAddr2); err == nil {
-		t.Error("RemoveGenesisAccount: expected error once genesis is published")
-	}
-	if err := l.ModifyGenesisAccount(testAddr2, "2000utest", nil); err == nil {
-		t.Error("ModifyGenesisAccount: expected error once genesis is published")
-	}
+	// A stale veto (hash no longer matches) is a no-op leaving the file PENDING.
+	require.NoError(t, l.RejectAllocationFile(launch.AllocationFeegrant, testHashB), "stale reject should be a no-op")
+	f, _ := l.AllocationFileOf(launch.AllocationFeegrant)
+	assert.Equal(t, launch.AllocationPending, f.Status, "stale reject changed status")
+
+	// A matching veto rejects the file.
+	require.NoError(t, l.RejectAllocationFile(launch.AllocationFeegrant, testHashA))
+	f, _ = l.AllocationFileOf(launch.AllocationFeegrant)
+	assert.Equal(t, launch.AllocationRejected, f.Status)
+
+	// Rejecting unknown type errors.
+	require.ErrorIs(t, l.RejectAllocationFile(launch.AllocationAccounts, testHashA), launch.ErrAllocationNotFound)
+}
+
+func TestLaunch_AllocationLockedAfterPublish(t *testing.T) {
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
+	l.Status = launch.StatusGenesisReady // genesis published — allocation set is frozen
+
+	require.ErrorIs(t, l.UploadAllocationFile(launch.AllocationClaims, testHashA), launch.ErrAllocationLocked)
+	require.ErrorIs(t, l.ApproveAllocationFile(launch.AllocationClaims, testHashA, uuid.New()), launch.ErrAllocationLocked)
 }
 
 // ---- Cancel -----------------------------------------------------------------
@@ -855,12 +704,8 @@ func TestCancel_FromAllNonTerminalStatuses(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			l := tc.setup()
-			if err := l.Cancel(); err != nil {
-				t.Fatalf("Cancel from %s: unexpected error: %v", tc.name, err)
-			}
-			if l.Status != launch.StatusCancelled {
-				t.Errorf("want CANCELED, got %s", l.Status)
-			}
+			require.NoError(t, l.Cancel(), "Cancel from %s", tc.name)
+			assert.Equal(t, launch.StatusCancelled, l.Status)
 		})
 	}
 }
@@ -869,16 +714,12 @@ func TestCancel_TerminalStatuses_Rejected(t *testing.T) {
 	t.Run("LAUNCHED", func(t *testing.T) {
 		l := advanceToGenesisReady(t)
 		_ = l.MarkLaunched()
-		if err := l.Cancel(); err == nil {
-			t.Error("expected error: cannot cancel LAUNCHED chain")
-		}
+		assert.Error(t, l.Cancel(), "cannot cancel LAUNCHED chain")
 	})
 	t.Run("CANCELED", func(t *testing.T) {
 		l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
 		_ = l.Cancel()
-		if err := l.Cancel(); err == nil {
-			t.Error("expected error: already CANCELED")
-		}
+		assert.Error(t, l.Cancel(), "already CANCELED")
 	})
 }
 
@@ -891,9 +732,7 @@ func advanceToGenesisReady(t *testing.T) *launch.Launch {
 	r := testRecord()
 	r.MinValidatorCount = 1
 	l, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
+	require.NoError(t, err)
 	_ = l.Publish("initial-hash")
 	_ = l.OpenWindow()
 	_ = l.CloseWindow(1)
@@ -904,15 +743,9 @@ func advanceToGenesisReady(t *testing.T) *launch.Launch {
 func TestReopenForRevision_Success(t *testing.T) {
 	l := advanceToGenesisReady(t)
 
-	if err := l.ReopenForRevision(); err != nil {
-		t.Fatalf("ReopenForRevision: %v", err)
-	}
-	if l.Status != launch.StatusWindowClosed {
-		t.Errorf("expected WINDOW_CLOSED, got %s", l.Status)
-	}
-	if l.FinalGenesisSHA256 != "" {
-		t.Errorf("expected FinalGenesisSHA256 cleared, got %q", l.FinalGenesisSHA256)
-	}
+	require.NoError(t, l.ReopenForRevision())
+	assert.Equal(t, launch.StatusWindowClosed, l.Status)
+	assert.Empty(t, l.FinalGenesisSHA256, "expected FinalGenesisSHA256 cleared")
 }
 
 func TestReopenForRevision_WrongStatus(t *testing.T) {
@@ -953,9 +786,7 @@ func TestReopenForRevision_WrongStatus(t *testing.T) {
 	for _, tc := range statuses {
 		t.Run(tc.name, func(t *testing.T) {
 			l := tc.setup()
-			if err := l.ReopenForRevision(); err == nil {
-				t.Errorf("expected error when calling ReopenForRevision from %s", tc.name)
-			}
+			assert.Error(t, l.ReopenForRevision(), "expected error when calling ReopenForRevision from %s", tc.name)
 		})
 	}
 }
@@ -964,19 +795,14 @@ func TestReopenForRevision_WrongStatus(t *testing.T) {
 
 func TestReadinessConfirmation_IsValid(t *testing.T) {
 	rc := launch.ReadinessConfirmation{}
-	if !rc.IsValid() {
-		t.Error("new confirmation should be valid")
-	}
+	assert.True(t, rc.IsValid(), "new confirmation should be valid")
 }
 
 func TestReadinessConfirmation_Invalidate(t *testing.T) {
 	rc := launch.ReadinessConfirmation{}
 	at := time.Now().UTC()
 	rc.Invalidate(at)
-	if rc.IsValid() {
-		t.Error("invalidated confirmation should not be valid")
-	}
-	if rc.InvalidatedAt == nil || !rc.InvalidatedAt.Equal(at) {
-		t.Error("InvalidatedAt should be set to the given time")
-	}
+	assert.False(t, rc.IsValid(), "invalidated confirmation should not be valid")
+	require.NotNil(t, rc.InvalidatedAt)
+	assert.True(t, rc.InvalidatedAt.Equal(at), "InvalidatedAt should be set to the given time")
 }

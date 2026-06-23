@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/launch"
 )
 
 // Payload types for each action. These are serialized to canonical JSON and stored
@@ -28,20 +30,12 @@ type RemoveApprovedValidatorPayload struct {
 	Reason          string    `json:"reason"`
 }
 
-type AddGenesisAccountPayload struct {
-	Address         string  `json:"address"`
-	Amount          string  `json:"amount"`
-	VestingSchedule *string `json:"vesting_schedule,omitempty"`
-}
-
-type RemoveGenesisAccountPayload struct {
-	Address string `json:"address"`
-}
-
-type ModifyGenesisAccountPayload struct {
-	Address         string  `json:"address"`
-	Amount          string  `json:"amount"`
-	VestingSchedule *string `json:"vesting_schedule,omitempty"`
+// ApproveAllocationFilePayload approves the curated allocation file of the given type.
+// Hash binds the approval to the file's content (sha256 hex); if the file is re-uploaded
+// with a different hash, this approval no longer applies (the file resets to PENDING).
+type ApproveAllocationFilePayload struct {
+	Type string `json:"type"` // one of the fixed launch.AllocationType values
+	Hash string `json:"hash"` // sha256 hex of the approved file contents
 }
 
 // PublishChainRecordPayload carries the initial genesis hash that the committee is
@@ -109,10 +103,8 @@ func ValidatePayload(actionType ActionType, payload []byte) error {
 		return validatePublishGenesisPayload(actionType, payload)
 	case ActionUpdateGenesisTime:
 		return validateUpdateGenesisTimePayload(actionType, payload)
-	case ActionAddGenesisAccount, ActionModifyGenesisAccount:
-		return validateAddGenesisAccountPayload(actionType, payload)
-	case ActionRemoveGenesisAccount:
-		return validateRemoveGenesisAccountPayload(actionType, payload)
+	case ActionApproveAllocationFile:
+		return validateApproveAllocationFilePayload(actionType, payload)
 	case ActionReplaceCommitteeMember:
 		return validateReplaceCommitteeMemberPayload(actionType, payload)
 	case ActionPublishChainRecord:
@@ -175,27 +167,16 @@ func validateUpdateGenesisTimePayload(actionType ActionType, payload []byte) err
 	return nil
 }
 
-func validateAddGenesisAccountPayload(actionType ActionType, payload []byte) error {
-	var p AddGenesisAccountPayload
+func validateApproveAllocationFilePayload(actionType ActionType, payload []byte) error {
+	var p ApproveAllocationFilePayload
 	if err := json.Unmarshal(payload, &p); err != nil {
 		return fmt.Errorf("payload for %s: %w", actionType, err)
 	}
-	if p.Address == "" {
-		return fmt.Errorf("payload for %s: address is required", actionType)
+	if !launch.ValidAllocationType(launch.AllocationType(p.Type)) {
+		return fmt.Errorf("payload for %s: invalid allocation type %q", actionType, p.Type)
 	}
-	if p.Amount == "" {
-		return fmt.Errorf("payload for %s: amount is required", actionType)
-	}
-	return nil
-}
-
-func validateRemoveGenesisAccountPayload(actionType ActionType, payload []byte) error {
-	var p RemoveGenesisAccountPayload
-	if err := json.Unmarshal(payload, &p); err != nil {
-		return fmt.Errorf("payload for %s: %w", actionType, err)
-	}
-	if p.Address == "" {
-		return fmt.Errorf("payload for %s: address is required", actionType)
+	if p.Hash == "" {
+		return fmt.Errorf("payload for %s: hash is required", actionType)
 	}
 	return nil
 }
@@ -292,4 +273,12 @@ func extractGenesisTimes(payload []byte) (newGenesisTime, prevGenesisTime time.T
 		panic(fmt.Sprintf("extractGenesisTimes: payload failed to unmarshal after prior validation: %v", err))
 	}
 	return p.NewGenesisTime, p.PrevGenesisTime
+}
+
+func extractAllocationFields(payload []byte) (allocationType, hash string) {
+	var p ApproveAllocationFilePayload
+	if err := json.Unmarshal(payload, &p); err != nil {
+		panic(fmt.Sprintf("extractAllocationFields: payload failed to unmarshal after prior validation: %v", err))
+	}
+	return p.Type, p.Hash
 }

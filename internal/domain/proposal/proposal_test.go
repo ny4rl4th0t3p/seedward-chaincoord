@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain"
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/launch"
@@ -54,48 +56,32 @@ func newProposal(actionType proposal.ActionType, payload []byte) *proposal.Propo
 
 func TestNewProposal_ProposerSignatureAdded(t *testing.T) {
 	p := newProposal(proposal.ActionApproveValidator, validApprovePayload())
-	if p.SignCount() != 1 {
-		t.Errorf("expected 1 signature after creation (proposer), got %d", p.SignCount())
-	}
-	if p.Status != proposal.StatusPendingSignatures {
-		t.Errorf("expected PENDING_SIGNATURES, got %s", p.Status)
-	}
+	assert.Equal(t, 1, p.SignCount(), "expected 1 signature after creation (proposer)")
+	assert.Equal(t, proposal.StatusPendingSignatures, p.Status)
 }
 
 func TestProposal_ReachesQuorum(t *testing.T) {
 	p := newProposal(proposal.ActionCloseApplicationWindow, mustPayload(proposal.CloseApplicationWindowPayload{}))
 
-	if err := p.Sign(newAddr(testAddr2), proposal.DecisionSign, newSig(), thresholdM, time.Now()); err != nil {
-		t.Fatalf("Sign: %v", err)
-	}
+	require.NoError(t, p.Sign(newAddr(testAddr2), proposal.DecisionSign, newSig(), thresholdM, time.Now()))
 
-	if p.Status != proposal.StatusExecuted {
-		t.Errorf("expected EXECUTED after quorum, got %s", p.Status)
-	}
-	if p.ExecutedAt == nil {
-		t.Error("ExecutedAt should be set on EXECUTED proposal")
-	}
+	assert.Equal(t, proposal.StatusExecuted, p.Status, "expected EXECUTED after quorum")
+	assert.NotNil(t, p.ExecutedAt, "ExecutedAt should be set on EXECUTED proposal")
 }
 
 func TestProposal_VetoImmediatelyTerminates(t *testing.T) {
 	p := newProposal(proposal.ActionApproveValidator, validApprovePayload())
 
-	if err := p.Sign(newAddr(testAddr2), proposal.DecisionVeto, newSig(), thresholdM, time.Now()); err != nil {
-		t.Fatalf("Sign veto: %v", err)
-	}
+	require.NoError(t, p.Sign(newAddr(testAddr2), proposal.DecisionVeto, newSig(), thresholdM, time.Now()))
 
-	if p.Status != proposal.StatusVetoed {
-		t.Errorf("expected VETOED after veto, got %s", p.Status)
-	}
+	assert.Equal(t, proposal.StatusVetoed, p.Status, "expected VETOED after veto")
 }
 
 func TestProposal_CannotSignTwice(t *testing.T) {
 	p := newProposal(proposal.ActionApproveValidator, validApprovePayload())
 	// proposer already signed on creation
 	err := p.Sign(newAddr(testAddr1), proposal.DecisionSign, newSig(), thresholdM, time.Now())
-	if err == nil {
-		t.Error("expected error for duplicate signature from same coordinator")
-	}
+	assert.Error(t, err, "expected error for duplicate signature from same coordinator")
 }
 
 func TestProposal_CannotSignExecuted(t *testing.T) {
@@ -103,33 +89,25 @@ func TestProposal_CannotSignExecuted(t *testing.T) {
 	_ = p.Sign(newAddr(testAddr2), proposal.DecisionSign, newSig(), thresholdM, time.Now())
 	// now EXECUTED
 
-	if err := p.Sign(newAddr(testAddr3), proposal.DecisionSign, newSig(), thresholdM, time.Now()); err == nil {
-		t.Error("expected error: cannot sign an EXECUTED proposal")
-	}
+	err := p.Sign(newAddr(testAddr3), proposal.DecisionSign, newSig(), thresholdM, time.Now())
+	assert.Error(t, err, "cannot sign an EXECUTED proposal")
 }
 
 func TestProposal_TTLExpiry(t *testing.T) {
 	p := newProposal(proposal.ActionApproveValidator, validApprovePayload())
 
 	expired := p.ExpireIfStale(time.Now().Add(49 * time.Hour))
-	if !expired {
-		t.Error("expected proposal to be expired")
-	}
-	if p.Status != proposal.StatusExpired {
-		t.Errorf("expected EXPIRED, got %s", p.Status)
-	}
+	assert.True(t, expired, "expected proposal to be expired")
+	assert.Equal(t, proposal.StatusExpired, p.Status)
 
-	if err := p.Sign(newAddr(testAddr2), proposal.DecisionSign, newSig(), thresholdM, time.Now().Add(49*time.Hour)); err == nil {
-		t.Error("expected error: cannot sign expired proposal")
-	}
+	err := p.Sign(newAddr(testAddr2), proposal.DecisionSign, newSig(), thresholdM, time.Now().Add(49*time.Hour))
+	assert.Error(t, err, "cannot sign expired proposal")
 }
 
 func TestProposal_NotExpiredYet(t *testing.T) {
 	p := newProposal(proposal.ActionApproveValidator, validApprovePayload())
 	expired := p.ExpireIfStale(time.Now().Add(1 * time.Hour))
-	if expired {
-		t.Error("should not expire before TTL")
-	}
+	assert.False(t, expired, "should not expire before TTL")
 }
 
 func TestProposal_EmitsDomainEventOnExecute(t *testing.T) {
@@ -142,16 +120,10 @@ func TestProposal_EmitsDomainEventOnExecute(t *testing.T) {
 	_ = p.Sign(newAddr(testAddr2), proposal.DecisionSign, newSig(), thresholdM, time.Now())
 
 	events := p.PopEvents()
-	if len(events) != 1 {
-		t.Fatalf("expected 1 domain event, got %d", len(events))
-	}
+	require.Len(t, events, 1)
 	ev, ok := events[0].(domain.ValidatorApproved)
-	if !ok {
-		t.Fatalf("expected ValidatorApproved event, got %T", events[0])
-	}
-	if ev.JoinRequestID != jrID {
-		t.Errorf("JoinRequestID mismatch: got %s, want %s", ev.JoinRequestID, jrID)
-	}
+	require.True(t, ok, "expected ValidatorApproved event, got %T", events[0])
+	assert.Equal(t, jrID, ev.JoinRequestID)
 }
 
 func TestProposal_PopEventsClearsBuffer(t *testing.T) {
@@ -160,9 +132,7 @@ func TestProposal_PopEventsClearsBuffer(t *testing.T) {
 
 	_ = p.PopEvents()
 	second := p.PopEvents()
-	if len(second) != 0 {
-		t.Error("PopEvents should clear the buffer; second call should return empty")
-	}
+	assert.Empty(t, second, "PopEvents should clear the buffer; second call should return empty")
 }
 
 func TestProposal_InvalidPayload_Rejected(t *testing.T) {
@@ -172,16 +142,12 @@ func TestProposal_InvalidPayload_Rejected(t *testing.T) {
 		mustPayload(map[string]string{"irrelevant": "data"}),
 		newAddr(testAddr1), newSig(), 48*time.Hour, time.Now(),
 	)
-	if err == nil {
-		t.Error("expected error: ApproveValidator payload missing join_request_id")
-	}
+	assert.Error(t, err, "ApproveValidator payload missing join_request_id")
 }
 
 func TestProposal_ValidatePayload_UnknownAction(t *testing.T) {
 	err := proposal.ValidatePayload("NONEXISTENT_ACTION", []byte(`{}`))
-	if err == nil {
-		t.Error("expected error for unknown action type")
-	}
+	assert.Error(t, err, "expected error for unknown action type")
 }
 
 // ---- New: nil payload -------------------------------------------------------
@@ -190,9 +156,7 @@ func TestNew_NilPayload(t *testing.T) {
 	_, err := proposal.New(uuid.New(), uuid.New(),
 		proposal.ActionApproveValidator, nil,
 		newAddr(testAddr1), newSig(), 48*time.Hour, time.Now())
-	if err == nil {
-		t.Error("expected error for nil payload")
-	}
+	assert.Error(t, err, "expected error for nil payload")
 }
 
 // ---- ValidatePayload: valid payloads for all action types -------------------
@@ -203,9 +167,7 @@ func TestValidatePayload_RejectValidator_Valid(t *testing.T) {
 		OperatorAddress: testAddr1,
 		Reason:          "bad actor",
 	}))
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
+	assert.NoError(t, err)
 }
 
 func TestValidatePayload_RemoveApprovedValidator_Valid(t *testing.T) {
@@ -214,47 +176,22 @@ func TestValidatePayload_RemoveApprovedValidator_Valid(t *testing.T) {
 		OperatorAddress: testAddr1,
 		Reason:          "slashed",
 	}))
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
+	assert.NoError(t, err)
 }
 
-func TestValidatePayload_AddGenesisAccount_Valid(t *testing.T) {
-	err := proposal.ValidatePayload(proposal.ActionAddGenesisAccount, mustPayload(proposal.AddGenesisAccountPayload{
-		Address: testAddr1,
-		Amount:  "1000uatom",
+func TestValidatePayload_ApproveAllocationFile_Valid(t *testing.T) {
+	err := proposal.ValidatePayload(proposal.ActionApproveAllocationFile, mustPayload(proposal.ApproveAllocationFilePayload{
+		Type: "claims",
+		Hash: "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3",
 	}))
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-}
-
-func TestValidatePayload_ModifyGenesisAccount_Valid(t *testing.T) {
-	err := proposal.ValidatePayload(proposal.ActionModifyGenesisAccount, mustPayload(proposal.AddGenesisAccountPayload{
-		Address: testAddr1,
-		Amount:  "2000uatom",
-	}))
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-}
-
-func TestValidatePayload_RemoveGenesisAccount_Valid(t *testing.T) {
-	err := proposal.ValidatePayload(proposal.ActionRemoveGenesisAccount, mustPayload(proposal.RemoveGenesisAccountPayload{
-		Address: testAddr1,
-	}))
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
+	assert.NoError(t, err)
 }
 
 func TestValidatePayload_PublishGenesis_Valid(t *testing.T) {
 	err := proposal.ValidatePayload(proposal.ActionPublishGenesis, mustPayload(proposal.PublishGenesisPayload{
 		GenesisHash: "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3",
 	}))
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
+	assert.NoError(t, err)
 }
 
 func TestValidatePayload_UpdateGenesisTime_Valid(t *testing.T) {
@@ -262,9 +199,7 @@ func TestValidatePayload_UpdateGenesisTime_Valid(t *testing.T) {
 		NewGenesisTime:  time.Now().Add(24 * time.Hour),
 		PrevGenesisTime: time.Now(),
 	}))
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
+	assert.NoError(t, err)
 }
 
 func TestValidatePayload_ReplaceCommitteeMember_Valid(t *testing.T) {
@@ -274,16 +209,12 @@ func TestValidatePayload_ReplaceCommitteeMember_Valid(t *testing.T) {
 		NewMoniker: "new-node",
 		NewPubKey:  "AAAA",
 	}))
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
+	assert.NoError(t, err)
 }
 
 func TestValidatePayload_CloseApplicationWindow_Valid(t *testing.T) {
 	err := proposal.ValidatePayload(proposal.ActionCloseApplicationWindow, mustPayload(proposal.CloseApplicationWindowPayload{}))
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
+	assert.NoError(t, err)
 }
 
 // ---- ValidatePayload: error paths -------------------------------------------
@@ -292,75 +223,53 @@ func TestValidatePayload_ApproveValidator_MissingJoinRequestID(t *testing.T) {
 	err := proposal.ValidatePayload(proposal.ActionApproveValidator, mustPayload(proposal.ApproveValidatorPayload{
 		OperatorAddress: testAddr1,
 	}))
-	if err == nil {
-		t.Error("expected error: join_request_id is required")
-	}
+	assert.Error(t, err, "join_request_id is required")
 }
 
 func TestValidatePayload_ApproveValidator_MissingOperatorAddress(t *testing.T) {
 	err := proposal.ValidatePayload(proposal.ActionApproveValidator, mustPayload(proposal.ApproveValidatorPayload{
 		JoinRequestID: uuid.New(),
 	}))
-	if err == nil {
-		t.Error("expected error: operator_address is required")
-	}
+	assert.Error(t, err, "operator_address is required")
 }
 
 func TestValidatePayload_RejectValidator_MissingJoinRequestID(t *testing.T) {
 	err := proposal.ValidatePayload(proposal.ActionRejectValidator, mustPayload(proposal.RejectValidatorPayload{
 		OperatorAddress: testAddr1,
 	}))
-	if err == nil {
-		t.Error("expected error: join_request_id is required")
-	}
+	assert.Error(t, err, "join_request_id is required")
 }
 
 func TestValidatePayload_PublishGenesis_MissingHash(t *testing.T) {
 	err := proposal.ValidatePayload(proposal.ActionPublishGenesis, mustPayload(proposal.PublishGenesisPayload{}))
-	if err == nil {
-		t.Error("expected error: genesis_hash is required")
-	}
+	assert.Error(t, err, "genesis_hash is required")
 }
 
 func TestValidatePayload_UpdateGenesisTime_ZeroTime(t *testing.T) {
 	err := proposal.ValidatePayload(proposal.ActionUpdateGenesisTime, mustPayload(proposal.UpdateGenesisTimePayload{}))
-	if err == nil {
-		t.Error("expected error: new_genesis_time is required")
-	}
+	assert.Error(t, err, "new_genesis_time is required")
 }
 
-func TestValidatePayload_AddGenesisAccount_MissingAddress(t *testing.T) {
-	err := proposal.ValidatePayload(proposal.ActionAddGenesisAccount, mustPayload(proposal.AddGenesisAccountPayload{
-		Amount: "1000uatom",
+func TestValidatePayload_ApproveAllocationFile_InvalidType(t *testing.T) {
+	err := proposal.ValidatePayload(proposal.ActionApproveAllocationFile, mustPayload(proposal.ApproveAllocationFilePayload{
+		Type: "bogus",
+		Hash: "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3",
 	}))
-	if err == nil {
-		t.Error("expected error: address is required")
-	}
+	assert.Error(t, err, "invalid allocation type")
 }
 
-func TestValidatePayload_AddGenesisAccount_MissingAmount(t *testing.T) {
-	err := proposal.ValidatePayload(proposal.ActionAddGenesisAccount, mustPayload(proposal.AddGenesisAccountPayload{
-		Address: testAddr1,
+func TestValidatePayload_ApproveAllocationFile_MissingHash(t *testing.T) {
+	err := proposal.ValidatePayload(proposal.ActionApproveAllocationFile, mustPayload(proposal.ApproveAllocationFilePayload{
+		Type: "accounts",
 	}))
-	if err == nil {
-		t.Error("expected error: amount is required")
-	}
-}
-
-func TestValidatePayload_RemoveGenesisAccount_MissingAddress(t *testing.T) {
-	err := proposal.ValidatePayload(proposal.ActionRemoveGenesisAccount, mustPayload(proposal.RemoveGenesisAccountPayload{}))
-	if err == nil {
-		t.Error("expected error: address is required")
-	}
+	assert.Error(t, err, "hash is required")
 }
 
 func TestValidatePayload_ReplaceCommitteeMember_MissingAddresses(t *testing.T) {
 	err := proposal.ValidatePayload(proposal.ActionReplaceCommitteeMember, mustPayload(proposal.ReplaceCommitteeMemberPayload{
 		NewMoniker: "node",
 	}))
-	if err == nil {
-		t.Error("expected error: old_address and new_address are required")
-	}
+	assert.Error(t, err, "old_address and new_address are required")
 }
 
 // ---- ValidatePayload: ExpandCommittee ---------------------------------------
@@ -377,9 +286,7 @@ func validExpandPayload() proposal.ExpandCommitteePayload {
 
 func TestValidatePayload_ExpandCommittee_Valid(t *testing.T) {
 	err := proposal.ValidatePayload(proposal.ActionExpandCommittee, mustPayload(validExpandPayload()))
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
+	assert.NoError(t, err)
 }
 
 func TestValidatePayload_ExpandCommittee_WithThreshold(t *testing.T) {
@@ -387,36 +294,28 @@ func TestValidatePayload_ExpandCommittee_WithThreshold(t *testing.T) {
 	p := validExpandPayload()
 	p.NewThresholdM = &m
 	err := proposal.ValidatePayload(proposal.ActionExpandCommittee, mustPayload(p))
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
+	assert.NoError(t, err)
 }
 
 func TestValidatePayload_ExpandCommittee_MissingAddress(t *testing.T) {
 	p := validExpandPayload()
 	p.NewMember.Address = ""
 	err := proposal.ValidatePayload(proposal.ActionExpandCommittee, mustPayload(p))
-	if err == nil {
-		t.Error("expected error: new_member.address is required")
-	}
+	assert.Error(t, err, "new_member.address is required")
 }
 
 func TestValidatePayload_ExpandCommittee_MissingMoniker(t *testing.T) {
 	p := validExpandPayload()
 	p.NewMember.Moniker = ""
 	err := proposal.ValidatePayload(proposal.ActionExpandCommittee, mustPayload(p))
-	if err == nil {
-		t.Error("expected error: new_member.moniker is required")
-	}
+	assert.Error(t, err, "new_member.moniker is required")
 }
 
 func TestValidatePayload_ExpandCommittee_MissingPubKey(t *testing.T) {
 	p := validExpandPayload()
 	p.NewMember.PubKeyB64 = ""
 	err := proposal.ValidatePayload(proposal.ActionExpandCommittee, mustPayload(p))
-	if err == nil {
-		t.Error("expected error: new_member.pubkey_base64 is required")
-	}
+	assert.Error(t, err, "new_member.pubkey_base64 is required")
 }
 
 // ---- ValidatePayload: ShrinkCommittee ---------------------------------------
@@ -425,9 +324,7 @@ func TestValidatePayload_ShrinkCommittee_Valid(t *testing.T) {
 	err := proposal.ValidatePayload(proposal.ActionShrinkCommittee, mustPayload(proposal.ShrinkCommitteePayload{
 		RemoveAddress: testAddr1,
 	}))
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
+	assert.NoError(t, err)
 }
 
 func TestValidatePayload_ShrinkCommittee_WithThreshold(t *testing.T) {
@@ -436,16 +333,12 @@ func TestValidatePayload_ShrinkCommittee_WithThreshold(t *testing.T) {
 		RemoveAddress: testAddr1,
 		NewThresholdM: &m,
 	}))
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
+	assert.NoError(t, err)
 }
 
 func TestValidatePayload_ShrinkCommittee_MissingRemoveAddress(t *testing.T) {
 	err := proposal.ValidatePayload(proposal.ActionShrinkCommittee, mustPayload(proposal.ShrinkCommitteePayload{}))
-	if err == nil {
-		t.Error("expected error: remove_address is required")
-	}
+	assert.Error(t, err, "remove_address is required")
 }
 
 // ---- Sign: terminal status paths --------------------------------------------
@@ -454,9 +347,7 @@ func TestProposal_CannotSignVetoed(t *testing.T) {
 	p := newProposal(proposal.ActionApproveValidator, validApprovePayload())
 	_ = p.Sign(newAddr(testAddr2), proposal.DecisionVeto, newSig(), thresholdM, time.Now())
 	err := p.Sign(newAddr(testAddr3), proposal.DecisionSign, newSig(), thresholdM, time.Now())
-	if err == nil {
-		t.Error("expected error: cannot sign VETOED proposal")
-	}
+	assert.Error(t, err, "cannot sign VETOED proposal")
 }
 
 func TestProposal_CannotSignExpired(t *testing.T) {
@@ -464,9 +355,7 @@ func TestProposal_CannotSignExpired(t *testing.T) {
 	future := time.Now().Add(49 * time.Hour)
 	_ = p.ExpireIfStale(future)
 	err := p.Sign(newAddr(testAddr2), proposal.DecisionSign, newSig(), thresholdM, future)
-	if err == nil {
-		t.Error("expected error: cannot sign EXPIRED proposal")
-	}
+	assert.Error(t, err, "cannot sign EXPIRED proposal")
 }
 
 // ---- ExpireIfStale: terminal states are not re-expired ----------------------
@@ -475,24 +364,16 @@ func TestExpireIfStale_ExecutedNotChanged(t *testing.T) {
 	p := newProposal(proposal.ActionCloseApplicationWindow, mustPayload(proposal.CloseApplicationWindowPayload{}))
 	_ = p.Sign(newAddr(testAddr2), proposal.DecisionSign, newSig(), thresholdM, time.Now())
 	changed := p.ExpireIfStale(time.Now().Add(49 * time.Hour))
-	if changed {
-		t.Error("ExpireIfStale should not change an EXECUTED proposal")
-	}
-	if p.Status != proposal.StatusExecuted {
-		t.Errorf("expected EXECUTED, got %s", p.Status)
-	}
+	assert.False(t, changed, "ExpireIfStale should not change an EXECUTED proposal")
+	assert.Equal(t, proposal.StatusExecuted, p.Status)
 }
 
 func TestExpireIfStale_VetoedNotChanged(t *testing.T) {
 	p := newProposal(proposal.ActionApproveValidator, validApprovePayload())
 	_ = p.Sign(newAddr(testAddr2), proposal.DecisionVeto, newSig(), thresholdM, time.Now())
 	changed := p.ExpireIfStale(time.Now().Add(49 * time.Hour))
-	if changed {
-		t.Error("ExpireIfStale should not change a VETOED proposal")
-	}
-	if p.Status != proposal.StatusVetoed {
-		t.Errorf("expected VETOED, got %s", p.Status)
-	}
+	assert.False(t, changed, "ExpireIfStale should not change a VETOED proposal")
+	assert.Equal(t, proposal.StatusVetoed, p.Status)
 }
 
 // ---- CheckQuorum ------------------------------------------------------------
@@ -500,29 +381,21 @@ func TestExpireIfStale_VetoedNotChanged(t *testing.T) {
 func TestCheckQuorum_ExecutesWhenAlreadyAtThreshold(t *testing.T) {
 	p := newProposal(proposal.ActionCloseApplicationWindow, mustPayload(proposal.CloseApplicationWindowPayload{}))
 	p.CheckQuorum(1, time.Now())
-	if p.Status != proposal.StatusExecuted {
-		t.Errorf("expected EXECUTED after CheckQuorum with M=1, got %s", p.Status)
-	}
-	if p.ExecutedAt == nil {
-		t.Error("ExecutedAt should be set")
-	}
+	assert.Equal(t, proposal.StatusExecuted, p.Status, "expected EXECUTED after CheckQuorum with M=1")
+	assert.NotNil(t, p.ExecutedAt, "ExecutedAt should be set")
 }
 
 func TestCheckQuorum_NoopWhenBelowThreshold(t *testing.T) {
 	p := newProposal(proposal.ActionApproveValidator, validApprovePayload())
 	p.CheckQuorum(thresholdM, time.Now())
-	if p.Status != proposal.StatusPendingSignatures {
-		t.Errorf("expected PENDING_SIGNATURES, got %s", p.Status)
-	}
+	assert.Equal(t, proposal.StatusPendingSignatures, p.Status)
 }
 
 func TestCheckQuorum_NoopOnNonPendingStatus(t *testing.T) {
 	p := newProposal(proposal.ActionApproveValidator, validApprovePayload())
 	_ = p.Sign(newAddr(testAddr2), proposal.DecisionVeto, newSig(), thresholdM, time.Now())
 	p.CheckQuorum(1, time.Now())
-	if p.Status != proposal.StatusVetoed {
-		t.Errorf("expected VETOED, got %s", p.Status)
-	}
+	assert.Equal(t, proposal.StatusVetoed, p.Status)
 }
 
 // ---- SignCount --------------------------------------------------------------
@@ -530,9 +403,7 @@ func TestCheckQuorum_NoopOnNonPendingStatus(t *testing.T) {
 func TestSignCount_VetoNotCounted(t *testing.T) {
 	p := newProposal(proposal.ActionApproveValidator, validApprovePayload())
 	_ = p.Sign(newAddr(testAddr2), proposal.DecisionVeto, newSig(), thresholdM, time.Now())
-	if p.SignCount() != 1 {
-		t.Errorf("want SignCount=1 (veto does not increment sign count), got %d", p.SignCount())
-	}
+	assert.Equal(t, 1, p.SignCount(), "veto does not increment sign count")
 }
 
 // ---- PopEvents: no events ---------------------------------------------------
@@ -540,9 +411,7 @@ func TestSignCount_VetoNotCounted(t *testing.T) {
 func TestPopEvents_EmptyOnNewProposal(t *testing.T) {
 	p := newProposal(proposal.ActionApproveValidator, validApprovePayload())
 	events := p.PopEvents()
-	if len(events) != 0 {
-		t.Errorf("expected no events on fresh proposal, got %d", len(events))
-	}
+	assert.Empty(t, events, "expected no events on fresh proposal")
 }
 
 // ---- Domain events for each action type -------------------------------------
@@ -557,19 +426,11 @@ func TestProposal_EmitsDomainEvent_RejectValidator(t *testing.T) {
 	_ = p.Sign(newAddr(testAddr2), proposal.DecisionSign, newSig(), thresholdM, time.Now())
 
 	events := p.PopEvents()
-	if len(events) != 1 {
-		t.Fatalf("expected 1 event, got %d", len(events))
-	}
+	require.Len(t, events, 1)
 	ev, ok := events[0].(domain.ValidatorRejected)
-	if !ok {
-		t.Fatalf("expected ValidatorRejected, got %T", events[0])
-	}
-	if ev.JoinRequestID != jrID {
-		t.Errorf("JoinRequestID mismatch: got %s, want %s", ev.JoinRequestID, jrID)
-	}
-	if ev.Reason != "spam" {
-		t.Errorf("Reason mismatch: got %q", ev.Reason)
-	}
+	require.True(t, ok, "expected ValidatorRejected, got %T", events[0])
+	assert.Equal(t, jrID, ev.JoinRequestID)
+	assert.Equal(t, "spam", ev.Reason)
 }
 
 func TestProposal_EmitsDomainEvent_RemoveApprovedValidator(t *testing.T) {
@@ -582,16 +443,10 @@ func TestProposal_EmitsDomainEvent_RemoveApprovedValidator(t *testing.T) {
 	_ = p.Sign(newAddr(testAddr2), proposal.DecisionSign, newSig(), thresholdM, time.Now())
 
 	events := p.PopEvents()
-	if len(events) != 1 {
-		t.Fatalf("expected 1 event, got %d", len(events))
-	}
+	require.Len(t, events, 1)
 	ev, ok := events[0].(domain.ValidatorRemoved)
-	if !ok {
-		t.Fatalf("expected ValidatorRemoved, got %T", events[0])
-	}
-	if ev.JoinRequestID != jrID {
-		t.Errorf("JoinRequestID mismatch: got %s, want %s", ev.JoinRequestID, jrID)
-	}
+	require.True(t, ok, "expected ValidatorRemoved, got %T", events[0])
+	assert.Equal(t, jrID, ev.JoinRequestID)
 }
 
 func TestProposal_EmitsDomainEvent_WindowClosed(t *testing.T) {
@@ -599,12 +454,9 @@ func TestProposal_EmitsDomainEvent_WindowClosed(t *testing.T) {
 	_ = p.Sign(newAddr(testAddr2), proposal.DecisionSign, newSig(), thresholdM, time.Now())
 
 	events := p.PopEvents()
-	if len(events) != 1 {
-		t.Fatalf("expected 1 event, got %d", len(events))
-	}
-	if _, ok := events[0].(domain.WindowClosed); !ok {
-		t.Fatalf("expected WindowClosed, got %T", events[0])
-	}
+	require.Len(t, events, 1)
+	_, ok := events[0].(domain.WindowClosed)
+	assert.True(t, ok, "expected WindowClosed, got %T", events[0])
 }
 
 func TestProposal_EmitsDomainEvent_GenesisPublished(t *testing.T) {
@@ -615,16 +467,10 @@ func TestProposal_EmitsDomainEvent_GenesisPublished(t *testing.T) {
 	_ = p.Sign(newAddr(testAddr2), proposal.DecisionSign, newSig(), thresholdM, time.Now())
 
 	events := p.PopEvents()
-	if len(events) != 1 {
-		t.Fatalf("expected 1 event, got %d", len(events))
-	}
+	require.Len(t, events, 1)
 	ev, ok := events[0].(domain.GenesisPublished)
-	if !ok {
-		t.Fatalf("expected GenesisPublished, got %T", events[0])
-	}
-	if ev.GenesisHash != hash {
-		t.Errorf("GenesisHash mismatch: got %q, want %q", ev.GenesisHash, hash)
-	}
+	require.True(t, ok, "expected GenesisPublished, got %T", events[0])
+	assert.Equal(t, hash, ev.GenesisHash)
 }
 
 func TestProposal_EmitsDomainEvent_GenesisTimeUpdated(t *testing.T) {
@@ -637,29 +483,32 @@ func TestProposal_EmitsDomainEvent_GenesisTimeUpdated(t *testing.T) {
 	_ = p.Sign(newAddr(testAddr2), proposal.DecisionSign, newSig(), thresholdM, time.Now())
 
 	events := p.PopEvents()
-	if len(events) != 1 {
-		t.Fatalf("expected 1 event, got %d", len(events))
-	}
+	require.Len(t, events, 1)
 	ev, ok := events[0].(domain.GenesisTimeUpdated)
-	if !ok {
-		t.Fatalf("expected GenesisTimeUpdated, got %T", events[0])
-	}
-	if !ev.NewGenesisTime.Equal(newTime) {
-		t.Errorf("NewGenesisTime mismatch: got %v, want %v", ev.NewGenesisTime, newTime)
-	}
+	require.True(t, ok, "expected GenesisTimeUpdated, got %T", events[0])
+	assert.True(t, ev.NewGenesisTime.Equal(newTime), "NewGenesisTime mismatch: got %v, want %v", ev.NewGenesisTime, newTime)
 }
 
-func TestProposal_NoEventForNonEmitting_AddGenesisAccount(t *testing.T) {
-	p := newProposal(proposal.ActionAddGenesisAccount, mustPayload(proposal.AddGenesisAccountPayload{
-		Address: testAddr1,
-		Amount:  "1000uatom",
+func TestProposal_EmitsDomainEvent_AllocationFileApproved(t *testing.T) {
+	hash := "a665a45920422f9d417e4867efdc8fb8a04a1f3fff1fa07e9a8e86f7f7a27ae3"
+	p := newProposal(proposal.ActionApproveAllocationFile, mustPayload(proposal.ApproveAllocationFilePayload{
+		Type: "claims",
+		Hash: hash,
 	}))
 	_ = p.Sign(newAddr(testAddr2), proposal.DecisionSign, newSig(), thresholdM, time.Now())
-	if p.Status != proposal.StatusExecuted {
-		t.Fatalf("expected EXECUTED, got %s", p.Status)
-	}
+
 	events := p.PopEvents()
-	if len(events) != 0 {
-		t.Errorf("expected no domain events for AddGenesisAccount, got %d", len(events))
-	}
+	require.Len(t, events, 1)
+	ev, ok := events[0].(domain.AllocationFileApproved)
+	require.True(t, ok, "expected AllocationFileApproved, got %T", events[0])
+	assert.Equal(t, "claims", ev.AllocationType)
+	assert.Equal(t, hash, ev.SHA256)
+}
+
+func TestProposal_NoEventForNonEmitting_ExpandCommittee(t *testing.T) {
+	p := newProposal(proposal.ActionExpandCommittee, mustPayload(validExpandPayload()))
+	_ = p.Sign(newAddr(testAddr2), proposal.DecisionSign, newSig(), thresholdM, time.Now())
+	require.Equal(t, proposal.StatusExecuted, p.Status)
+	events := p.PopEvents()
+	assert.Empty(t, events, "expected no domain events for ExpandCommittee")
 }

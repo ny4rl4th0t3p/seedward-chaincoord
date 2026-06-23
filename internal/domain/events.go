@@ -196,6 +196,49 @@ type FinalGenesisUploaded struct {
 func (FinalGenesisUploaded) EventName() string        { return "FinalGenesisUploaded" }
 func (e FinalGenesisUploaded) GetLaunchID() uuid.UUID { return e.LaunchID }
 
+// AllocationFileUploaded is emitted when a curated allocation file is uploaded
+// (or re-uploaded), landing in PENDING status awaiting committee approval.
+type AllocationFileUploaded struct {
+	base
+	LaunchID       uuid.UUID
+	AllocationType string
+	SHA256         string
+}
+
+func (AllocationFileUploaded) EventName() string        { return "AllocationFileUploaded" }
+func (e AllocationFileUploaded) GetLaunchID() uuid.UUID { return e.LaunchID }
+
+// AllocationFileApproved is emitted when an APPROVE_ALLOCATION_FILE proposal reaches quorum.
+type AllocationFileApproved struct {
+	base
+	LaunchID       uuid.UUID
+	AllocationType string
+	SHA256         string
+}
+
+func (AllocationFileApproved) EventName() string        { return "AllocationFileApproved" }
+func (e AllocationFileApproved) GetLaunchID() uuid.UUID { return e.LaunchID }
+func (e AllocationFileApproved) WithTime(t time.Time) AllocationFileApproved {
+	e.base = e.withTime(t)
+	return e
+}
+
+// AllocationFileRejected is emitted when an APPROVE_ALLOCATION_FILE proposal is vetoed,
+// marking that file REJECTED (re-uploading a corrected file resets it to PENDING).
+type AllocationFileRejected struct {
+	base
+	LaunchID       uuid.UUID
+	AllocationType string
+	SHA256         string
+}
+
+func (AllocationFileRejected) EventName() string        { return "AllocationFileRejected" }
+func (e AllocationFileRejected) GetLaunchID() uuid.UUID { return e.LaunchID }
+func (e AllocationFileRejected) WithTime(t time.Time) AllocationFileRejected {
+	e.base = e.withTime(t)
+	return e
+}
+
 // LaunchDetected is emitted by the block monitoring goroutine when block 1 is seen.
 type LaunchDetected struct {
 	base
