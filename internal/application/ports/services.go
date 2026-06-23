@@ -195,3 +195,24 @@ type GenesisStore interface {
 	// Returns ErrNotFound if neither a ref nor a file has been stored.
 	GetFinalRef(ctx context.Context, launchID string) (*GenesisRef, error)
 }
+
+// AllocationStore manages curated allocation-file storage (one file per allocation
+// type per launch). It mirrors GenesisStore's dual-mode design and reuses GenesisRef
+// to describe how a stored file is served:
+//
+//   - host mode: the committee uploads raw bytes; this server stores them on disk
+//     and serves them directly.
+//   - attestor mode: the committee registers an external URL + sha256; clients are
+//     redirected to the URL and no bytes are stored here.
+//
+// allocType is one of the fixed launch.AllocationType values.
+type AllocationStore interface {
+	// Save stores raw allocation-file bytes (host mode).
+	Save(ctx context.Context, launchID, allocType string, data []byte) error
+
+	// SaveRef records an external URL reference (attestor mode).
+	SaveRef(ctx context.Context, launchID, allocType, url, sha256 string) error
+
+	// GetRef returns how to serve the file of the given type, or ErrNotFound.
+	GetRef(ctx context.Context, launchID, allocType string) (*GenesisRef, error)
+}

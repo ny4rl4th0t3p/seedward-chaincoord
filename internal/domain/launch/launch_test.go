@@ -645,17 +645,17 @@ func TestLaunch_RejectAllocationFile(t *testing.T) {
 	_ = l.UploadAllocationFile(launch.AllocationFeegrant, testHashA)
 
 	// A stale veto (hash no longer matches) is a no-op leaving the file PENDING.
-	require.NoError(t, l.RejectAllocationFile(launch.AllocationFeegrant, testHashB), "stale reject should be a no-op")
+	assert.False(t, l.RejectAllocationFile(launch.AllocationFeegrant, testHashB), "stale reject should be a no-op")
 	f, _ := l.AllocationFileOf(launch.AllocationFeegrant)
 	assert.Equal(t, launch.AllocationPending, f.Status, "stale reject changed status")
 
 	// A matching veto rejects the file.
-	require.NoError(t, l.RejectAllocationFile(launch.AllocationFeegrant, testHashA))
+	assert.True(t, l.RejectAllocationFile(launch.AllocationFeegrant, testHashA))
 	f, _ = l.AllocationFileOf(launch.AllocationFeegrant)
 	assert.Equal(t, launch.AllocationRejected, f.Status)
 
-	// Rejecting unknown type errors.
-	require.ErrorIs(t, l.RejectAllocationFile(launch.AllocationAccounts, testHashA), launch.ErrAllocationNotFound)
+	// Rejecting an unknown type reports no rejection (not an error).
+	assert.False(t, l.RejectAllocationFile(launch.AllocationAccounts, testHashA))
 }
 
 func TestLaunch_AllocationLockedAfterPublish(t *testing.T) {

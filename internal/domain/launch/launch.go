@@ -437,22 +437,24 @@ func (l *Launch) ApproveAllocationFile(t AllocationType, hash string, proposalID
 	return fmt.Errorf("launch: %q: %w", t, ErrAllocationNotFound)
 }
 
-// RejectAllocationFile marks the file of type t REJECTED. The hash must match the file's
-// current hash; if it does not, the file has since been re-uploaded and the (stale) veto
-// is ignored as a no-op. Returns an error only if no file of that type exists.
-func (l *Launch) RejectAllocationFile(t AllocationType, hash string) error {
+// RejectAllocationFile marks the file of type t REJECTED if a file of that type exists
+// with the given hash. It reports whether it transitioned a file to REJECTED: false when
+// no such file exists or it has since been re-uploaded with a different hash (a stale veto,
+// left PENDING). It is the side effect of a vetoed APPROVE_ALLOCATION_FILE proposal, where
+// neither "no file" nor "stale" is an error — the veto itself still stands.
+func (l *Launch) RejectAllocationFile(t AllocationType, hash string) (rejected bool) {
 	for i := range l.AllocationFiles {
 		if l.AllocationFiles[i].Type == t {
 			if l.AllocationFiles[i].SHA256 != hash {
-				return nil // superseded by a re-upload; leave the new file PENDING
+				return false // superseded by a re-upload; leave the new file PENDING
 			}
 			l.AllocationFiles[i].Status = AllocationRejected
 			l.AllocationFiles[i].ApprovedByProposal = nil
 			l.touch()
-			return nil
+			return true
 		}
 	}
-	return fmt.Errorf("launch: %q: %w", t, ErrAllocationNotFound)
+	return false
 }
 
 // RecordValidatorApproval records the voting power contribution of an approved validator.

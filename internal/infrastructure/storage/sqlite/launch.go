@@ -70,14 +70,14 @@ func (r *LaunchRepository) Save(ctx context.Context, l *launch.Launch) error {
 		}
 	}
 
-	// Re-sync committee, allowlist, and genesis accounts (idempotent replace).
+	// Re-sync committee, allowlist, and allocation files (idempotent replace).
 	if err := r.saveCommittee(ctx, l); err != nil {
 		return err
 	}
 	if err := r.saveAllowlist(ctx, l); err != nil {
 		return err
 	}
-	return r.saveGenesisAccounts(ctx, l)
+	return r.saveAllocationFiles(ctx, l)
 }
 
 func (r *LaunchRepository) insert(ctx context.Context, l *launch.Launch) error {
@@ -280,7 +280,7 @@ func (r *LaunchRepository) FindByStatus(ctx context.Context, status launch.Statu
 	return launches, nil
 }
 
-// hydrate loads committee, members, allowlist, voting power, and genesis accounts into l.
+// hydrate loads committee, members, allowlist, voting power, and allocation files into l.
 func (r *LaunchRepository) hydrate(ctx context.Context, l *launch.Launch) (*launch.Launch, error) {
 	if err := r.loadCommittee(ctx, l); err != nil {
 		return nil, err
@@ -291,45 +291,69 @@ func (r *LaunchRepository) hydrate(ctx context.Context, l *launch.Launch) (*laun
 	if err := r.loadVotingPower(ctx, l); err != nil {
 		return nil, err
 	}
-	if err := r.loadGenesisAccounts(ctx, l); err != nil {
+	if err := r.loadAllocationFiles(ctx, l); err != nil {
 		return nil, err
 	}
 	return l, nil
 }
 
-func (r *LaunchRepository) saveGenesisAccounts(ctx context.Context, l *launch.Launch) error {
+func (r *LaunchRepository) saveAllocationFiles(ctx context.Context, l *launch.Launch) error {
 	q := conn(ctx, r.db)
 	if _, err := q.ExecContext(ctx,
-		`DELETE FROM launch_genesis_accounts WHERE launch_id=?`, uuidToStr(l.ID)); err != nil {
-		return fmt.Errorf("delete genesis accounts: %w", err)
+		`DELETE FROM launch_allocation_files WHERE launch_id=?`, uuidToStr(l.ID)); err != nil {
+		return fmt.Errorf("delete allocation files: %w", err)
 	}
-	for _, a := range l.GenesisAccounts {
+	for _, f := range l.AllocationFiles {
+		var approvedBy any // nil → SQL NULL
+		if f.ApprovedByProposal != nil {
+			approvedBy = uuidToStr(*f.ApprovedByProposal)
+		}
 		if _, err := q.ExecContext(ctx,
-			`INSERT INTO launch_genesis_accounts (launch_id, address, amount, vesting_schedule) VALUES (?,?,?,?)`,
-			uuidToStr(l.ID), a.Address, a.Amount, a.VestingSchedule,
+			`INSERT INTO launch_allocation_files (launch_id, alloc_type, sha256, status, approved_by_proposal, uploaded_at) VALUES (?,?,?,?,?,?)`,
+			uuidToStr(l.ID), string(f.Type), f.SHA256, string(f.Status), approvedBy, timeToStr(f.UploadedAt),
 		); err != nil {
-			return fmt.Errorf("insert genesis account %s: %w", a.Address, err)
+			return fmt.Errorf("insert allocation file %s: %w", f.Type, err)
 		}
 	}
 	return nil
 }
 
-func (r *LaunchRepository) loadGenesisAccounts(ctx context.Context, l *launch.Launch) error {
+func (r *LaunchRepository) loadAllocationFiles(ctx context.Context, l *launch.Launch) error {
 	q := conn(ctx, r.db)
 	rows, err := q.QueryContext(ctx,
-		`SELECT address, amount, vesting_schedule FROM launch_genesis_accounts WHERE launch_id=? ORDER BY address`,
+		`SELECT alloc_type, sha256, status, approved_by_proposal, uploaded_at FROM launch_allocation_files WHERE launch_id=? ORDER BY alloc_type`,
 		uuidToStr(l.ID))
 	if err != nil {
-		return fmt.Errorf("load genesis accounts: %w", err)
+		return fmt.Errorf("load allocation files: %w", err)
 	}
 	defer rows.Close()
 
 	for rows.Next() {
-		var a launch.GenesisAccount
-		if err := rows.Scan(&a.Address, &a.Amount, &a.VestingSchedule); err != nil {
-			return fmt.Errorf("scan genesis account: %w", err)
+		var (
+			allocType, sha256Hex, status, uploadedAt string
+			approvedBy                               *string
+		)
+		if err := rows.Scan(&allocType, &sha256Hex, &status, &approvedBy, &uploadedAt); err != nil {
+			return fmt.Errorf("scan allocation file: %w", err)
 		}
-		l.GenesisAccounts = append(l.GenesisAccounts, a)
+		ua, err := strToTime(uploadedAt)
+		if err != nil {
+			return fmt.Errorf("scan allocation uploaded_at: %w", err)
+		}
+		f := launch.AllocationFile{
+			Type:       launch.AllocationType(allocType),
+			SHA256:     sha256Hex,
+			Status:     launch.AllocationFileStatus(status),
+			UploadedAt: ua,
+		}
+		if approvedBy != nil {
+			id, err := strToUUID(*approvedBy)
+			if err != nil {
+				return fmt.Errorf("scan allocation approved_by_proposal: %w", err)
+			}
+			f.ApprovedByProposal = &id
+		}
+		l.AllocationFiles = append(l.AllocationFiles, f)
 	}
 	return rows.Err()
 }

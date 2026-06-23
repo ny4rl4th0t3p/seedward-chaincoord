@@ -215,6 +215,15 @@ func (s *ProposalService) Sign(ctx context.Context, launchID, proposalID uuid.UU
 		return p, nil
 	}
 
+	// A veto of an APPROVE_ALLOCATION_FILE proposal rejects the bound file (REJECTED
+	// + AllocationFileRejected event). Every other vetoed action has no side effect.
+	if p.Status == proposal.StatusVetoed && p.ActionType == proposal.ActionApproveAllocationFile {
+		if err := s.applyAllocationVeto(ctx, l, p); err != nil {
+			return nil, err
+		}
+		return p, nil
+	}
+
 	if err := s.proposals.Save(ctx, p); err != nil {
 		return nil, fmt.Errorf("sign proposal: save: %w", err)
 	}
@@ -282,14 +291,8 @@ func (s *ProposalService) applyProposal(ctx context.Context, l *launch.Launch, p
 	case proposal.ActionUpdateGenesisTime:
 		return s.applyUpdateGenesisTime(ctx, l, p)
 
-	case proposal.ActionAddGenesisAccount:
-		return s.applyAddGenesisAccount(ctx, l, p)
-
-	case proposal.ActionRemoveGenesisAccount:
-		return s.applyRemoveGenesisAccount(ctx, l, p)
-
-	case proposal.ActionModifyGenesisAccount:
-		return s.applyModifyGenesisAccount(ctx, l, p)
+	case proposal.ActionApproveAllocationFile:
+		return s.applyApproveAllocationFile(ctx, l, p)
 
 	case proposal.ActionReplaceCommitteeMember:
 		return s.applyReplaceCommitteeMember(ctx, l, p)
@@ -465,44 +468,57 @@ func (s *ProposalService) applyUpdateGenesisTime(ctx context.Context, l *launch.
 	return s.saveLaunchAndProposal(ctx, l, p)
 }
 
-func (s *ProposalService) applyAddGenesisAccount(ctx context.Context, l *launch.Launch, p *proposal.Proposal) error {
-	var pl proposal.AddGenesisAccountPayload
+func (s *ProposalService) applyApproveAllocationFile(ctx context.Context, l *launch.Launch, p *proposal.Proposal) error {
+	var pl proposal.ApproveAllocationFilePayload
 	if err := json.Unmarshal(p.Payload, &pl); err != nil {
-		return fmt.Errorf("apply add genesis account: payload: %w", err)
+		return fmt.Errorf("apply approve allocation file: payload: %w", err)
 	}
-	account := launch.GenesisAccount{
-		Address: pl.Address,
-		Amount:  pl.Amount,
+	// Binds approval to the file's current hash; a stale hash (file re-uploaded since the
+	// proposal was raised) or a missing file fails here, rolling back the transaction.
+	if err := l.ApproveAllocationFile(launch.AllocationType(pl.Type), pl.Hash, p.ID); err != nil {
+		return fmt.Errorf("apply approve allocation file: %w", err)
 	}
-	if pl.VestingSchedule != nil {
-		account.VestingSchedule = pl.VestingSchedule
-	}
-	if err := l.AddGenesisAccount(account); err != nil {
-		return fmt.Errorf("apply add genesis account: %w", err)
-	}
+	// The AllocationFileApproved domain event is emitted by the proposal aggregate on
+	// execution and dispatched (publish + audit) by applyAndSave after commit.
 	return s.saveLaunchAndProposal(ctx, l, p)
 }
 
-func (s *ProposalService) applyRemoveGenesisAccount(ctx context.Context, l *launch.Launch, p *proposal.Proposal) error {
-	var pl proposal.RemoveGenesisAccountPayload
+// applyAllocationVeto handles a vetoed APPROVE_ALLOCATION_FILE proposal: it marks the
+// bound file REJECTED (if it still matches the proposed hash) and records the
+// AllocationFileRejected event. A stale veto (file re-uploaded since the proposal was
+// raised, or never uploaded) leaves the file untouched and only persists the vetoed
+// proposal — the veto itself always stands. Unlike executed proposals, the rejection
+// event is built here because the proposal aggregate only emits events on execution.
+func (s *ProposalService) applyAllocationVeto(ctx context.Context, l *launch.Launch, p *proposal.Proposal) error {
+	var pl proposal.ApproveAllocationFilePayload
 	if err := json.Unmarshal(p.Payload, &pl); err != nil {
-		return fmt.Errorf("apply remove genesis account: payload: %w", err)
+		return fmt.Errorf("apply allocation veto: payload: %w", err)
 	}
-	if err := l.RemoveGenesisAccount(pl.Address); err != nil {
-		return fmt.Errorf("apply remove genesis account: %w", err)
-	}
-	return s.saveLaunchAndProposal(ctx, l, p)
-}
 
-func (s *ProposalService) applyModifyGenesisAccount(ctx context.Context, l *launch.Launch, p *proposal.Proposal) error {
-	var pl proposal.ModifyGenesisAccountPayload
-	if err := json.Unmarshal(p.Payload, &pl); err != nil {
-		return fmt.Errorf("apply modify genesis account: payload: %w", err)
+	if !l.RejectAllocationFile(launch.AllocationType(pl.Type), pl.Hash) {
+		// Nothing to reject (stale or absent); just persist the vetoed proposal.
+		if err := s.proposals.Save(ctx, p); err != nil {
+			return fmt.Errorf("apply allocation veto: save proposal: %w", err)
+		}
+		return nil
 	}
-	if err := l.ModifyGenesisAccount(pl.Address, pl.Amount, pl.VestingSchedule); err != nil {
-		return fmt.Errorf("apply modify genesis account: %w", err)
+
+	if err := s.tx.InTransaction(ctx, func(ctx context.Context) error {
+		return s.saveLaunchAndProposal(ctx, l, p)
+	}); err != nil {
+		return err
 	}
-	return s.saveLaunchAndProposal(ctx, l, p)
+
+	ev := domain.AllocationFileRejected{
+		LaunchID:       l.ID,
+		AllocationType: pl.Type,
+		SHA256:         pl.Hash,
+	}.WithTime(time.Now().UTC())
+	s.events.Publish(ev)
+	if err := s.writeAudit(ctx, p, ev); err != nil {
+		return fmt.Errorf("apply allocation veto: %w", err)
+	}
+	return nil
 }
 
 func (s *ProposalService) applyReplaceCommitteeMember(ctx context.Context, l *launch.Launch, p *proposal.Proposal) error {
