@@ -653,8 +653,8 @@ type thinGenesisStore struct {
 	dir        string // temp dir owned by the test
 	initial    map[string][]byte
 	final      map[string][]byte
-	initialRef map[string]*ports.GenesisRef // explicit override (Option A)
-	finalRef   map[string]*ports.GenesisRef // explicit override (Option A)
+	initialRef map[string]*ports.StoredFileRef // explicit override (Option A)
+	finalRef   map[string]*ports.StoredFileRef // explicit override (Option A)
 }
 
 func newThinGenesisStore(t *testing.T) *thinGenesisStore {
@@ -663,8 +663,8 @@ func newThinGenesisStore(t *testing.T) *thinGenesisStore {
 		dir:        t.TempDir(),
 		initial:    make(map[string][]byte),
 		final:      make(map[string][]byte),
-		initialRef: make(map[string]*ports.GenesisRef),
-		finalRef:   make(map[string]*ports.GenesisRef),
+		initialRef: make(map[string]*ports.StoredFileRef),
+		finalRef:   make(map[string]*ports.StoredFileRef),
 	}
 }
 
@@ -679,16 +679,16 @@ func (g *thinGenesisStore) SaveFinal(_ context.Context, id string, data []byte) 
 }
 
 func (g *thinGenesisStore) SaveInitialRef(_ context.Context, id, url, sha256 string) error {
-	g.initialRef[id] = &ports.GenesisRef{ExternalURL: url, SHA256: sha256}
+	g.initialRef[id] = &ports.StoredFileRef{ExternalURL: url, SHA256: sha256}
 	return nil
 }
 
 func (g *thinGenesisStore) SaveFinalRef(_ context.Context, id, url, sha256 string) error {
-	g.finalRef[id] = &ports.GenesisRef{ExternalURL: url, SHA256: sha256}
+	g.finalRef[id] = &ports.StoredFileRef{ExternalURL: url, SHA256: sha256}
 	return nil
 }
 
-func (g *thinGenesisStore) GetInitialRef(_ context.Context, id string) (*ports.GenesisRef, error) {
+func (g *thinGenesisStore) GetInitialRef(_ context.Context, id string) (*ports.StoredFileRef, error) {
 	if ref, ok := g.initialRef[id]; ok {
 		return ref, nil
 	}
@@ -700,10 +700,10 @@ func (g *thinGenesisStore) GetInitialRef(_ context.Context, id string) (*ports.G
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return nil, fmt.Errorf("thinGenesisStore: %w", err)
 	}
-	return &ports.GenesisRef{LocalPath: path}, nil
+	return &ports.StoredFileRef{LocalPath: path}, nil
 }
 
-func (g *thinGenesisStore) GetFinalRef(_ context.Context, id string) (*ports.GenesisRef, error) {
+func (g *thinGenesisStore) GetFinalRef(_ context.Context, id string) (*ports.StoredFileRef, error) {
 	if ref, ok := g.finalRef[id]; ok {
 		return ref, nil
 	}
@@ -715,7 +715,7 @@ func (g *thinGenesisStore) GetFinalRef(_ context.Context, id string) (*ports.Gen
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return nil, fmt.Errorf("thinGenesisStore: %w", err)
 	}
-	return &ports.GenesisRef{LocalPath: path}, nil
+	return &ports.StoredFileRef{LocalPath: path}, nil
 }
 
 // thinAuditLogWriter discards events.

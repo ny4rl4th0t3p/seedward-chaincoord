@@ -29,7 +29,8 @@ type GenesisStore struct {
 	baseDir string
 }
 
-// genesisRef is the on-disk JSON format for Option A sidecars.
+// genesisRefFile is the on-disk JSON format for an attestor-mode (Option A)
+// sidecar. Shared by the genesis and allocation filesystem stores.
 type genesisRefFile struct {
 	URL    string `json:"url"`
 	SHA256 string `json:"sha256"`
@@ -65,17 +66,17 @@ func (s *GenesisStore) SaveFinalRef(_ context.Context, launchID, url, sha256 str
 }
 
 // GetInitialRef returns how to serve the initial genesis file.
-func (s *GenesisStore) GetInitialRef(_ context.Context, launchID string) (*ports.GenesisRef, error) {
+func (s *GenesisStore) GetInitialRef(_ context.Context, launchID string) (*ports.StoredFileRef, error) {
 	return s.getRef(launchID, "initial.ref", "initial.json")
 }
 
 // GetFinalRef returns how to serve the final genesis file.
-func (s *GenesisStore) GetFinalRef(_ context.Context, launchID string) (*ports.GenesisRef, error) {
+func (s *GenesisStore) GetFinalRef(_ context.Context, launchID string) (*ports.StoredFileRef, error) {
 	return s.getRef(launchID, "final.ref", "final.json")
 }
 
 // getRef checks for a .ref sidecar first (Option A), then a .json file (Option C).
-func (s *GenesisStore) getRef(launchID, refName, jsonName string) (*ports.GenesisRef, error) {
+func (s *GenesisStore) getRef(launchID, refName, jsonName string) (*ports.StoredFileRef, error) {
 	refPath := filepath.Join(s.baseDir, launchID, refName)
 	raw, err := os.ReadFile(refPath)
 	if err == nil {
@@ -83,7 +84,7 @@ func (s *GenesisStore) getRef(launchID, refName, jsonName string) (*ports.Genesi
 		if err := json.Unmarshal(raw, &f); err != nil {
 			return nil, fmt.Errorf("genesis store: parsing ref sidecar: %w", err)
 		}
-		return &ports.GenesisRef{ExternalURL: f.URL, SHA256: f.SHA256}, nil
+		return &ports.StoredFileRef{ExternalURL: f.URL, SHA256: f.SHA256}, nil
 	}
 	if !errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("genesis store: reading ref sidecar: %w", err)
@@ -97,7 +98,7 @@ func (s *GenesisStore) getRef(launchID, refName, jsonName string) (*ports.Genesi
 		}
 		return nil, fmt.Errorf("genesis store: stating %s: %w", jsonName, err)
 	}
-	return &ports.GenesisRef{LocalPath: jsonPath}, nil
+	return &ports.StoredFileRef{LocalPath: jsonPath}, nil
 }
 
 func (s *GenesisStore) writeBytes(launchID, filename string, data []byte) error {

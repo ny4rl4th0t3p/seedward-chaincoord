@@ -557,8 +557,8 @@ func (f *fakeReadinessRepo) InvalidateByLaunch(_ context.Context, launchID uuid.
 type fakeGenesisStore struct {
 	initial      map[string][]byte
 	final        map[string][]byte
-	initialRef   map[string]*ports.GenesisRef
-	finalRef     map[string]*ports.GenesisRef
+	initialRef   map[string]*ports.StoredFileRef
+	finalRef     map[string]*ports.StoredFileRef
 	saveInitErr  error
 	saveFinalErr error
 }
@@ -567,8 +567,8 @@ func newFakeGenesisStore() *fakeGenesisStore {
 	return &fakeGenesisStore{
 		initial:    make(map[string][]byte),
 		final:      make(map[string][]byte),
-		initialRef: make(map[string]*ports.GenesisRef),
-		finalRef:   make(map[string]*ports.GenesisRef),
+		initialRef: make(map[string]*ports.StoredFileRef),
+		finalRef:   make(map[string]*ports.StoredFileRef),
 	}
 }
 
@@ -589,31 +589,31 @@ func (f *fakeGenesisStore) SaveFinal(_ context.Context, launchID string, data []
 }
 
 func (f *fakeGenesisStore) SaveInitialRef(_ context.Context, launchID, url, sha256 string) error {
-	f.initialRef[launchID] = &ports.GenesisRef{ExternalURL: url, SHA256: sha256}
+	f.initialRef[launchID] = &ports.StoredFileRef{ExternalURL: url, SHA256: sha256}
 	return nil
 }
 
 func (f *fakeGenesisStore) SaveFinalRef(_ context.Context, launchID, url, sha256 string) error {
-	f.finalRef[launchID] = &ports.GenesisRef{ExternalURL: url, SHA256: sha256}
+	f.finalRef[launchID] = &ports.StoredFileRef{ExternalURL: url, SHA256: sha256}
 	return nil
 }
 
-func (f *fakeGenesisStore) GetInitialRef(_ context.Context, launchID string) (*ports.GenesisRef, error) {
+func (f *fakeGenesisStore) GetInitialRef(_ context.Context, launchID string) (*ports.StoredFileRef, error) {
 	if ref, ok := f.initialRef[launchID]; ok {
 		return ref, nil
 	}
 	if _, ok := f.initial[launchID]; ok {
-		return &ports.GenesisRef{LocalPath: "fake-initial-" + launchID}, nil
+		return &ports.StoredFileRef{LocalPath: "fake-initial-" + launchID}, nil
 	}
 	return nil, ports.ErrNotFound
 }
 
-func (f *fakeGenesisStore) GetFinalRef(_ context.Context, launchID string) (*ports.GenesisRef, error) {
+func (f *fakeGenesisStore) GetFinalRef(_ context.Context, launchID string) (*ports.StoredFileRef, error) {
 	if ref, ok := f.finalRef[launchID]; ok {
 		return ref, nil
 	}
 	if _, ok := f.final[launchID]; ok {
-		return &ports.GenesisRef{LocalPath: "fake-final-" + launchID}, nil
+		return &ports.StoredFileRef{LocalPath: "fake-final-" + launchID}, nil
 	}
 	return nil, ports.ErrNotFound
 }

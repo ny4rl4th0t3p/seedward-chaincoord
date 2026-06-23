@@ -157,16 +157,17 @@ type SignatureVerifier interface {
 	Verify(operatorAddr, pubKeyB64 string, message, sig []byte) error
 }
 
-// GenesisRef describes how a genesis file is stored or referenced.
+// StoredFileRef describes how a stored file (a genesis or allocation file) is
+// served. It is returned by both GenesisStore and AllocationStore.
 // Exactly one of ExternalURL or LocalPath will be non-empty.
-type GenesisRef struct {
-	// ExternalURL is set for Option A (attestor mode): the genesis file lives
-	// at an external URL and the server redirects clients there.
+type StoredFileRef struct {
+	// ExternalURL is set in attestor mode (Option A): the file lives at an
+	// external URL and the server redirects clients there.
 	ExternalURL string
-	// SHA256 is the hex-encoded SHA-256 hash of the genesis file contents.
+	// SHA256 is the hex-encoded SHA-256 hash of the file contents.
 	SHA256 string
-	// LocalPath is set for Option C (host mode): the genesis file is stored
-	// on the local filesystem at this path.
+	// LocalPath is set in host mode (Option C): the file is stored on the
+	// local filesystem at this path.
 	LocalPath string
 }
 
@@ -189,15 +190,15 @@ type GenesisStore interface {
 
 	// GetInitialRef returns how to serve the initial genesis file.
 	// Returns ErrNotFound if neither a ref nor a file has been stored.
-	GetInitialRef(ctx context.Context, launchID string) (*GenesisRef, error)
+	GetInitialRef(ctx context.Context, launchID string) (*StoredFileRef, error)
 
 	// GetFinalRef returns how to serve the final genesis file.
 	// Returns ErrNotFound if neither a ref nor a file has been stored.
-	GetFinalRef(ctx context.Context, launchID string) (*GenesisRef, error)
+	GetFinalRef(ctx context.Context, launchID string) (*StoredFileRef, error)
 }
 
 // AllocationStore manages curated allocation-file storage (one file per allocation
-// type per launch). It mirrors GenesisStore's dual-mode design and reuses GenesisRef
+// type per launch). It mirrors GenesisStore's dual-mode design and reuses StoredFileRef
 // to describe how a stored file is served:
 //
 //   - host mode: the committee uploads raw bytes; this server stores them on disk
@@ -214,5 +215,5 @@ type AllocationStore interface {
 	SaveRef(ctx context.Context, launchID, allocType, url, sha256 string) error
 
 	// GetRef returns how to serve the file of the given type, or ErrNotFound.
-	GetRef(ctx context.Context, launchID, allocType string) (*GenesisRef, error)
+	GetRef(ctx context.Context, launchID, allocType string) (*StoredFileRef, error)
 }

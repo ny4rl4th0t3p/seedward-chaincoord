@@ -1248,7 +1248,7 @@ func TestGenesisGet_AttestorMode_Redirects(t *testing.T) {
 	l.InitialGenesisSHA256 = "a3f9b72c1d4e8f05a6b2c3d4e5f67890a1b2c3d4e5f6789012345678901234ab"
 	h.launches.data[l.ID] = l
 	// Inject an Option A ref.
-	h.genesis.initialRef[l.ID.String()] = &ports.GenesisRef{
+	h.genesis.initialRef[l.ID.String()] = &ports.StoredFileRef{
 		ExternalURL: "https://example.com/genesis.json",
 		SHA256:      l.InitialGenesisSHA256,
 	}
