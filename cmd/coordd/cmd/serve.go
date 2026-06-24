@@ -164,6 +164,21 @@ func monitorURLValidatorFor(insecureNoSSRFCheck bool) func(string) error {
 	return netutil.ValidateRPCURL
 }
 
+// openFileStores opens the genesis and allocation file stores. They share the same root
+// directory: their filenames (initial/final vs alloc-<type>) never collide under
+// <root>/<launchID>/, so allocation files need no separate path config.
+func openFileStores(path string) (*fs.GenesisStore, *fs.AllocationStore, error) {
+	genesisStore, err := fs.NewGenesisStore(path)
+	if err != nil {
+		return nil, nil, fmt.Errorf("opening genesis store: %w", err)
+	}
+	allocationStore, err := fs.NewAllocationStore(path)
+	if err != nil {
+		return nil, nil, fmt.Errorf("opening allocation store: %w", err)
+	}
+	return genesisStore, allocationStore, nil
+}
+
 func runServe(cmd *cobra.Command, _ []string) error {
 	// --- Config ----------------------------------------------------------
 	cfg, err := loadServeConfig(cmd)
@@ -221,15 +236,9 @@ func runServe(cmd *cobra.Command, _ []string) error {
 	}
 
 	// --- File stores -----------------------------------------------------
-	genesisStore, err := fs.NewGenesisStore(cfg.FilesPath)
+	genesisStore, allocationStore, err := openFileStores(cfg.FilesPath)
 	if err != nil {
-		return fmt.Errorf("opening genesis store: %w", err)
-	}
-	// Allocation files share the same root; filenames (alloc-<type>.json/.ref) never
-	// collide with genesis files (initial/final.json/.ref) under <root>/<launchID>/.
-	allocationStore, err := fs.NewAllocationStore(cfg.FilesPath)
-	if err != nil {
-		return fmt.Errorf("opening allocation store: %w", err)
+		return err
 	}
 
 	// --- Cross-cutting ---------------------------------------------------

@@ -66,14 +66,14 @@ func TestNewLaunch_InvalidRecord(t *testing.T) {
 	r := testRecord()
 	r.ChainID = ""
 	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
-	assert.Error(t, err, "expected error for empty chain_id")
+	require.Error(t, err, "expected error for empty chain_id")
 }
 
 func TestNewLaunch_InvalidCommitteeThreshold(t *testing.T) {
 	c := testCommittee()
 	c.ThresholdM = 0
 	_, err := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, c)
-	assert.Error(t, err, "expected error for threshold 0")
+	require.Error(t, err, "expected error for threshold 0")
 }
 
 func TestStateMachine_HappyPath(t *testing.T) {
@@ -89,9 +89,9 @@ func TestStateMachine_HappyPath(t *testing.T) {
 func TestStateMachine_InvalidTransitions(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
 
-	assert.Error(t, l.OpenWindow(), "cannot open window from DRAFT")
-	assert.Error(t, l.CloseWindow(10), "cannot close window from DRAFT")
-	assert.Error(t, l.PublishGenesis("abc"), "cannot publish genesis from DRAFT")
+	require.Error(t, l.OpenWindow(), "cannot open window from DRAFT")
+	require.Error(t, l.CloseWindow(10), "cannot close window from DRAFT")
+	require.Error(t, l.PublishGenesis("abc"), "cannot publish genesis from DRAFT")
 }
 
 func TestCloseWindow_MinValidatorCount(t *testing.T) {
@@ -99,7 +99,7 @@ func TestCloseWindow_MinValidatorCount(t *testing.T) {
 	_ = l.Publish("abc123")
 	_ = l.OpenWindow()
 
-	assert.Error(t, l.CloseWindow(3), "below min_validator_count (4)")
+	require.Error(t, l.CloseWindow(3), "below min_validator_count (4)")
 	assert.NoError(t, l.CloseWindow(4))
 }
 
@@ -132,7 +132,7 @@ func TestCloseWindow_DominantVotingPowerBlocked(t *testing.T) {
 
 	l.RecordValidatorApproval(launch.MustNewOperatorAddress(testAddr1), 100) // 100% voting power
 
-	assert.Error(t, l.CloseWindow(4), "single entity holds 100%% of voting power")
+	require.Error(t, l.CloseWindow(4), "single entity holds 100%% of voting power")
 }
 
 func TestIsVisibleTo(t *testing.T) {
@@ -159,42 +159,42 @@ func TestNewLaunch_ThresholdExceedsN(t *testing.T) {
 	c := testCommittee()
 	c.ThresholdM = 4 // TotalN is 3
 	_, err := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, c)
-	assert.Error(t, err, "threshold (4) > TotalN (3)")
+	require.Error(t, err, "threshold (4) > TotalN (3)")
 }
 
 func TestNewLaunch_MemberCountMismatch(t *testing.T) {
 	c := testCommittee()
 	c.TotalN = 5 // Members has only 3 elements
 	_, err := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, c)
-	assert.Error(t, err, "member count (3) != TotalN (5)")
+	require.Error(t, err, "member count (3) != TotalN (5)")
 }
 
 func TestNewLaunch_EmptyBinaryName(t *testing.T) {
 	r := testRecord()
 	r.BinaryName = ""
 	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
-	assert.Error(t, err, "expected error for empty binary_name")
+	require.Error(t, err, "expected error for empty binary_name")
 }
 
 func TestNewLaunch_EmptyDenom(t *testing.T) {
 	r := testRecord()
 	r.Denom = ""
 	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
-	assert.Error(t, err, "expected error for empty denom")
+	require.Error(t, err, "expected error for empty denom")
 }
 
 func TestNewLaunch_MinValidatorCountZero(t *testing.T) {
 	r := testRecord()
 	r.MinValidatorCount = 0
 	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
-	assert.Error(t, err, "expected error for min_validator_count = 0")
+	require.Error(t, err, "expected error for min_validator_count = 0")
 }
 
 func TestNewLaunch_ZeroGentxDeadline(t *testing.T) {
 	r := testRecord()
 	r.GentxDeadline = time.Time{}
 	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
-	assert.Error(t, err, "expected error for zero gentx_deadline")
+	require.Error(t, err, "expected error for zero gentx_deadline")
 }
 
 // ---- Publish error paths ----------------------------------------------------
@@ -202,12 +202,12 @@ func TestNewLaunch_ZeroGentxDeadline(t *testing.T) {
 func TestPublish_NotFromDraft(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
 	_ = l.Publish("abc123") // now PUBLISHED
-	assert.Error(t, l.Publish("def456"), "cannot publish from PUBLISHED")
+	require.Error(t, l.Publish("def456"), "cannot publish from PUBLISHED")
 }
 
 func TestPublish_EmptyGenesisHash(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
-	assert.Error(t, l.Publish(""), "empty genesis hash")
+	require.Error(t, l.Publish(""), "empty genesis hash")
 }
 
 // ---- OpenWindow error paths --------------------------------------------------
@@ -215,18 +215,18 @@ func TestPublish_EmptyGenesisHash(t *testing.T) {
 func TestOpenWindow_NotFromPublished(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
 	// Still in DRAFT — OpenWindow should fail.
-	assert.Error(t, l.OpenWindow(), "cannot open window from DRAFT")
+	require.Error(t, l.OpenWindow(), "cannot open window from DRAFT")
 	// Advance to WINDOW_OPEN and confirm it cannot be re-opened.
 	_ = l.Publish("abc123")
 	_ = l.OpenWindow()
-	assert.Error(t, l.OpenWindow(), "cannot open window from WINDOW_OPEN")
+	require.Error(t, l.OpenWindow(), "cannot open window from WINDOW_OPEN")
 }
 
 // ---- CloseWindow error paths ------------------------------------------------
 
 func TestCloseWindow_NotFromWindowOpen(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
-	assert.Error(t, l.CloseWindow(10), "cannot close window from DRAFT")
+	require.Error(t, l.CloseWindow(10), "cannot close window from DRAFT")
 }
 
 func TestCloseWindow_DominantVotingPower_JustAboveThreshold(t *testing.T) {
@@ -238,7 +238,7 @@ func TestCloseWindow_DominantVotingPower_JustAboveThreshold(t *testing.T) {
 	_ = l.OpenWindow()
 	l.RecordValidatorApproval(launch.MustNewOperatorAddress(testAddr1), 34) // 34/100 = 34%
 	l.RecordValidatorApproval(launch.MustNewOperatorAddress(testAddr2), 66)
-	assert.Error(t, l.CloseWindow(1), "addr1 holds 34%% (≥ 1/3) of voting power")
+	require.Error(t, l.CloseWindow(1), "addr1 holds 34%% (≥ 1/3) of voting power")
 }
 
 func TestCloseWindow_DominantVotingPower_JustBelowThreshold(t *testing.T) {
@@ -258,9 +258,9 @@ func TestCloseWindow_DominantVotingPower_JustBelowThreshold(t *testing.T) {
 
 func TestPublishGenesis_NotFromWindowClosed(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
-	assert.Error(t, l.PublishGenesis("abc"), "cannot publish genesis from DRAFT")
+	require.Error(t, l.PublishGenesis("abc"), "cannot publish genesis from DRAFT")
 	_ = l.Publish("abc123")
-	assert.Error(t, l.PublishGenesis("abc"), "cannot publish genesis from PUBLISHED")
+	require.Error(t, l.PublishGenesis("abc"), "cannot publish genesis from PUBLISHED")
 }
 
 func TestPublishGenesis_EmptyHash(t *testing.T) {
@@ -270,7 +270,7 @@ func TestPublishGenesis_EmptyHash(t *testing.T) {
 	_ = l.Publish("abc123")
 	_ = l.OpenWindow()
 	_ = l.CloseWindow(1)
-	assert.Error(t, l.PublishGenesis(""), "empty final genesis hash")
+	require.Error(t, l.PublishGenesis(""), "empty final genesis hash")
 }
 
 // ---- MarkLaunched -----------------------------------------------------------
@@ -289,7 +289,7 @@ func TestMarkLaunched_Success(t *testing.T) {
 
 func TestMarkLaunched_NotFromGenesisReady(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
-	assert.Error(t, l.MarkLaunched(), "cannot mark launched from DRAFT")
+	require.Error(t, l.MarkLaunched(), "cannot mark launched from DRAFT")
 }
 
 // ---- Full state machine happy path ------------------------------------------
@@ -330,10 +330,10 @@ func TestCanValidatorApply_NotWindowOpen(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
 	addr := launch.MustNewOperatorAddress(testAddr4)
 	// DRAFT
-	assert.Error(t, l.CanValidatorApply(addr), "window not open (DRAFT)")
+	require.Error(t, l.CanValidatorApply(addr), "window not open (DRAFT)")
 	// PUBLISHED
 	_ = l.Publish("abc123")
-	assert.Error(t, l.CanValidatorApply(addr), "window not open (PUBLISHED)")
+	require.Error(t, l.CanValidatorApply(addr), "window not open (PUBLISHED)")
 }
 
 func TestCanValidatorApply_AllowlistAddressOnList(t *testing.T) {
@@ -352,7 +352,7 @@ func TestCanValidatorApply_AllowlistAddressNotOnList(t *testing.T) {
 	l.Allowlist = launch.NewAllowlist(nil) // empty allowlist
 	_ = l.Publish("abc123")
 	_ = l.OpenWindow()
-	assert.Error(t, l.CanValidatorApply(addr), "address not on allowlist")
+	require.Error(t, l.CanValidatorApply(addr), "address not on allowlist")
 }
 
 // ---- Voting power helpers ---------------------------------------------------
@@ -494,7 +494,7 @@ func TestLaunch_ExpandCommittee_DuplicateMember(t *testing.T) {
 		PubKeyB64: "BBBB",
 	}
 
-	assert.Error(t, l.ExpandCommittee(duplicate, 2), "expected error for duplicate member address")
+	require.Error(t, l.ExpandCommittee(duplicate, 2), "expected error for duplicate member address")
 }
 
 func TestLaunch_ExpandCommittee_LivenessGuard(t *testing.T) {
@@ -506,7 +506,7 @@ func TestLaunch_ExpandCommittee_LivenessGuard(t *testing.T) {
 		PubKeyB64: "DDDD",
 	}
 
-	assert.Error(t, l.ExpandCommittee(newMember, 4), "expected liveness guard error: threshold must be < N")
+	require.Error(t, l.ExpandCommittee(newMember, 4), "expected liveness guard error: threshold must be < N")
 }
 
 // ---- ShrinkCommittee --------------------------------------------------------
@@ -547,7 +547,7 @@ func TestLaunch_ShrinkCommittee_MemberNotFound(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
 	unknownAddr := launch.MustNewOperatorAddress(testAddr5)
 
-	assert.Error(t, l.ShrinkCommittee(unknownAddr, 1), "expected error for unknown member address")
+	require.Error(t, l.ShrinkCommittee(unknownAddr, 1), "expected error for unknown member address")
 }
 
 func TestLaunch_ShrinkCommittee_LivenessGuard(t *testing.T) {
@@ -555,7 +555,7 @@ func TestLaunch_ShrinkCommittee_LivenessGuard(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
 	removeAddr := launch.MustNewOperatorAddress(testAddr3)
 
-	assert.Error(t, l.ShrinkCommittee(removeAddr, 2), "expected liveness guard error: threshold must be < N")
+	require.Error(t, l.ShrinkCommittee(removeAddr, 2), "expected liveness guard error: threshold must be < N")
 }
 
 func TestLaunch_ShrinkCommittee_CannotShrinkBelowOneActiveMember(t *testing.T) {
@@ -575,7 +575,7 @@ func TestLaunch_ShrinkCommittee_CannotShrinkBelowOneActiveMember(t *testing.T) {
 	}
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, smallCommittee)
 
-	assert.Error(t, l.ShrinkCommittee(launch.MustNewOperatorAddress(testAddr2), 1),
+	require.Error(t, l.ShrinkCommittee(launch.MustNewOperatorAddress(testAddr2), 1),
 		"expected error: cannot shrink to a 1-of-1 committee (liveness guard)")
 }
 
@@ -714,12 +714,12 @@ func TestCancel_TerminalStatuses_Rejected(t *testing.T) {
 	t.Run("LAUNCHED", func(t *testing.T) {
 		l := advanceToGenesisReady(t)
 		_ = l.MarkLaunched()
-		assert.Error(t, l.Cancel(), "cannot cancel LAUNCHED chain")
+		require.Error(t, l.Cancel(), "cannot cancel LAUNCHED chain")
 	})
 	t.Run("CANCELED", func(t *testing.T) {
 		l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
 		_ = l.Cancel()
-		assert.Error(t, l.Cancel(), "already CANCELED")
+		require.Error(t, l.Cancel(), "already CANCELED")
 	})
 }
 
@@ -786,7 +786,7 @@ func TestReopenForRevision_WrongStatus(t *testing.T) {
 	for _, tc := range statuses {
 		t.Run(tc.name, func(t *testing.T) {
 			l := tc.setup()
-			assert.Error(t, l.ReopenForRevision(), "expected error when calling ReopenForRevision from %s", tc.name)
+			require.Error(t, l.ReopenForRevision(), "expected error when calling ReopenForRevision from %s", tc.name)
 		})
 	}
 }

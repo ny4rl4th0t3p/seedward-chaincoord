@@ -395,14 +395,15 @@ func (l *Launch) UploadAllocationFile(t AllocationType, sha256 string) error {
 	}
 	now := time.Now().UTC()
 	for i := range l.AllocationFiles {
-		if l.AllocationFiles[i].Type == t {
-			l.AllocationFiles[i].SHA256 = sha256
-			l.AllocationFiles[i].Status = AllocationPending
-			l.AllocationFiles[i].ApprovedByProposal = nil
-			l.AllocationFiles[i].UploadedAt = now
-			l.touch()
-			return nil
+		if l.AllocationFiles[i].Type != t {
+			continue
 		}
+		l.AllocationFiles[i].SHA256 = sha256
+		l.AllocationFiles[i].Status = AllocationPending
+		l.AllocationFiles[i].ApprovedByProposal = nil
+		l.AllocationFiles[i].UploadedAt = now
+		l.touch()
+		return nil
 	}
 	l.AllocationFiles = append(l.AllocationFiles, AllocationFile{
 		Type:       t,
@@ -423,16 +424,17 @@ func (l *Launch) ApproveAllocationFile(t AllocationType, hash string, proposalID
 		return fmt.Errorf("launch: %s status: %w", l.Status, ErrAllocationLocked)
 	}
 	for i := range l.AllocationFiles {
-		if l.AllocationFiles[i].Type == t {
-			if l.AllocationFiles[i].SHA256 != hash {
-				return fmt.Errorf("launch: %q: %w", t, ErrAllocationStaleHash)
-			}
-			pid := proposalID
-			l.AllocationFiles[i].Status = AllocationApproved
-			l.AllocationFiles[i].ApprovedByProposal = &pid
-			l.touch()
-			return nil
+		if l.AllocationFiles[i].Type != t {
+			continue
 		}
+		if l.AllocationFiles[i].SHA256 != hash {
+			return fmt.Errorf("launch: %q: %w", t, ErrAllocationStaleHash)
+		}
+		pid := proposalID
+		l.AllocationFiles[i].Status = AllocationApproved
+		l.AllocationFiles[i].ApprovedByProposal = &pid
+		l.touch()
+		return nil
 	}
 	return fmt.Errorf("launch: %q: %w", t, ErrAllocationNotFound)
 }
@@ -444,15 +446,16 @@ func (l *Launch) ApproveAllocationFile(t AllocationType, hash string, proposalID
 // neither "no file" nor "stale" is an error — the veto itself still stands.
 func (l *Launch) RejectAllocationFile(t AllocationType, hash string) (rejected bool) {
 	for i := range l.AllocationFiles {
-		if l.AllocationFiles[i].Type == t {
-			if l.AllocationFiles[i].SHA256 != hash {
-				return false // superseded by a re-upload; leave the new file PENDING
-			}
-			l.AllocationFiles[i].Status = AllocationRejected
-			l.AllocationFiles[i].ApprovedByProposal = nil
-			l.touch()
-			return true
+		if l.AllocationFiles[i].Type != t {
+			continue
 		}
+		if l.AllocationFiles[i].SHA256 != hash {
+			return false // superseded by a re-upload; leave the new file PENDING
+		}
+		l.AllocationFiles[i].Status = AllocationRejected
+		l.AllocationFiles[i].ApprovedByProposal = nil
+		l.touch()
+		return true
 	}
 	return false
 }
