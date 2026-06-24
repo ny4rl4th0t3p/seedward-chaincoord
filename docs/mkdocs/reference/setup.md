@@ -31,7 +31,7 @@ are the recommended approach for production deployments; the config file is conv
 listen_addr: ":8080"
 db_path: "./data/coord.db"
 audit_log_path: "./data/audit.jsonl"
-genesis_path: "./data/genesis"
+files_path: "./data/genesis"
 log_level: "debug"
 cors_origins: "http://localhost:3000"
 audit_private_key_file: "./data/audit_key"
@@ -160,7 +160,7 @@ Plain HTTP on loopback (`127.0.0.1` or `::1`) suppresses the warning automatical
 | `listen_addr`            | `COORD_LISTEN_ADDR`            | `--listen-addr`            | `:8080`               | No       |
 | `db_path`                | `COORD_DB_PATH`                | `--db-path`                | —                     | Yes      |
 | `audit_log_path`         | `COORD_AUDIT_LOG_PATH`         | `--audit-log-path`         | —                     | Yes      |
-| `genesis_path`           | `COORD_GENESIS_PATH`           | `--genesis-path`           | —                     | Yes      |
+| `files_path`             | `COORD_FILES_PATH`             | `--files-path`             | —                     | Yes      |
 | `audit_private_key`      | `COORD_AUDIT_PRIVATE_KEY`      | —                          | —                     | Yes¹     |
 | `audit_private_key_file` | `COORD_AUDIT_PRIVATE_KEY_FILE` | —                          | —                     | Yes¹     |
 | `jwt_private_key`        | `COORD_JWT_PRIVATE_KEY`        | —                          | —                     | Yes²     |

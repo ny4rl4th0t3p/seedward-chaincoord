@@ -26,7 +26,7 @@ type Config struct {
 	DBPath          string   `mapstructure:"db_path"`
 	AuditLogPath    string   `mapstructure:"audit_log_path"`
 	AuditPrivKeyB64 string   `mapstructure:"audit_private_key"`
-	GenesisPath     string   `mapstructure:"genesis_path"`
+	FilesPath       string   `mapstructure:"files_path"` // root dir for genesis + allocation file storage
 	LogLevel        string   `mapstructure:"log_level"`
 	CORSOrigins     string   `mapstructure:"cors_origins"`
 	AdminAddresses  []string `mapstructure:"admin_addresses"`
@@ -104,7 +104,7 @@ func Load(v *viper.Viper, cfgFile string) (*Config, error) {
 	_ = v.BindEnv("audit_log_path", "COORD_AUDIT_LOG_PATH")
 	_ = v.BindEnv("audit_private_key", "COORD_AUDIT_PRIVATE_KEY")
 	_ = v.BindEnv("audit_private_key_file", "COORD_AUDIT_PRIVATE_KEY_FILE")
-	_ = v.BindEnv("genesis_path", "COORD_GENESIS_PATH")
+	_ = v.BindEnv("files_path", "COORD_FILES_PATH")
 	_ = v.BindEnv("listen_addr", "COORD_LISTEN_ADDR")
 	_ = v.BindEnv("log_level", "COORD_LOG_LEVEL")
 	_ = v.BindEnv("cors_origins", "COORD_CORS_ORIGINS")
@@ -191,8 +191,8 @@ func (c *Config) validate() error {
 			ed25519.SeedSize, len(keyBytes),
 		)
 	}
-	if c.GenesisPath == "" {
-		return errors.New("config: genesis_path is required (flag --genesis-path or env COORD_GENESIS_PATH)")
+	if c.FilesPath == "" {
+		return errors.New("config: files_path is required (flag --files-path or env COORD_FILES_PATH)")
 	}
 	if c.LaunchPolicy != LaunchPolicyOpen && c.LaunchPolicy != LaunchPolicyRestricted {
 		return fmt.Errorf("config: launch_policy must be %q or %q, got %q", LaunchPolicyOpen, LaunchPolicyRestricted, c.LaunchPolicy)

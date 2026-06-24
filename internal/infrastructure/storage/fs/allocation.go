@@ -14,11 +14,12 @@ import (
 // AllocationStore is a filesystem-backed implementation of ports.AllocationStore.
 // It mirrors GenesisStore's dual-mode layout, one file per allocation type per launch:
 //
-//	<baseDir>/<launchID>/alloc-<type>.json   (host mode, raw bytes)
+//	<baseDir>/<launchID>/alloc-<type>.data   (host mode, raw opaque bytes)
 //	<baseDir>/<launchID>/alloc-<type>.ref    (attestor mode, URL + sha256 sidecar)
 //
-// On GetRef the .ref sidecar is checked first; if absent the .json file is checked;
-// if neither exists ErrNotFound is returned.
+// The content is opaque (gentool emits CSV/TSV, not JSON), so the host-mode file uses a
+// format-neutral .data extension. On GetRef the .ref sidecar is checked first; if absent
+// the .data file is checked; if neither exists ErrNotFound is returned.
 type AllocationStore struct {
 	baseDir string
 }
@@ -34,7 +35,7 @@ func NewAllocationStore(baseDir string) (*AllocationStore, error) {
 
 // Save stores the raw allocation-file bytes for allocType (host mode).
 func (s *AllocationStore) Save(_ context.Context, launchID, allocType string, data []byte) error {
-	return s.writeBytes(launchID, "alloc-"+allocType+".json", data)
+	return s.writeBytes(launchID, "alloc-"+allocType+".data", data)
 }
 
 // SaveRef records an external URL reference for allocType (attestor mode).
@@ -44,7 +45,7 @@ func (s *AllocationStore) SaveRef(_ context.Context, launchID, allocType, url, s
 
 // GetRef returns how to serve the file of the given type.
 func (s *AllocationStore) GetRef(_ context.Context, launchID, allocType string) (*ports.StoredFileRef, error) {
-	return s.getRef(launchID, "alloc-"+allocType+".ref", "alloc-"+allocType+".json")
+	return s.getRef(launchID, "alloc-"+allocType+".ref", "alloc-"+allocType+".data")
 }
 
 func (s *AllocationStore) getRef(launchID, refName, jsonName string) (*ports.StoredFileRef, error) {

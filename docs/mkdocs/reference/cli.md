@@ -26,7 +26,7 @@ coordd serve [flags]
 | `--listen-addr`            | `COORD_LISTEN_ADDR`            | Address to listen on (default `:8080`)             |
 | `--db-path`                | `COORD_DB_PATH`                | Path to SQLite database file                       |
 | `--audit-log-path`         | `COORD_AUDIT_LOG_PATH`         | Path to audit log JSONL file                       |
-| `--genesis-path`           | `COORD_GENESIS_PATH`           | Directory for genesis file storage                 |
+| `--files-path`             | `COORD_FILES_PATH`             | Directory for genesis + allocation file storage    |
 | `--log-level`              | `COORD_LOG_LEVEL`              | Log verbosity: `debug`, `info`, `warn`, `error`    |
 | `--cors-origins`           | `COORD_CORS_ORIGINS`           | Comma-separated allowed CORS origins               |
 | `--tls-cert`               | `COORD_TLS_CERT`               | Path to TLS certificate (PEM)                      |

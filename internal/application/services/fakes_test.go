@@ -618,6 +618,48 @@ func (f *fakeGenesisStore) GetFinalRef(_ context.Context, launchID string) (*por
 	return nil, ports.ErrNotFound
 }
 
+// ---- fakeAllocationStore --------------------------------------------------
+
+type fakeAllocationStore struct {
+	bytes   map[string][]byte
+	refs    map[string]*ports.StoredFileRef
+	saveErr error
+}
+
+func newFakeAllocationStore() *fakeAllocationStore {
+	return &fakeAllocationStore{
+		bytes: make(map[string][]byte),
+		refs:  make(map[string]*ports.StoredFileRef),
+	}
+}
+
+func (f *fakeAllocationStore) Save(_ context.Context, launchID, allocType string, data []byte) error {
+	if f.saveErr != nil {
+		return f.saveErr
+	}
+	f.bytes[launchID+":"+allocType] = data
+	return nil
+}
+
+func (f *fakeAllocationStore) SaveRef(_ context.Context, launchID, allocType, url, sha256 string) error {
+	if f.saveErr != nil {
+		return f.saveErr
+	}
+	f.refs[launchID+":"+allocType] = &ports.StoredFileRef{ExternalURL: url, SHA256: sha256}
+	return nil
+}
+
+func (f *fakeAllocationStore) GetRef(_ context.Context, launchID, allocType string) (*ports.StoredFileRef, error) {
+	key := launchID + ":" + allocType
+	if ref, ok := f.refs[key]; ok {
+		return ref, nil
+	}
+	if _, ok := f.bytes[key]; ok {
+		return &ports.StoredFileRef{LocalPath: "fake-alloc-" + key}, nil
+	}
+	return nil, ports.ErrNotFound
+}
+
 // ---- fakeAuditLogWriter ---------------------------------------------------
 
 type fakeAuditLogWriter struct {

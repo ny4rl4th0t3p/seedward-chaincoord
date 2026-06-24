@@ -96,7 +96,7 @@ cat > config.yaml <<EOF
 listen_addr: ":8080"
 db_path: "./data/coord.db"
 audit_log_path: "./data/audit.jsonl"
-genesis_path: "./data/genesis"
+files_path: "./data/genesis"
 log_level: "debug"
 audit_private_key_file: "./data/audit_key"
 jwt_private_key_file: "./data/jwt_key"
