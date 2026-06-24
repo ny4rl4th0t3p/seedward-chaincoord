@@ -6,24 +6,20 @@ revision) and each is gated by a committee proposal, except for opening the appl
 ```mermaid
 stateDiagram-v2
     direction TB
-
     [*] --> DRAFT
-
-    DRAFT      --> PUBLISHED     : PUBLISH_CHAIN_RECORD proposal
-    PUBLISHED  --> WINDOW_OPEN   : committee member calls open-window
-    WINDOW_OPEN --> WINDOW_CLOSED : CLOSE_APPLICATION_WINDOW proposal
-    WINDOW_CLOSED --> GENESIS_READY : PUBLISH_GENESIS proposal
-    GENESIS_READY --> LAUNCHED   : Block monitor detects first block
-    GENESIS_READY --> WINDOW_CLOSED : REVISE_GENESIS proposal
-
-    DRAFT         --> CANCELED : Lead cancels
-    PUBLISHED     --> CANCELED : Lead cancels
-    WINDOW_OPEN   --> CANCELED : Lead cancels
-    WINDOW_CLOSED --> CANCELED : Lead cancels
-    GENESIS_READY --> CANCELED : Lead cancels
-
-    LAUNCHED  --> [*]
-    CANCELED  --> [*]
+    DRAFT --> PUBLISHED: PUBLISH_CHAIN_RECORD proposal
+    PUBLISHED --> WINDOW_OPEN: committee member calls open-window
+    WINDOW_OPEN --> WINDOW_CLOSED: CLOSE_APPLICATION_WINDOW proposal
+    WINDOW_CLOSED --> GENESIS_READY: PUBLISH_GENESIS proposal
+    GENESIS_READY --> LAUNCHED: Block monitor detects first block
+    GENESIS_READY --> WINDOW_CLOSED: REVISE_GENESIS proposal
+    DRAFT --> CANCELED: Lead cancels
+    PUBLISHED --> CANCELED: Lead cancels
+    WINDOW_OPEN --> CANCELED: Lead cancels
+    WINDOW_CLOSED --> CANCELED: Lead cancels
+    GENESIS_READY --> CANCELED: Lead cancels
+    LAUNCHED --> [*]
+    CANCELED --> [*]
 ```
 
 ---
@@ -88,15 +84,20 @@ The lead coordinator now assembles the final genesis file locally:
 # Download all approved gentxs
 curl .../launch/:id/gentxs | jq -c '.gentxs[]' | ...
 
-# Add genesis accounts for each approved validator
-gaiad genesis add-genesis-account <addr> <amount>
+# Download the committee-approved allocation files (accounts, claims, grants, …)
+curl .../launch/:id/allocations/accounts > accounts.csv
 
-# Collect gentxs
+# Apply the approved allocations + gentxs with gentool / the chain binary
+gentool genesis ...        # consumes the approved allocation files
 gaiad genesis collect-gentxs
 
 # Validate
 gaiad genesis validate
 ```
+
+The genesis allocations are no longer added entry-by-entry: the committee approves each curated allocation file as a
+whole (see [Proposals → Allocation files](proposals.md#allocation-files)), and the coordinator feeds the **approved**
+files into gentool here.
 
 Then uploads the result: `POST /launch/:id/genesis?type=final`.
 

@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/ports"
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/joinrequest"
@@ -76,51 +78,44 @@ func TestLaunchRepository_Save(t *testing.T) {
 			},
 		},
 		{
-			name: "replaces genesis accounts on subsequent save",
+			name: "round-trips allocation files (status + approved_by_proposal) and re-upload resets",
 			run: func(t *testing.T, repo *LaunchRepository) {
 				ctx := context.Background()
-				vesting := `{"cliff":"2025-01-01"}`
 				l := testLaunch(t)
-				l.GenesisAccounts = []launch.GenesisAccount{
-					{Address: addr1, Amount: "1000utest", VestingSchedule: nil},
-					{Address: addr2, Amount: "2000utest", VestingSchedule: &vesting},
-				}
-				if err := repo.Save(ctx, l); err != nil {
-					t.Fatalf("Save: %v", err)
-				}
+				require.NoError(t, l.UploadAllocationFile(launch.AllocationAccounts, "hashaccounts"))
+				require.NoError(t, l.UploadAllocationFile(launch.AllocationClaims, "hashclaims"))
+				// Approve one file so the APPROVED status + approved_by_proposal round-trips.
+				pid := uuid.New()
+				require.NoError(t, l.ApproveAllocationFile(launch.AllocationClaims, "hashclaims", pid))
+				require.NoError(t, repo.Save(ctx, l))
 
 				got, err := repo.FindByID(ctx, l.ID)
-				if err != nil {
-					t.Fatalf("FindByID: %v", err)
-				}
-				if len(got.GenesisAccounts) != 2 {
-					t.Fatalf("expected 2 genesis accounts, got %d", len(got.GenesisAccounts))
-				}
-				// FindByID loads accounts ORDER BY address; addr1 < addr2 (both bech32)
-				if got.GenesisAccounts[0].Address != addr1 || got.GenesisAccounts[0].Amount != "1000utest" {
-					t.Errorf("first account wrong: %+v", got.GenesisAccounts[0])
-				}
-				if got.GenesisAccounts[0].VestingSchedule != nil {
-					t.Errorf("expected nil vesting for first account")
-				}
-				if got.GenesisAccounts[1].Address != addr2 || got.GenesisAccounts[1].Amount != "2000utest" {
-					t.Errorf("second account wrong: %+v", got.GenesisAccounts[1])
-				}
-				if got.GenesisAccounts[1].VestingSchedule == nil || *got.GenesisAccounts[1].VestingSchedule != vesting {
-					t.Errorf("vesting schedule wrong: %v", got.GenesisAccounts[1].VestingSchedule)
-				}
+				require.NoError(t, err)
+				require.Len(t, got.AllocationFiles, 2)
 
-				got.GenesisAccounts = []launch.GenesisAccount{{Address: addr2, Amount: "9999utest"}}
-				if err := repo.Save(ctx, got); err != nil {
-					t.Fatalf("Save after modify: %v", err)
-				}
+				accounts, ok := got.AllocationFileOf(launch.AllocationAccounts)
+				require.True(t, ok)
+				assert.Equal(t, "hashaccounts", accounts.SHA256)
+				assert.Equal(t, launch.AllocationPending, accounts.Status)
+				assert.Nil(t, accounts.ApprovedByProposal)
+
+				claims, ok := got.AllocationFileOf(launch.AllocationClaims)
+				require.True(t, ok)
+				assert.Equal(t, launch.AllocationApproved, claims.Status)
+				require.NotNil(t, claims.ApprovedByProposal)
+				assert.Equal(t, pid, *claims.ApprovedByProposal)
+
+				// Re-upload claims with a new hash → replaces in place and resets to PENDING.
+				require.NoError(t, got.UploadAllocationFile(launch.AllocationClaims, "newhash"))
+				require.NoError(t, repo.Save(ctx, got))
 				got2, err := repo.FindByID(ctx, l.ID)
-				if err != nil {
-					t.Fatalf("FindByID after modify: %v", err)
-				}
-				if len(got2.GenesisAccounts) != 1 || got2.GenesisAccounts[0].Amount != "9999utest" {
-					t.Errorf("modify not persisted: %+v", got2.GenesisAccounts)
-				}
+				require.NoError(t, err)
+				require.Len(t, got2.AllocationFiles, 2)
+				claims2, ok := got2.AllocationFileOf(launch.AllocationClaims)
+				require.True(t, ok)
+				assert.Equal(t, "newhash", claims2.SHA256)
+				assert.Equal(t, launch.AllocationPending, claims2.Status)
+				assert.Nil(t, claims2.ApprovedByProposal)
 			},
 		},
 	}

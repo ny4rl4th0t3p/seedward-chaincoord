@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -23,6 +24,7 @@ type LaunchService struct {
 	joinRequests ports.JoinRequestRepository
 	readiness    ports.ReadinessRepository
 	genesis      ports.GenesisStore
+	allocations  ports.AllocationStore
 	events       ports.EventPublisher
 	audit        ports.AuditLogWriter
 	urlValidator func(string) error
@@ -33,6 +35,7 @@ func NewLaunchService(
 	joinRequests ports.JoinRequestRepository,
 	readiness ports.ReadinessRepository,
 	genesis ports.GenesisStore,
+	allocations ports.AllocationStore,
 	events ports.EventPublisher,
 	audit ports.AuditLogWriter,
 ) *LaunchService {
@@ -41,6 +44,7 @@ func NewLaunchService(
 		joinRequests: joinRequests,
 		readiness:    readiness,
 		genesis:      genesis,
+		allocations:  allocations,
 		events:       events,
 		audit:        audit,
 		urlValidator: netutil.ValidateRPCURL,
@@ -261,6 +265,98 @@ func (s *LaunchService) uploadGenesisRef(
 		return fmt.Errorf("%s: save launch: %w", op, err)
 	}
 	return nil
+}
+
+// UploadAllocationFileBytes stores raw allocation-file bytes (host mode) for the given
+// allocation type, records its hash on the launch (status PENDING), and audits the upload.
+// The caller must be a committee member; the launch must not be past genesis publication.
+// Mirrors UploadInitialGenesis but per allocation type.
+func (s *LaunchService) UploadAllocationFileBytes(
+	ctx context.Context, launchID uuid.UUID, allocType string, data []byte, callerAddr string,
+) (sha256Hash string, err error) {
+	at := launch.AllocationType(allocType)
+	if !launch.ValidAllocationType(at) {
+		return "", fmt.Errorf("upload allocation: unknown allocation type %q: %w", allocType, ports.ErrBadRequest)
+	}
+	l, err := s.launches.FindByID(ctx, launchID)
+	if err != nil {
+		return "", fmt.Errorf("upload allocation: %w", err)
+	}
+	callerOp, err := launch.NewOperatorAddress(callerAddr)
+	if err != nil || !l.Committee.HasMember(callerOp) {
+		return "", fmt.Errorf("upload allocation: caller is not a committee member: %w", ports.ErrForbidden)
+	}
+	// Allocation file content is opaque to coordd. The curated files are produced and
+	// consumed by gentool (CSV/TSV, not JSON), so we do not parse or validate the format
+	// here — we store the bytes and govern their hash. Semantic validation (denoms,
+	// balances, addresses) is gentool's / rehearsal's job. Non-empty + size cap are
+	// enforced at the HTTP layer.
+
+	hash := sha256Hex(data)
+	// Record on the aggregate first — this enforces the lifecycle lock and resets the
+	// file to PENDING — so a rejected upload never writes orphan bytes to the store.
+	if err := l.UploadAllocationFile(at, hash); err != nil {
+		return "", mapAllocationDomainErr("upload allocation", err)
+	}
+	if err := s.allocations.Save(ctx, launchID.String(), allocType, data); err != nil {
+		return "", fmt.Errorf("upload allocation: store: %w", err)
+	}
+	if err := s.launches.Save(ctx, l); err != nil {
+		return "", fmt.Errorf("upload allocation: save launch: %w", err)
+	}
+	_ = s.writeAudit(ctx, launchID.String(),
+		domain.AllocationFileUploaded{LaunchID: launchID, AllocationType: allocType, SHA256: hash})
+	return hash, nil
+}
+
+// UploadAllocationFileRef registers an external URL + sha256 as the source of an
+// allocation file (attestor mode); no bytes are stored on this server. The caller must
+// be a committee member. Mirrors UploadInitialGenesisRef but per allocation type.
+func (s *LaunchService) UploadAllocationFileRef(
+	ctx context.Context, launchID uuid.UUID, allocType, fileURL, sha256Hash, callerAddr string,
+) error {
+	at := launch.AllocationType(allocType)
+	if !launch.ValidAllocationType(at) {
+		return fmt.Errorf("upload allocation ref: unknown allocation type %q: %w", allocType, ports.ErrBadRequest)
+	}
+	l, err := s.launches.FindByID(ctx, launchID)
+	if err != nil {
+		return fmt.Errorf("upload allocation ref: %w", err)
+	}
+	callerOp, err := launch.NewOperatorAddress(callerAddr)
+	if err != nil || !l.Committee.HasMember(callerOp) {
+		return fmt.Errorf("upload allocation ref: caller is not a committee member: %w", ports.ErrForbidden)
+	}
+	if err := s.urlValidator(fileURL); err != nil {
+		return fmt.Errorf("upload allocation ref: invalid url: %w: %w", err, ports.ErrBadRequest)
+	}
+	if !isValidSHA256Hex(sha256Hash) {
+		return fmt.Errorf("upload allocation ref: sha256 must be a 64-character lowercase hex string: %w", ports.ErrBadRequest)
+	}
+
+	if err := l.UploadAllocationFile(at, sha256Hash); err != nil {
+		return mapAllocationDomainErr("upload allocation ref", err)
+	}
+	if err := s.allocations.SaveRef(ctx, launchID.String(), allocType, fileURL, sha256Hash); err != nil {
+		return fmt.Errorf("upload allocation ref: store: %w", err)
+	}
+	if err := s.launches.Save(ctx, l); err != nil {
+		return fmt.Errorf("upload allocation ref: save launch: %w", err)
+	}
+	_ = s.writeAudit(ctx, launchID.String(),
+		domain.AllocationFileUploaded{LaunchID: launchID, AllocationType: allocType, SHA256: sha256Hash})
+	return nil
+}
+
+// mapAllocationDomainErr maps the launch aggregate's allocation sentinels to a
+// client-facing bad-request so the HTTP layer renders 400 rather than 500.
+func mapAllocationDomainErr(op string, err error) error {
+	if errors.Is(err, launch.ErrAllocationLocked) ||
+		errors.Is(err, launch.ErrUnknownAllocationType) ||
+		errors.Is(err, launch.ErrAllocationEmptyHash) {
+		return fmt.Errorf("%s: %w: %w", op, err, ports.ErrBadRequest)
+	}
+	return fmt.Errorf("%s: %w", op, err)
 }
 
 // sha256HexLen is the number of hex characters in a SHA-256 digest.

@@ -26,7 +26,8 @@ A **Launch** is the top-level object that represents one chain's genesis coordin
 
 - The **chain record** — chain ID, binary name and version, denom, commission limits, deadlines
 - The **committee** — who governs the launch and what threshold is required
-- The **genesis accounts** — pre-funded accounts managed by committee proposal
+- The **allocation files** — curated genesis allocations (accounts/claims/grants/authz/feegrant), each approved as a
+  whole file by committee proposal
 - The current **lifecycle status**
 
 A launch moves through a fixed sequence of states. No state can be skipped; all transitions are driven by committee

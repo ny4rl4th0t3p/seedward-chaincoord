@@ -19,6 +19,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/ny4rl4th0t3p/seedward-libs/gentxvalidate"
 
@@ -101,6 +102,7 @@ type harness struct {
 	proposals  *thinProposalRepo
 	readiness  *thinReadinessRepo
 	genesis    *thinGenesisStore
+	allocation *thinAllocationStore
 	auditLog   *thinAuditLogReader
 	allowlist  *thinCoordinatorAllowlist
 }
@@ -146,6 +148,7 @@ func newHarness(t *testing.T) *harness {
 	verifier := &thinVerifier{}
 	launchRepo := &thinLaunchRepo{data: make(map[uuid.UUID]*launch.Launch)}
 	genesisStore := newThinGenesisStore(t)
+	allocationStore := newThinAllocationStore(t)
 	auditLogReader := &thinAuditLogReader{}
 	auditLogWriter := &thinAuditLogWriter{}
 	events := &thinEventPublisher{}
@@ -155,14 +158,14 @@ func newHarness(t *testing.T) *harness {
 	readinessRepo := &thinReadinessRepo{data: make(map[uuid.UUID]*launch.ReadinessConfirmation)}
 
 	authSvc := services.NewAuthService(challenges, sessions, nonces, verifier)
-	launchSvc := services.NewLaunchService(launchRepo, jrRepo, readinessRepo, genesisStore, events, auditLogWriter)
+	launchSvc := services.NewLaunchService(launchRepo, jrRepo, readinessRepo, genesisStore, allocationStore, events, auditLogWriter)
 	jrSvc := services.NewJoinRequestService(launchRepo, jrRepo, nonces, verifier, thinGentxValidator{})
 	propSvc := services.NewProposalService(launchRepo, jrRepo, propRepo, readinessRepo, nonces, verifier, events, auditLogWriter, tx)
 	readinessSvc := services.NewReadinessService(launchRepo, jrRepo, readinessRepo, nonces, verifier)
 
 	allowlistRepo := &thinCoordinatorAllowlist{data: make(map[string]*ports.CoordinatorAllowlistEntry)}
 	srv := api.NewServer(zerolog.Nop(), "", nil, authSvc, launchSvc, jrSvc, propSvc, readinessSvc,
-		sessions, &thinSSEBroker{}, genesisStore, auditLogReader, nil, allowlistRepo,
+		sessions, &thinSSEBroker{}, genesisStore, allocationStore, auditLogReader, nil, allowlistRepo,
 		config.LaunchPolicyOpen, false, 32<<20, false)
 
 	return &harness{
@@ -174,6 +177,7 @@ func newHarness(t *testing.T) *harness {
 		proposals:  propRepo,
 		readiness:  readinessRepo,
 		genesis:    genesisStore,
+		allocation: allocationStore,
 		auditLog:   auditLogReader,
 		allowlist:  allowlistRepo,
 	}
@@ -200,6 +204,7 @@ func newHarnessConfig(t *testing.T, adminAddrs []string, launchPolicy string) *h
 	verifier := &thinVerifier{}
 	launchRepo := &thinLaunchRepo{data: make(map[uuid.UUID]*launch.Launch)}
 	genesisStore := newThinGenesisStore(t)
+	allocationStore := newThinAllocationStore(t)
 	auditLogReader := &thinAuditLogReader{}
 	auditLogWriter := &thinAuditLogWriter{}
 	events := &thinEventPublisher{}
@@ -209,14 +214,14 @@ func newHarnessConfig(t *testing.T, adminAddrs []string, launchPolicy string) *h
 	readinessRepo := &thinReadinessRepo{data: make(map[uuid.UUID]*launch.ReadinessConfirmation)}
 
 	authSvc := services.NewAuthService(challenges, sessions, nonces, verifier)
-	launchSvc := services.NewLaunchService(launchRepo, jrRepo, readinessRepo, genesisStore, events, auditLogWriter)
+	launchSvc := services.NewLaunchService(launchRepo, jrRepo, readinessRepo, genesisStore, allocationStore, events, auditLogWriter)
 	jrSvc := services.NewJoinRequestService(launchRepo, jrRepo, nonces, verifier, thinGentxValidator{})
 	propSvc := services.NewProposalService(launchRepo, jrRepo, propRepo, readinessRepo, nonces, verifier, events, auditLogWriter, tx)
 	readinessSvc := services.NewReadinessService(launchRepo, jrRepo, readinessRepo, nonces, verifier)
 
 	allowlistRepo := &thinCoordinatorAllowlist{data: make(map[string]*ports.CoordinatorAllowlistEntry)}
 	srv := api.NewServer(zerolog.Nop(), "", adminAddrs, authSvc, launchSvc, jrSvc, propSvc, readinessSvc,
-		sessions, &thinSSEBroker{}, genesisStore, auditLogReader, nil, allowlistRepo, launchPolicy, false, 32<<20, false)
+		sessions, &thinSSEBroker{}, genesisStore, allocationStore, auditLogReader, nil, allowlistRepo, launchPolicy, false, 32<<20, false)
 
 	return &harness{
 		server:     srv,
@@ -227,6 +232,7 @@ func newHarnessConfig(t *testing.T, adminAddrs []string, launchPolicy string) *h
 		proposals:  propRepo,
 		readiness:  readinessRepo,
 		genesis:    genesisStore,
+		allocation: allocationStore,
 		auditLog:   auditLogReader,
 		allowlist:  allowlistRepo,
 	}
@@ -242,6 +248,7 @@ func newHarnessRateLimitDisabled(t *testing.T) *harness {
 	verifier := &thinVerifier{}
 	launchRepo := &thinLaunchRepo{data: make(map[uuid.UUID]*launch.Launch)}
 	genesisStore := newThinGenesisStore(t)
+	allocationStore := newThinAllocationStore(t)
 	auditLogReader := &thinAuditLogReader{}
 	auditLogWriter := &thinAuditLogWriter{}
 	events := &thinEventPublisher{}
@@ -251,14 +258,14 @@ func newHarnessRateLimitDisabled(t *testing.T) *harness {
 	readinessRepo := &thinReadinessRepo{data: make(map[uuid.UUID]*launch.ReadinessConfirmation)}
 
 	authSvc := services.NewAuthService(challenges, sessions, nonces, verifier)
-	launchSvc := services.NewLaunchService(launchRepo, jrRepo, readinessRepo, genesisStore, events, auditLogWriter)
+	launchSvc := services.NewLaunchService(launchRepo, jrRepo, readinessRepo, genesisStore, allocationStore, events, auditLogWriter)
 	jrSvc := services.NewJoinRequestService(launchRepo, jrRepo, nonces, verifier, thinGentxValidator{})
 	propSvc := services.NewProposalService(launchRepo, jrRepo, propRepo, readinessRepo, nonces, verifier, events, auditLogWriter, tx)
 	readinessSvc := services.NewReadinessService(launchRepo, jrRepo, readinessRepo, nonces, verifier)
 
 	allowlistRepo := &thinCoordinatorAllowlist{data: make(map[string]*ports.CoordinatorAllowlistEntry)}
 	srv := api.NewServer(zerolog.Nop(), "", nil, authSvc, launchSvc, jrSvc, propSvc, readinessSvc,
-		sessions, &thinSSEBroker{}, genesisStore, auditLogReader, nil, allowlistRepo,
+		sessions, &thinSSEBroker{}, genesisStore, allocationStore, auditLogReader, nil, allowlistRepo,
 		config.LaunchPolicyOpen, false, 32<<20, true)
 
 	return &harness{
@@ -270,6 +277,7 @@ func newHarnessRateLimitDisabled(t *testing.T) *harness {
 		proposals:  propRepo,
 		readiness:  readinessRepo,
 		genesis:    genesisStore,
+		allocation: allocationStore,
 		auditLog:   auditLogReader,
 		allowlist:  allowlistRepo,
 	}
@@ -285,6 +293,7 @@ func newHarnessHostMode(t *testing.T, maxBytes int64) *harness {
 	verifier := &thinVerifier{}
 	launchRepo := &thinLaunchRepo{data: make(map[uuid.UUID]*launch.Launch)}
 	genesisStore := newThinGenesisStore(t)
+	allocationStore := newThinAllocationStore(t)
 	auditLogReader := &thinAuditLogReader{}
 	auditLogWriter := &thinAuditLogWriter{}
 	events := &thinEventPublisher{}
@@ -294,14 +303,14 @@ func newHarnessHostMode(t *testing.T, maxBytes int64) *harness {
 	readinessRepo := &thinReadinessRepo{data: make(map[uuid.UUID]*launch.ReadinessConfirmation)}
 
 	authSvc := services.NewAuthService(challenges, sessions, nonces, verifier)
-	launchSvc := services.NewLaunchService(launchRepo, jrRepo, readinessRepo, genesisStore, events, auditLogWriter)
+	launchSvc := services.NewLaunchService(launchRepo, jrRepo, readinessRepo, genesisStore, allocationStore, events, auditLogWriter)
 	jrSvc := services.NewJoinRequestService(launchRepo, jrRepo, nonces, verifier, thinGentxValidator{})
 	propSvc := services.NewProposalService(launchRepo, jrRepo, propRepo, readinessRepo, nonces, verifier, events, auditLogWriter, tx)
 	readinessSvc := services.NewReadinessService(launchRepo, jrRepo, readinessRepo, nonces, verifier)
 
 	allowlistRepo := &thinCoordinatorAllowlist{data: make(map[string]*ports.CoordinatorAllowlistEntry)}
 	srv := api.NewServer(zerolog.Nop(), "", nil, authSvc, launchSvc, jrSvc, propSvc, readinessSvc,
-		sessions, &thinSSEBroker{}, genesisStore, auditLogReader, nil, allowlistRepo,
+		sessions, &thinSSEBroker{}, genesisStore, allocationStore, auditLogReader, nil, allowlistRepo,
 		config.LaunchPolicyOpen, true, maxBytes, false)
 
 	return &harness{
@@ -313,6 +322,7 @@ func newHarnessHostMode(t *testing.T, maxBytes int64) *harness {
 		proposals:  propRepo,
 		readiness:  readinessRepo,
 		genesis:    genesisStore,
+		allocation: allocationStore,
 		auditLog:   auditLogReader,
 		allowlist:  allowlistRepo,
 	}
@@ -359,9 +369,7 @@ func (h *harness) seedSession(addr string) string {
 // assertStatus fails the test if the response status code differs from want.
 func assertStatus(t *testing.T, got *httptest.ResponseRecorder, want int) {
 	t.Helper()
-	if got.Code != want {
-		t.Errorf("status: want %d, got %d (body: %s)", want, got.Code, got.Body.String())
-	}
+	assert.Equal(t, want, got.Code, "body: %s", got.Body.String())
 }
 
 // ---- thin fakes -------------------------------------------------------------
@@ -653,8 +661,8 @@ type thinGenesisStore struct {
 	dir        string // temp dir owned by the test
 	initial    map[string][]byte
 	final      map[string][]byte
-	initialRef map[string]*ports.GenesisRef // explicit override (Option A)
-	finalRef   map[string]*ports.GenesisRef // explicit override (Option A)
+	initialRef map[string]*ports.StoredFileRef // explicit override (Option A)
+	finalRef   map[string]*ports.StoredFileRef // explicit override (Option A)
 }
 
 func newThinGenesisStore(t *testing.T) *thinGenesisStore {
@@ -663,8 +671,8 @@ func newThinGenesisStore(t *testing.T) *thinGenesisStore {
 		dir:        t.TempDir(),
 		initial:    make(map[string][]byte),
 		final:      make(map[string][]byte),
-		initialRef: make(map[string]*ports.GenesisRef),
-		finalRef:   make(map[string]*ports.GenesisRef),
+		initialRef: make(map[string]*ports.StoredFileRef),
+		finalRef:   make(map[string]*ports.StoredFileRef),
 	}
 }
 
@@ -679,16 +687,16 @@ func (g *thinGenesisStore) SaveFinal(_ context.Context, id string, data []byte) 
 }
 
 func (g *thinGenesisStore) SaveInitialRef(_ context.Context, id, url, sha256 string) error {
-	g.initialRef[id] = &ports.GenesisRef{ExternalURL: url, SHA256: sha256}
+	g.initialRef[id] = &ports.StoredFileRef{ExternalURL: url, SHA256: sha256}
 	return nil
 }
 
 func (g *thinGenesisStore) SaveFinalRef(_ context.Context, id, url, sha256 string) error {
-	g.finalRef[id] = &ports.GenesisRef{ExternalURL: url, SHA256: sha256}
+	g.finalRef[id] = &ports.StoredFileRef{ExternalURL: url, SHA256: sha256}
 	return nil
 }
 
-func (g *thinGenesisStore) GetInitialRef(_ context.Context, id string) (*ports.GenesisRef, error) {
+func (g *thinGenesisStore) GetInitialRef(_ context.Context, id string) (*ports.StoredFileRef, error) {
 	if ref, ok := g.initialRef[id]; ok {
 		return ref, nil
 	}
@@ -700,10 +708,10 @@ func (g *thinGenesisStore) GetInitialRef(_ context.Context, id string) (*ports.G
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return nil, fmt.Errorf("thinGenesisStore: %w", err)
 	}
-	return &ports.GenesisRef{LocalPath: path}, nil
+	return &ports.StoredFileRef{LocalPath: path}, nil
 }
 
-func (g *thinGenesisStore) GetFinalRef(_ context.Context, id string) (*ports.GenesisRef, error) {
+func (g *thinGenesisStore) GetFinalRef(_ context.Context, id string) (*ports.StoredFileRef, error) {
 	if ref, ok := g.finalRef[id]; ok {
 		return ref, nil
 	}
@@ -715,7 +723,53 @@ func (g *thinGenesisStore) GetFinalRef(_ context.Context, id string) (*ports.Gen
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return nil, fmt.Errorf("thinGenesisStore: %w", err)
 	}
-	return &ports.GenesisRef{LocalPath: path}, nil
+	return &ports.StoredFileRef{LocalPath: path}, nil
+}
+
+// thinAllocationStore is an in-memory allocation-file store for handler tests,
+// mirroring thinGenesisStore. Keyed by launchID + ":" + allocType; explicit refs
+// (Option A) can be injected by setting refs directly.
+type thinAllocationStore struct {
+	dir   string // temp dir owned by the test
+	bytes map[string][]byte
+	refs  map[string]*ports.StoredFileRef
+}
+
+func newThinAllocationStore(t *testing.T) *thinAllocationStore {
+	t.Helper()
+	return &thinAllocationStore{
+		dir:   t.TempDir(),
+		bytes: make(map[string][]byte),
+		refs:  make(map[string]*ports.StoredFileRef),
+	}
+}
+
+func allocStoreKey(launchID, allocType string) string { return launchID + ":" + allocType }
+
+func (g *thinAllocationStore) Save(_ context.Context, launchID, allocType string, data []byte) error {
+	g.bytes[allocStoreKey(launchID, allocType)] = data
+	return nil
+}
+
+func (g *thinAllocationStore) SaveRef(_ context.Context, launchID, allocType, url, sha256 string) error {
+	g.refs[allocStoreKey(launchID, allocType)] = &ports.StoredFileRef{ExternalURL: url, SHA256: sha256}
+	return nil
+}
+
+func (g *thinAllocationStore) GetRef(_ context.Context, launchID, allocType string) (*ports.StoredFileRef, error) {
+	key := allocStoreKey(launchID, allocType)
+	if ref, ok := g.refs[key]; ok {
+		return ref, nil
+	}
+	data, ok := g.bytes[key]
+	if !ok {
+		return nil, ports.ErrNotFound
+	}
+	path := filepath.Join(g.dir, launchID+"-alloc-"+allocType+".data")
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		return nil, fmt.Errorf("thinAllocationStore: %w", err)
+	}
+	return &ports.StoredFileRef{LocalPath: path}, nil
 }
 
 // thinAuditLogWriter discards events.
@@ -757,17 +811,12 @@ func (*thinSSEBroker) Unsubscribe(_ string, _ chan domain.DomainEvent) {}
 
 func assertStatusCode(t *testing.T, w *httptest.ResponseRecorder, want int) {
 	t.Helper()
-	if w.Code != want {
-		t.Errorf("want status %d, got %d (body: %s)", want, w.Code, w.Body.String())
-	}
+	assert.Equal(t, want, w.Code, "body: %s", w.Body.String())
 }
 
 func assertContentTypeJSON(t *testing.T, w *httptest.ResponseRecorder) {
 	t.Helper()
-	ct := w.Header().Get("Content-Type")
-	if ct != "application/json" {
-		t.Errorf("want Content-Type application/json, got %q", ct)
-	}
+	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
 }
 
 // ---- response helpers -------------------------------------------------------

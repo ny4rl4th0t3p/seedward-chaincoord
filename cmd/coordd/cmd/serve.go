@@ -44,7 +44,7 @@ func newServeCmd() *cobra.Command {
 	cmd.Flags().String("listen-addr", "", "address to listen on (default :8080)")
 	cmd.Flags().String("db-path", "", "path to SQLite database file (required)")
 	cmd.Flags().String("audit-log-path", "", "path to audit log JSONL file (required)")
-	cmd.Flags().String("genesis-path", "", "directory for genesis file storage (required)")
+	cmd.Flags().String("files-path", "", "directory for genesis + allocation file storage (required)")
 	cmd.Flags().String("log-level", "", "log level: debug, info, warn, error (default info)")
 	cmd.Flags().String("cors-origins", "", "comma-separated allowed CORS origins (use * for dev)")
 	cmd.Flags().String("tls-cert", "", "path to TLS certificate file (PEM); requires --tls-key")
@@ -94,7 +94,7 @@ func loadServeConfig(cmd *cobra.Command) (*config.Config, error) {
 		{"listen-addr", "listen_addr"},
 		{"db-path", "db_path"},
 		{"audit-log-path", "audit_log_path"},
-		{"genesis-path", "genesis_path"},
+		{"files-path", "files_path"},
 		{"log-level", "log_level"},
 		{"cors-origins", "cors_origins"},
 		{"tls-cert", "tls_cert"},
@@ -164,6 +164,21 @@ func monitorURLValidatorFor(insecureNoSSRFCheck bool) func(string) error {
 	return netutil.ValidateRPCURL
 }
 
+// openFileStores opens the genesis and allocation file stores. They share the same root
+// directory: their filenames (initial/final vs alloc-<type>) never collide under
+// <root>/<launchID>/, so allocation files need no separate path config.
+func openFileStores(path string) (*fs.GenesisStore, *fs.AllocationStore, error) {
+	genesisStore, err := fs.NewGenesisStore(path)
+	if err != nil {
+		return nil, nil, fmt.Errorf("opening genesis store: %w", err)
+	}
+	allocationStore, err := fs.NewAllocationStore(path)
+	if err != nil {
+		return nil, nil, fmt.Errorf("opening allocation store: %w", err)
+	}
+	return genesisStore, allocationStore, nil
+}
+
 func runServe(cmd *cobra.Command, _ []string) error {
 	// --- Config ----------------------------------------------------------
 	cfg, err := loadServeConfig(cmd)
@@ -220,10 +235,10 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("restoring audit chain tip: %w", err)
 	}
 
-	// --- Genesis store ---------------------------------------------------
-	genesisStore, err := fs.NewGenesisStore(cfg.GenesisPath)
+	// --- File stores -----------------------------------------------------
+	genesisStore, allocationStore, err := openFileStores(cfg.FilesPath)
 	if err != nil {
-		return fmt.Errorf("opening genesis store: %w", err)
+		return err
 	}
 
 	// --- Cross-cutting ---------------------------------------------------
@@ -232,7 +247,7 @@ func runServe(cmd *cobra.Command, _ []string) error {
 
 	// --- Application services --------------------------------------------
 	authSvc := services.NewAuthService(challengeStore, sessionStore, nonceStore, verifier)
-	launchSvc := services.NewLaunchService(launchRepo, joinReqRepo, readinessRepo, genesisStore, sseBroker, auditLog)
+	launchSvc := services.NewLaunchService(launchRepo, joinReqRepo, readinessRepo, genesisStore, allocationStore, sseBroker, auditLog)
 	if cfg.InsecureNoSSRFCheck {
 		launchSvc = launchSvc.WithURLValidator(netutil.ValidateRPCURLFormat)
 	}
@@ -249,7 +264,7 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		cfg.CORSOrigins,
 		cfg.AdminAddresses,
 		authSvc, launchSvc, joinReqSvc, proposalSvc, readinessSvc,
-		sessionStore, sseBroker, genesisStore, auditLog,
+		sessionStore, sseBroker, genesisStore, allocationStore, auditLog,
 		auditLog.PubKey(),
 		coordinatorAllowlistRepo,
 		cfg.LaunchPolicy,

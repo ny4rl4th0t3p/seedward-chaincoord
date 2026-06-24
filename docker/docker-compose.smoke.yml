@@ -9,7 +9,7 @@ services:
       COORD_LISTEN_ADDR: ":8080"
       COORD_DB_PATH: "/data/coord.db"
       COORD_AUDIT_LOG_PATH: "/data/audit.jsonl"
-      COORD_GENESIS_PATH: "/data/genesis"
+      COORD_FILES_PATH: "/data/genesis"
       COORD_LOG_LEVEL: "info"
       COORD_CORS_ORIGINS: ""
       COORD_INSECURE_NO_TLS: "true"    # TLS is terminated by the upstream proxy/ingress

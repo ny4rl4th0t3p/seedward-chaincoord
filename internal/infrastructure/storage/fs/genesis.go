@@ -2,11 +2,6 @@ package fs
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/ports"
 )
@@ -26,22 +21,17 @@ import (
 // On GetInitialRef / GetFinalRef the .ref sidecar is checked first; if absent
 // the .json file is checked; if neither exists ErrNotFound is returned.
 type GenesisStore struct {
-	baseDir string
-}
-
-// genesisRef is the on-disk JSON format for Option A sidecars.
-type genesisRefFile struct {
-	URL    string `json:"url"`
-	SHA256 string `json:"sha256"`
+	fileStore
 }
 
 // NewGenesisStore returns a GenesisStore rooted at baseDir.
 // The directory is created if it does not exist.
 func NewGenesisStore(baseDir string) (*GenesisStore, error) {
-	if err := os.MkdirAll(baseDir, 0o700); err != nil {
-		return nil, fmt.Errorf("genesis store: creating base dir: %w", err)
+	fs, err := newFileStore(baseDir, "genesis store")
+	if err != nil {
+		return nil, err
 	}
-	return &GenesisStore{baseDir: baseDir}, nil
+	return &GenesisStore{fs}, nil
 }
 
 // SaveInitial stores the raw initial genesis bytes (Option C).
@@ -65,65 +55,11 @@ func (s *GenesisStore) SaveFinalRef(_ context.Context, launchID, url, sha256 str
 }
 
 // GetInitialRef returns how to serve the initial genesis file.
-func (s *GenesisStore) GetInitialRef(_ context.Context, launchID string) (*ports.GenesisRef, error) {
+func (s *GenesisStore) GetInitialRef(_ context.Context, launchID string) (*ports.StoredFileRef, error) {
 	return s.getRef(launchID, "initial.ref", "initial.json")
 }
 
 // GetFinalRef returns how to serve the final genesis file.
-func (s *GenesisStore) GetFinalRef(_ context.Context, launchID string) (*ports.GenesisRef, error) {
+func (s *GenesisStore) GetFinalRef(_ context.Context, launchID string) (*ports.StoredFileRef, error) {
 	return s.getRef(launchID, "final.ref", "final.json")
-}
-
-// getRef checks for a .ref sidecar first (Option A), then a .json file (Option C).
-func (s *GenesisStore) getRef(launchID, refName, jsonName string) (*ports.GenesisRef, error) {
-	refPath := filepath.Join(s.baseDir, launchID, refName)
-	raw, err := os.ReadFile(refPath)
-	if err == nil {
-		var f genesisRefFile
-		if err := json.Unmarshal(raw, &f); err != nil {
-			return nil, fmt.Errorf("genesis store: parsing ref sidecar: %w", err)
-		}
-		return &ports.GenesisRef{ExternalURL: f.URL, SHA256: f.SHA256}, nil
-	}
-	if !errors.Is(err, os.ErrNotExist) {
-		return nil, fmt.Errorf("genesis store: reading ref sidecar: %w", err)
-	}
-
-	// No sidecar — check for a local file (Option C).
-	jsonPath := filepath.Join(s.baseDir, launchID, jsonName)
-	if _, err := os.Stat(jsonPath); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil, ports.ErrNotFound
-		}
-		return nil, fmt.Errorf("genesis store: stating %s: %w", jsonName, err)
-	}
-	return &ports.GenesisRef{LocalPath: jsonPath}, nil
-}
-
-func (s *GenesisStore) writeBytes(launchID, filename string, data []byte) error {
-	dir := filepath.Join(s.baseDir, launchID)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return fmt.Errorf("genesis store: creating launch dir: %w", err)
-	}
-	path := filepath.Join(dir, filename)
-	if err := os.WriteFile(path, data, 0o600); err != nil {
-		return fmt.Errorf("genesis store: writing %s: %w", filename, err)
-	}
-	return nil
-}
-
-func (s *GenesisStore) writeRef(launchID, filename, url, sha256 string) error {
-	dir := filepath.Join(s.baseDir, launchID)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return fmt.Errorf("genesis store: creating launch dir: %w", err)
-	}
-	data, err := json.Marshal(genesisRefFile{URL: url, SHA256: sha256})
-	if err != nil {
-		return fmt.Errorf("genesis store: marshaling ref: %w", err)
-	}
-	path := filepath.Join(dir, filename)
-	if err := os.WriteFile(path, data, 0o600); err != nil {
-		return fmt.Errorf("genesis store: writing ref %s: %w", filename, err)
-	}
-	return nil
 }

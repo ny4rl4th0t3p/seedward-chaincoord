@@ -3,16 +3,23 @@ package services
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/ports"
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/joinrequest"
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/launch"
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/proposal"
+)
+
+// allocation file content hashes for the APPROVE_ALLOCATION_FILE tests.
+const (
+	allocHashA = "a1b5c3d4a5"
+	allocHashB = "f6a5d2c3b2"
 )
 
 func newProposalSvc(
@@ -28,6 +35,16 @@ func newProposalSvc(
 		nonces, verifier,
 		&fakeEventPublisher{}, &fakeAuditLogWriter{}, &fakeTransactor{},
 	)
+}
+
+// hasAuditEvent reports whether an audit event with the given name was written.
+func hasAuditEvent(evs []ports.AuditEvent, name string) bool {
+	for _, e := range evs {
+		if e.EventName == name {
+			return true
+		}
+	}
+	return false
 }
 
 func validRaiseInput(_ *launch.Launch) RaiseInput {
@@ -51,9 +68,7 @@ func TestProposalService_Raise_NonceConflict(t *testing.T) {
 	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), nonces, &fakeVerifier{})
 
 	_, err := svc.Raise(context.Background(), l.ID, validRaiseInput(l))
-	if err == nil {
-		t.Fatal("expected error for nonce conflict")
-	}
+	require.Error(t, err, "expected error for nonce conflict")
 }
 
 func TestProposalService_Raise_BadTimestamp(t *testing.T) {
@@ -63,9 +78,7 @@ func TestProposalService_Raise_BadTimestamp(t *testing.T) {
 	input := validRaiseInput(l)
 	input.Timestamp = expiredTS()
 	_, err := svc.Raise(context.Background(), l.ID, input)
-	if err == nil {
-		t.Fatal("expected error for expired timestamp")
-	}
+	require.Error(t, err, "expected error for expired timestamp")
 }
 
 func TestProposalService_Raise_LaunchNotFound(t *testing.T) {
@@ -80,9 +93,7 @@ func TestProposalService_Raise_LaunchNotFound(t *testing.T) {
 		Timestamp:       nowTS(),
 		Signature:       testSig,
 	})
-	if !errors.Is(err, ports.ErrNotFound) {
-		t.Fatalf("want ErrNotFound, got %v", err)
-	}
+	require.ErrorIs(t, err, ports.ErrNotFound)
 }
 
 func TestProposalService_Raise_NotCommitteeMember(t *testing.T) {
@@ -100,9 +111,7 @@ func TestProposalService_Raise_NotCommitteeMember(t *testing.T) {
 		Timestamp:       nowTS(),
 		Signature:       testSig,
 	})
-	if !errors.Is(err, ports.ErrForbidden) {
-		t.Fatalf("want ErrForbidden, got %v", err)
-	}
+	require.ErrorIs(t, err, ports.ErrForbidden)
 }
 
 func TestProposalService_Raise_SigFails(t *testing.T) {
@@ -111,9 +120,7 @@ func TestProposalService_Raise_SigFails(t *testing.T) {
 	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), verifier)
 
 	_, err := svc.Raise(context.Background(), l.ID, validRaiseInput(l))
-	if err == nil {
-		t.Fatal("expected error when signature verification fails")
-	}
+	require.Error(t, err, "expected error when signature verification fails")
 }
 
 func TestProposalService_Raise_StaysPending(t *testing.T) {
@@ -123,15 +130,9 @@ func TestProposalService_Raise_StaysPending(t *testing.T) {
 	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), propRepo, newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
 
 	p, err := svc.Raise(context.Background(), l.ID, validRaiseInput(l))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if p.Status != proposal.StatusPendingSignatures {
-		t.Errorf("want PENDING_SIGNATURES, got %s", p.Status)
-	}
-	if _, ok := propRepo.data[p.ID]; !ok {
-		t.Fatal("proposal not persisted")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, proposal.StatusPendingSignatures, p.Status)
+	require.Contains(t, propRepo.data, p.ID, "proposal not persisted")
 }
 
 func TestProposalService_Raise_1of1ExecutesImmediately(t *testing.T) {
@@ -142,9 +143,7 @@ func TestProposalService_Raise_1of1ExecutesImmediately(t *testing.T) {
 	propRepo := newFakeProposalRepo()
 	// Add one approved validator so CloseWindow passes the MinValidatorCount=1 check.
 	jr := makeJoinRequest(t, l.ID, testAddr2)
-	if err := jr.Approve(uuid.New()); err != nil {
-		t.Fatalf("approve: %v", err)
-	}
+	require.NoError(t, jr.Approve(uuid.New()))
 	jrRepo := newFakeJoinRequestRepo(jr)
 
 	svc := newProposalSvc(newFakeLaunchRepo(l), jrRepo, propRepo, newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
@@ -158,12 +157,8 @@ func TestProposalService_Raise_1of1ExecutesImmediately(t *testing.T) {
 		Timestamp:       nowTS(),
 		Signature:       testSig,
 	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if p.Status != proposal.StatusExecuted {
-		t.Errorf("want EXECUTED for 1-of-1 committee, got %s", p.Status)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, proposal.StatusExecuted, p.Status, "want EXECUTED for 1-of-1 committee")
 }
 
 // --- Sign ---
@@ -182,9 +177,7 @@ func TestProposalService_Sign_NonceConflict(t *testing.T) {
 		Timestamp:       nowTS(),
 		Signature:       testSig,
 	})
-	if err == nil {
-		t.Fatal("expected error for nonce conflict")
-	}
+	require.Error(t, err, "expected error for nonce conflict")
 }
 
 func TestProposalService_Sign_NotCommitteeMember(t *testing.T) {
@@ -200,9 +193,7 @@ func TestProposalService_Sign_NotCommitteeMember(t *testing.T) {
 		Timestamp:       nowTS(),
 		Signature:       testSig,
 	})
-	if !errors.Is(err, ports.ErrForbidden) {
-		t.Fatalf("want ErrForbidden, got %v", err)
-	}
+	require.ErrorIs(t, err, ports.ErrForbidden)
 }
 
 func TestProposalService_Sign_WrongLaunch(t *testing.T) {
@@ -218,9 +209,7 @@ func TestProposalService_Sign_WrongLaunch(t *testing.T) {
 		Timestamp:       nowTS(),
 		Signature:       testSig,
 	})
-	if !errors.Is(err, ports.ErrNotFound) {
-		t.Fatalf("want ErrNotFound when proposal belongs to different launch, got %v", err)
-	}
+	require.ErrorIs(t, err, ports.ErrNotFound)
 }
 
 func TestProposalService_Sign_AddsSignature(t *testing.T) {
@@ -240,12 +229,8 @@ func TestProposalService_Sign_AddsSignature(t *testing.T) {
 		Timestamp:       nowTS(),
 		Signature:       testSig,
 	})
-	if err != nil {
-		t.Fatalf("Raise: %v", err)
-	}
-	if p.Status != proposal.StatusPendingSignatures {
-		t.Fatalf("want PENDING after raise, got %s", p.Status)
-	}
+	require.NoError(t, err)
+	require.Equal(t, proposal.StatusPendingSignatures, p.Status, "want PENDING after raise")
 
 	// Sign as testAddr2.
 	p2, err := svc.Sign(context.Background(), l.ID, p.ID, SignInput{
@@ -255,15 +240,9 @@ func TestProposalService_Sign_AddsSignature(t *testing.T) {
 		Timestamp:       nowTS(),
 		Signature:       testSig,
 	})
-	if err != nil {
-		t.Fatalf("Sign: %v", err)
-	}
-	if p2.Status != proposal.StatusPendingSignatures {
-		t.Errorf("want still PENDING after second of three, got %s", p2.Status)
-	}
-	if p2.SignCount() != 2 {
-		t.Errorf("want 2 signatures, got %d", p2.SignCount())
-	}
+	require.NoError(t, err)
+	assert.Equal(t, proposal.StatusPendingSignatures, p2.Status, "want still PENDING after second of three")
+	assert.Equal(t, 2, p2.SignCount())
 }
 
 // --- ExpireStale ---
@@ -279,13 +258,8 @@ func TestProposalService_ExpireStale_ExpiresOld(t *testing.T) {
 		mustAddr(testAddr1), mustSig(), 1*time.Millisecond, time.Now().Add(-1*time.Hour))
 	propRepo.data[p.ID] = p
 
-	if err := svc.ExpireStale(context.Background()); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	stored := propRepo.data[p.ID]
-	if stored.Status != proposal.StatusExpired {
-		t.Errorf("want EXPIRED, got %s", stored.Status)
-	}
+	require.NoError(t, svc.ExpireStale(context.Background()))
+	assert.Equal(t, proposal.StatusExpired, propRepo.data[p.ID].Status)
 }
 
 func TestProposalService_ExpireStale_SkipsFresh(t *testing.T) {
@@ -298,12 +272,8 @@ func TestProposalService_ExpireStale_SkipsFresh(t *testing.T) {
 		mustAddr(testAddr1), mustSig(), 48*time.Hour, time.Now())
 	propRepo.data[p.ID] = p
 
-	if err := svc.ExpireStale(context.Background()); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if propRepo.data[p.ID].Status != proposal.StatusPendingSignatures {
-		t.Errorf("fresh proposal should not be expired")
-	}
+	require.NoError(t, svc.ExpireStale(context.Background()))
+	assert.Equal(t, proposal.StatusPendingSignatures, propRepo.data[p.ID].Status, "fresh proposal should not be expired")
 }
 
 // --- GetByID ---
@@ -313,9 +283,7 @@ func TestProposalService_GetByID_WrongLaunch(t *testing.T) {
 	svc := newProposalSvc(newFakeLaunchRepo(), newFakeJoinRequestRepo(), newFakeProposalRepo(p), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
 
 	_, err := svc.GetByID(context.Background(), uuid.New(), p.ID) // wrong launchID
-	if !errors.Is(err, ports.ErrNotFound) {
-		t.Fatalf("want ErrNotFound, got %v", err)
-	}
+	require.ErrorIs(t, err, ports.ErrNotFound)
 }
 
 func TestProposalService_GetByID_Success(t *testing.T) {
@@ -324,12 +292,8 @@ func TestProposalService_GetByID_Success(t *testing.T) {
 	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(p), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
 
 	got, err := svc.GetByID(context.Background(), l.ID, p.ID)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got.ID != p.ID {
-		t.Errorf("ID mismatch")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, p.ID, got.ID)
 }
 
 // --- ListForLaunch ---
@@ -341,12 +305,9 @@ func TestProposalService_ListForLaunch_ReturnsList(t *testing.T) {
 	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(p1, p2), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
 
 	got, total, err := svc.ListForLaunch(context.Background(), l.ID, 1, 10)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if total != 2 || len(got) != 2 {
-		t.Errorf("expected 2 proposals, got total=%d len=%d", total, len(got))
-	}
+	require.NoError(t, err)
+	assert.Equal(t, 2, total)
+	assert.Len(t, got, 2)
 }
 
 // --- apply-path tests ---
@@ -377,15 +338,9 @@ func TestProposalService_applyApproveValidator_Success(t *testing.T) {
 		JoinRequestID:   jr.ID,
 		OperatorAddress: testAddr2,
 	})
-	if err != nil {
-		t.Fatalf("Raise: %v", err)
-	}
-	if p.Status != proposal.StatusExecuted {
-		t.Fatalf("want EXECUTED, got %s", p.Status)
-	}
-	if jrRepo.data[jr.ID].Status != joinrequest.StatusApproved {
-		t.Error("join request should be APPROVED")
-	}
+	require.NoError(t, err)
+	require.Equal(t, proposal.StatusExecuted, p.Status)
+	assert.Equal(t, joinrequest.StatusApproved, jrRepo.data[jr.ID].Status, "join request should be APPROVED")
 }
 
 func TestProposalService_applyApproveValidator_JoinRequestNotFound(t *testing.T) {
@@ -397,9 +352,7 @@ func TestProposalService_applyApproveValidator_JoinRequestNotFound(t *testing.T)
 		JoinRequestID:   uuid.New(),
 		OperatorAddress: testAddr2,
 	})
-	if err == nil {
-		t.Fatal("expected error when join request not found")
-	}
+	require.Error(t, err, "expected error when join request not found")
 }
 
 func TestProposalService_applyRejectValidator_Success(t *testing.T) {
@@ -414,24 +367,16 @@ func TestProposalService_applyRejectValidator_Success(t *testing.T) {
 		OperatorAddress: testAddr2,
 		Reason:          "test rejection",
 	})
-	if err != nil {
-		t.Fatalf("Raise: %v", err)
-	}
-	if p.Status != proposal.StatusExecuted {
-		t.Fatalf("want EXECUTED, got %s", p.Status)
-	}
-	if jrRepo.data[jr.ID].Status != joinrequest.StatusRejected {
-		t.Errorf("want REJECTED, got %s", jrRepo.data[jr.ID].Status)
-	}
+	require.NoError(t, err)
+	require.Equal(t, proposal.StatusExecuted, p.Status)
+	assert.Equal(t, joinrequest.StatusRejected, jrRepo.data[jr.ID].Status)
 }
 
 func TestProposalService_applyRemoveValidator_Success(t *testing.T) {
 	l := test1of1Launch()
 	l.Status = launch.StatusWindowOpen
 	jr := makeJoinRequest(t, l.ID, testAddr2)
-	if err := jr.Approve(uuid.New()); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, jr.Approve(uuid.New()))
 	jrRepo := newFakeJoinRequestRepo(jr)
 	svc := newProposalSvc(newFakeLaunchRepo(l), jrRepo, newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
 
@@ -440,15 +385,9 @@ func TestProposalService_applyRemoveValidator_Success(t *testing.T) {
 		OperatorAddress: testAddr2,
 		Reason:          "removed for test",
 	})
-	if err != nil {
-		t.Fatalf("Raise: %v", err)
-	}
-	if p.Status != proposal.StatusExecuted {
-		t.Fatalf("want EXECUTED, got %s", p.Status)
-	}
-	if jrRepo.data[jr.ID].Status != joinrequest.StatusRejected {
-		t.Errorf("want REJECTED after revoke, got %s", jrRepo.data[jr.ID].Status)
-	}
+	require.NoError(t, err)
+	require.Equal(t, proposal.StatusExecuted, p.Status)
+	assert.Equal(t, joinrequest.StatusRejected, jrRepo.data[jr.ID].Status, "want REJECTED after revoke")
 }
 
 func TestProposalService_applyRemoveValidator_WrongStatus(t *testing.T) {
@@ -462,9 +401,7 @@ func TestProposalService_applyRemoveValidator_WrongStatus(t *testing.T) {
 		OperatorAddress: testAddr2,
 		Reason:          "should be blocked",
 	})
-	if err == nil {
-		t.Fatal("expected error: REMOVE_APPROVED_VALIDATOR not allowed at GENESIS_READY")
-	}
+	require.Error(t, err, "REMOVE_APPROVED_VALIDATOR not allowed at GENESIS_READY")
 }
 
 func TestProposalService_applyPublishGenesis_Success(t *testing.T) {
@@ -475,15 +412,9 @@ func TestProposalService_applyPublishGenesis_Success(t *testing.T) {
 	p, err := raiseWith(t, svc, l.ID, proposal.ActionPublishGenesis, proposal.PublishGenesisPayload{
 		GenesisHash: "deadbeef1234567890abcdef",
 	})
-	if err != nil {
-		t.Fatalf("Raise: %v", err)
-	}
-	if p.Status != proposal.StatusExecuted {
-		t.Fatalf("want EXECUTED, got %s", p.Status)
-	}
-	if l.Status != launch.StatusGenesisReady {
-		t.Errorf("want GENESIS_READY, got %s", l.Status)
-	}
+	require.NoError(t, err)
+	require.Equal(t, proposal.StatusExecuted, p.Status)
+	assert.Equal(t, launch.StatusGenesisReady, l.Status)
 }
 
 func TestProposalService_applyPublishChainRecord_Success(t *testing.T) {
@@ -494,17 +425,9 @@ func TestProposalService_applyPublishChainRecord_Success(t *testing.T) {
 	p, err := raiseWith(t, svc, l.ID, proposal.ActionPublishChainRecord, proposal.PublishChainRecordPayload{
 		InitialGenesisHash: "deadbeef01",
 	})
-	if err != nil {
-		t.Fatalf("Raise: %v", err)
-	}
-	if p.Status != proposal.StatusExecuted {
-		t.Fatalf("want EXECUTED, got %s", p.Status)
-	}
-	got, _ := newFakeLaunchRepo(l).FindByID(context.Background(), l.ID)
-	_ = got
-	if l.Status != launch.StatusPublished {
-		t.Errorf("want PUBLISHED after publish-chain-record, got %s", l.Status)
-	}
+	require.NoError(t, err)
+	require.Equal(t, proposal.StatusExecuted, p.Status)
+	assert.Equal(t, launch.StatusPublished, l.Status, "want PUBLISHED after publish-chain-record")
 }
 
 func TestProposalService_applyPublishChainRecord_HashMismatch(t *testing.T) {
@@ -515,9 +438,7 @@ func TestProposalService_applyPublishChainRecord_HashMismatch(t *testing.T) {
 	_, err := raiseWith(t, svc, l.ID, proposal.ActionPublishChainRecord, proposal.PublishChainRecordPayload{
 		InitialGenesisHash: "wronghash",
 	})
-	if err == nil {
-		t.Fatal("expected error: attested hash does not match uploaded hash")
-	}
+	require.Error(t, err, "attested hash does not match uploaded hash")
 }
 
 func TestProposalService_applyPublishChainRecord_NoGenesisUploaded(t *testing.T) {
@@ -527,9 +448,7 @@ func TestProposalService_applyPublishChainRecord_NoGenesisUploaded(t *testing.T)
 	_, err := raiseWith(t, svc, l.ID, proposal.ActionPublishChainRecord, proposal.PublishChainRecordPayload{
 		InitialGenesisHash: "somehash",
 	})
-	if err == nil {
-		t.Fatal("expected error: genesis not uploaded")
-	}
+	require.Error(t, err, "genesis not uploaded")
 }
 
 func TestProposalService_applyUpdateGenesisTime_Success(t *testing.T) {
@@ -542,15 +461,10 @@ func TestProposalService_applyUpdateGenesisTime_Success(t *testing.T) {
 	p, err := raiseWith(t, svc, l.ID, proposal.ActionUpdateGenesisTime, proposal.UpdateGenesisTimePayload{
 		NewGenesisTime: newTime,
 	})
-	if err != nil {
-		t.Fatalf("Raise: %v", err)
-	}
-	if p.Status != proposal.StatusExecuted {
-		t.Fatalf("want EXECUTED, got %s", p.Status)
-	}
-	if l.Record.GenesisTime == nil || !l.Record.GenesisTime.Equal(newTime) {
-		t.Errorf("genesis time not updated: got %v, want %v", l.Record.GenesisTime, newTime)
-	}
+	require.NoError(t, err)
+	require.Equal(t, proposal.StatusExecuted, p.Status)
+	require.NotNil(t, l.Record.GenesisTime)
+	assert.True(t, l.Record.GenesisTime.Equal(newTime), "genesis time not updated: got %v, want %v", l.Record.GenesisTime, newTime)
 }
 
 func TestProposalService_applyUpdateGenesisTime_InvalidatesReadiness(t *testing.T) {
@@ -568,12 +482,8 @@ func TestProposalService_applyUpdateGenesisTime_InvalidatesReadiness(t *testing.
 	_, err := raiseWith(t, svc, l.ID, proposal.ActionUpdateGenesisTime, proposal.UpdateGenesisTimePayload{
 		NewGenesisTime: time.Now().Add(48 * time.Hour).UTC(),
 	})
-	if err != nil {
-		t.Fatalf("Raise: %v", err)
-	}
-	if readinessRepo.data[rc.ID].IsValid() {
-		t.Error("readiness confirmation should have been invalidated")
-	}
+	require.NoError(t, err)
+	assert.False(t, readinessRepo.data[rc.ID].IsValid(), "readiness confirmation should have been invalidated")
 }
 
 func TestProposalService_applyUpdateGenesisTime_AfterLaunched(t *testing.T) {
@@ -585,91 +495,124 @@ func TestProposalService_applyUpdateGenesisTime_AfterLaunched(t *testing.T) {
 	_, err := raiseWith(t, svc, l.ID, proposal.ActionUpdateGenesisTime, proposal.UpdateGenesisTimePayload{
 		NewGenesisTime: time.Now().Add(48 * time.Hour).UTC(),
 	})
-	if err == nil {
-		t.Fatal("expected error: UPDATE_GENESIS_TIME not allowed at LAUNCHED")
-	}
+	require.Error(t, err, "UPDATE_GENESIS_TIME not allowed at LAUNCHED")
 }
 
-func TestProposalService_ApplyAddGenesisAccount_Success(t *testing.T) {
+// ---- ApproveAllocationFile -------------------------------------------------
+
+func TestProposalService_applyApproveAllocationFile_Success(t *testing.T) {
 	l := test1of1Launch()
+	require.NoError(t, l.UploadAllocationFile(launch.AllocationClaims, allocHashA))
 	lRepo := newFakeLaunchRepo(l)
-	svc := newProposalSvc(lRepo, newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
+	audit := &fakeAuditLogWriter{}
+	svc := NewProposalService(lRepo, newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(),
+		newFakeNonceStore(), &fakeVerifier{}, &fakeEventPublisher{}, audit, &fakeTransactor{})
 
-	_, err := raiseWith(t, svc, l.ID, proposal.ActionAddGenesisAccount, proposal.AddGenesisAccountPayload{
-		Address: testAddr2,
-		Amount:  "1000utest",
+	p, err := raiseWith(t, svc, l.ID, proposal.ActionApproveAllocationFile, proposal.ApproveAllocationFilePayload{
+		Type: string(launch.AllocationClaims),
+		Hash: allocHashA,
 	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err)
+	require.Equal(t, proposal.StatusExecuted, p.Status)
+
 	stored, _ := lRepo.FindByID(context.Background(), l.ID)
-	if len(stored.GenesisAccounts) != 1 || stored.GenesisAccounts[0].Address != testAddr2 {
-		t.Errorf("genesis account not persisted: %+v", stored.GenesisAccounts)
-	}
+	f, ok := stored.AllocationFileOf(launch.AllocationClaims)
+	require.True(t, ok)
+	assert.Equal(t, launch.AllocationApproved, f.Status)
+	require.NotNil(t, f.ApprovedByProposal)
+	assert.Equal(t, p.ID, *f.ApprovedByProposal)
+	assert.True(t, hasAuditEvent(audit.events, "AllocationFileApproved"), "approval not audited")
 }
 
-func TestProposalService_ApplyAddGenesisAccount_Duplicate(t *testing.T) {
+func TestProposalService_applyApproveAllocationFile_StaleHash(t *testing.T) {
+	// File uploaded with allocHashA, but the proposal approves allocHashB → stale, rejected.
 	l := test1of1Launch()
-	l.GenesisAccounts = []launch.GenesisAccount{{Address: testAddr2, Amount: "500utest"}}
+	require.NoError(t, l.UploadAllocationFile(launch.AllocationClaims, allocHashA))
 	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
 
-	_, err := raiseWith(t, svc, l.ID, proposal.ActionAddGenesisAccount, proposal.AddGenesisAccountPayload{
-		Address: testAddr2,
-		Amount:  "1000utest",
+	_, err := raiseWith(t, svc, l.ID, proposal.ActionApproveAllocationFile, proposal.ApproveAllocationFilePayload{
+		Type: string(launch.AllocationClaims),
+		Hash: allocHashB,
 	})
-	if err == nil {
-		t.Fatal("expected error for duplicate genesis account")
-	}
+	require.Error(t, err, "expected stale-hash error approving a hash that no longer matches")
 }
 
-func TestProposalService_ApplyRemoveGenesisAccount_Success(t *testing.T) {
-	l := test1of1Launch()
-	l.GenesisAccounts = []launch.GenesisAccount{{Address: testAddr2, Amount: "1000utest"}}
-	lRepo := newFakeLaunchRepo(l)
-	svc := newProposalSvc(lRepo, newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
-
-	_, err := raiseWith(t, svc, l.ID, proposal.ActionRemoveGenesisAccount, proposal.RemoveGenesisAccountPayload{
-		Address: testAddr2,
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	stored, _ := lRepo.FindByID(context.Background(), l.ID)
-	if len(stored.GenesisAccounts) != 0 {
-		t.Errorf("genesis account not removed: %+v", stored.GenesisAccounts)
-	}
-}
-
-func TestProposalService_ApplyRemoveGenesisAccount_NotFound(t *testing.T) {
+func TestProposalService_applyApproveAllocationFile_NotFound(t *testing.T) {
+	// No allocation file uploaded for the type → approval fails.
 	l := test1of1Launch()
 	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
 
-	_, err := raiseWith(t, svc, l.ID, proposal.ActionRemoveGenesisAccount, proposal.RemoveGenesisAccountPayload{
-		Address: testAddr2,
+	_, err := raiseWith(t, svc, l.ID, proposal.ActionApproveAllocationFile, proposal.ApproveAllocationFilePayload{
+		Type: string(launch.AllocationAccounts),
+		Hash: allocHashA,
 	})
-	if err == nil {
-		t.Fatal("expected error removing non-existent genesis account")
-	}
+	require.Error(t, err, "expected error approving a type with no uploaded file")
 }
 
-func TestProposalService_ApplyModifyGenesisAccount_Success(t *testing.T) {
-	l := test1of1Launch()
-	l.GenesisAccounts = []launch.GenesisAccount{{Address: testAddr2, Amount: "1000utest"}}
+func TestProposalService_applyAllocationVeto_RejectsFile(t *testing.T) {
+	// 2-of-3 committee so the proposal stays pending until a veto arrives.
+	l := testLaunch()
+	require.NoError(t, l.UploadAllocationFile(launch.AllocationClaims, allocHashA))
 	lRepo := newFakeLaunchRepo(l)
-	svc := newProposalSvc(lRepo, newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
+	audit := &fakeAuditLogWriter{}
+	svc := NewProposalService(lRepo, newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(),
+		newFakeNonceStore(), &fakeVerifier{}, &fakeEventPublisher{}, audit, &fakeTransactor{})
 
-	newAmt := "9999utest"
-	_, err := raiseWith(t, svc, l.ID, proposal.ActionModifyGenesisAccount, proposal.ModifyGenesisAccountPayload{
-		Address: testAddr2,
-		Amount:  newAmt,
+	p, err := raiseWith(t, svc, l.ID, proposal.ActionApproveAllocationFile, proposal.ApproveAllocationFilePayload{
+		Type: string(launch.AllocationClaims),
+		Hash: allocHashA,
 	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err)
+	require.Equal(t, proposal.StatusPendingSignatures, p.Status)
+
+	p2, err := svc.Sign(context.Background(), l.ID, p.ID, SignInput{
+		CoordinatorAddr: testAddr2,
+		Decision:        proposal.DecisionVeto,
+		Nonce:           uuid.New().String(),
+		Timestamp:       nowTS(),
+		Signature:       testSig,
+	})
+	require.NoError(t, err)
+	require.Equal(t, proposal.StatusVetoed, p2.Status)
+
 	stored, _ := lRepo.FindByID(context.Background(), l.ID)
-	if len(stored.GenesisAccounts) != 1 || stored.GenesisAccounts[0].Amount != newAmt {
-		t.Errorf("genesis account not updated: %+v", stored.GenesisAccounts)
-	}
+	f, _ := stored.AllocationFileOf(launch.AllocationClaims)
+	assert.Equal(t, launch.AllocationRejected, f.Status, "veto should mark the file REJECTED")
+	assert.True(t, hasAuditEvent(audit.events, "AllocationFileRejected"), "rejection not audited")
+}
+
+func TestProposalService_applyAllocationVeto_StaleNoop(t *testing.T) {
+	// A veto landing after the file was re-uploaded must not touch the new file.
+	l := testLaunch()
+	require.NoError(t, l.UploadAllocationFile(launch.AllocationClaims, allocHashA))
+	lRepo := newFakeLaunchRepo(l)
+	audit := &fakeAuditLogWriter{}
+	svc := NewProposalService(lRepo, newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(),
+		newFakeNonceStore(), &fakeVerifier{}, &fakeEventPublisher{}, audit, &fakeTransactor{})
+
+	p, err := raiseWith(t, svc, l.ID, proposal.ActionApproveAllocationFile, proposal.ApproveAllocationFilePayload{
+		Type: string(launch.AllocationClaims),
+		Hash: allocHashA,
+	})
+	require.NoError(t, err)
+
+	// Re-upload with a different hash; the pending approve/veto proposal is now stale.
+	require.NoError(t, l.UploadAllocationFile(launch.AllocationClaims, allocHashB))
+
+	_, err = svc.Sign(context.Background(), l.ID, p.ID, SignInput{
+		CoordinatorAddr: testAddr2,
+		Decision:        proposal.DecisionVeto,
+		Nonce:           uuid.New().String(),
+		Timestamp:       nowTS(),
+		Signature:       testSig,
+	})
+	require.NoError(t, err)
+
+	stored, _ := lRepo.FindByID(context.Background(), l.ID)
+	f, _ := stored.AllocationFileOf(launch.AllocationClaims)
+	assert.Equal(t, launch.AllocationPending, f.Status, "stale veto should leave the re-uploaded file PENDING")
+	assert.Equal(t, allocHashB, f.SHA256)
+	assert.False(t, hasAuditEvent(audit.events, "AllocationFileRejected"), "stale veto should not emit a rejection")
 }
 
 func TestProposalService_ApplyReplaceCommitteeMember_Success(t *testing.T) {
@@ -685,13 +628,9 @@ func TestProposalService_ApplyReplaceCommitteeMember_Success(t *testing.T) {
 		NewMoniker: "new-member",
 		NewPubKey:  "AAEC",
 	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err)
 	stored, _ := lRepo.FindByID(context.Background(), l.ID)
-	if stored.Committee.Members[0].Address.String() != testAddr2 {
-		t.Errorf("committee member not replaced: got %s", stored.Committee.Members[0].Address)
-	}
+	assert.Equal(t, testAddr2, stored.Committee.Members[0].Address.String(), "committee member not replaced")
 }
 
 func TestProposalService_ApplyReplaceCommitteeMember_OldNotFound(t *testing.T) {
@@ -704,9 +643,7 @@ func TestProposalService_ApplyReplaceCommitteeMember_OldNotFound(t *testing.T) {
 		NewMoniker: "new",
 		NewPubKey:  "AAEC",
 	})
-	if err == nil {
-		t.Fatal("expected error: old address not in committee")
-	}
+	require.Error(t, err, "old address not in committee")
 }
 
 func TestProposalService_applyReviseGenesis_Success(t *testing.T) {
@@ -717,19 +654,11 @@ func TestProposalService_applyReviseGenesis_Success(t *testing.T) {
 	svc := newProposalSvc(lRepo, newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
 
 	p, err := raiseWith(t, svc, l.ID, proposal.ActionReviseGenesis, proposal.ReviseGenesisPayload{})
-	if err != nil {
-		t.Fatalf("Raise: %v", err)
-	}
-	if p.Status != proposal.StatusExecuted {
-		t.Fatalf("want EXECUTED, got %s", p.Status)
-	}
+	require.NoError(t, err)
+	require.Equal(t, proposal.StatusExecuted, p.Status)
 	stored, _ := lRepo.FindByID(context.Background(), l.ID)
-	if stored.Status != launch.StatusWindowClosed {
-		t.Errorf("want WINDOW_CLOSED, got %s", stored.Status)
-	}
-	if stored.FinalGenesisSHA256 != "" {
-		t.Errorf("want FinalGenesisSHA256 cleared, got %q", stored.FinalGenesisSHA256)
-	}
+	assert.Equal(t, launch.StatusWindowClosed, stored.Status)
+	assert.Empty(t, stored.FinalGenesisSHA256, "want FinalGenesisSHA256 cleared")
 }
 
 func TestProposalService_applyReviseGenesis_InvalidatesReadiness(t *testing.T) {
@@ -746,12 +675,8 @@ func TestProposalService_applyReviseGenesis_InvalidatesReadiness(t *testing.T) {
 	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(), readinessRepo, newFakeNonceStore(), &fakeVerifier{})
 
 	_, err := raiseWith(t, svc, l.ID, proposal.ActionReviseGenesis, proposal.ReviseGenesisPayload{})
-	if err != nil {
-		t.Fatalf("Raise: %v", err)
-	}
-	if readinessRepo.data[rc.ID].IsValid() {
-		t.Error("readiness confirmation should have been invalidated")
-	}
+	require.NoError(t, err)
+	assert.False(t, readinessRepo.data[rc.ID].IsValid(), "readiness confirmation should have been invalidated")
 }
 
 func TestProposalService_applyReviseGenesis_WrongStatus(t *testing.T) {
@@ -761,9 +686,7 @@ func TestProposalService_applyReviseGenesis_WrongStatus(t *testing.T) {
 	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
 
 	_, err := raiseWith(t, svc, l.ID, proposal.ActionReviseGenesis, proposal.ReviseGenesisPayload{})
-	if err == nil {
-		t.Fatal("expected error when launch is not in GENESIS_READY")
-	}
+	require.Error(t, err, "expected error when launch is not in GENESIS_READY")
 }
 
 func TestProposalService_ApplyReplaceCommitteeMember_LeadReplaced(t *testing.T) {
@@ -778,13 +701,9 @@ func TestProposalService_ApplyReplaceCommitteeMember_LeadReplaced(t *testing.T) 
 		NewMoniker: "new-lead",
 		NewPubKey:  "AAEC",
 	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err)
 	stored, _ := lRepo.FindByID(context.Background(), l.ID)
-	if stored.Committee.LeadAddress.String() != testAddr2 {
-		t.Errorf("lead address not updated: got %s", stored.Committee.LeadAddress)
-	}
+	assert.Equal(t, testAddr2, stored.Committee.LeadAddress.String(), "lead address not updated")
 }
 
 // ---- ExpandCommittee --------------------------------------------------------
@@ -802,25 +721,17 @@ func TestProposalService_ApplyExpandCommittee_DefaultThreshold(t *testing.T) {
 			PubKeyB64: "BBBB",
 		},
 	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err)
 	stored, _ := lRepo.FindByID(context.Background(), l.ID)
-	if stored.Committee.TotalN != 2 {
-		t.Errorf("TotalN: want 2, got %d", stored.Committee.TotalN)
-	}
-	if stored.Committee.ThresholdM != 1 {
-		t.Errorf("ThresholdM: want 1, got %d", stored.Committee.ThresholdM)
-	}
+	assert.Equal(t, 2, stored.Committee.TotalN)
+	assert.Equal(t, 1, stored.Committee.ThresholdM)
 	found := false
 	for _, m := range stored.Committee.Members {
 		if m.Address.String() == testAddr2 {
 			found = true
 		}
 	}
-	if !found {
-		t.Error("new member not found in stored committee")
-	}
+	assert.True(t, found, "new member not found in stored committee")
 }
 
 func TestProposalService_ApplyExpandCommittee_ExplicitThreshold(t *testing.T) {
@@ -838,13 +749,9 @@ func TestProposalService_ApplyExpandCommittee_ExplicitThreshold(t *testing.T) {
 		},
 		NewThresholdM: &m,
 	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err)
 	stored, _ := lRepo.FindByID(context.Background(), l.ID)
-	if stored.Committee.ThresholdM != 1 {
-		t.Errorf("ThresholdM: want 1, got %d", stored.Committee.ThresholdM)
-	}
+	assert.Equal(t, 1, stored.Committee.ThresholdM)
 }
 
 func TestProposalService_ApplyExpandCommittee_ExpiresPendingProposals(t *testing.T) {
@@ -861,14 +768,9 @@ func TestProposalService_ApplyExpandCommittee_ExpiresPendingProposals(t *testing
 			PubKeyB64: "BBBB",
 		},
 	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err)
 	// The pending CloseWindow proposal must be EXPIRED; the expand proposal itself is EXECUTED.
-	stored := pRepo.data[pending.ID]
-	if stored.Status != proposal.StatusExpired {
-		t.Errorf("pre-existing pending proposal: want EXPIRED, got %s", stored.Status)
-	}
+	assert.Equal(t, proposal.StatusExpired, pRepo.data[pending.ID].Status, "pre-existing pending proposal should be EXPIRED")
 }
 
 func TestProposalService_ApplyExpandCommittee_DuplicateMember(t *testing.T) {
@@ -883,9 +785,7 @@ func TestProposalService_ApplyExpandCommittee_DuplicateMember(t *testing.T) {
 			PubKeyB64: "AAAA",
 		},
 	})
-	if err == nil {
-		t.Fatal("expected error: duplicate member address")
-	}
+	require.Error(t, err, "duplicate member address")
 }
 
 // ---- ShrinkCommittee --------------------------------------------------------
@@ -899,20 +799,12 @@ func TestProposalService_ApplyShrinkCommittee_DefaultThreshold(t *testing.T) {
 	_, err := raiseWith(t, svc, l.ID, proposal.ActionShrinkCommittee, proposal.ShrinkCommitteePayload{
 		RemoveAddress: testAddr3,
 	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err)
 	stored, _ := lRepo.FindByID(context.Background(), l.ID)
-	if stored.Committee.TotalN != 2 {
-		t.Errorf("TotalN: want 2, got %d", stored.Committee.TotalN)
-	}
-	if stored.Committee.ThresholdM != 1 {
-		t.Errorf("ThresholdM: want 1, got %d", stored.Committee.ThresholdM)
-	}
+	assert.Equal(t, 2, stored.Committee.TotalN)
+	assert.Equal(t, 1, stored.Committee.ThresholdM)
 	for _, m := range stored.Committee.Members {
-		if m.Address.String() == testAddr3 {
-			t.Error("removed member still present in committee")
-		}
+		assert.NotEqual(t, testAddr3, m.Address.String(), "removed member still present in committee")
 	}
 }
 
@@ -941,9 +833,7 @@ func TestResolveThreshold(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			got := ResolveThreshold(tc.currentM, tc.newN, tc.override)
-			if got != tc.want {
-				t.Errorf("ResolveThreshold(%d, %d, %v): want %d, got %d", tc.currentM, tc.newN, tc.override, tc.want, got)
-			}
+			assert.Equal(t, tc.want, got, "ResolveThreshold(%d, %d, %v)", tc.currentM, tc.newN, tc.override)
 		})
 	}
 }
@@ -958,13 +848,9 @@ func TestProposalService_ApplyShrinkCommittee_ExplicitThreshold(t *testing.T) {
 		RemoveAddress: testAddr3,
 		NewThresholdM: &m,
 	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err)
 	stored, _ := lRepo.FindByID(context.Background(), l.ID)
-	if stored.Committee.ThresholdM != 1 {
-		t.Errorf("ThresholdM: want 1, got %d", stored.Committee.ThresholdM)
-	}
+	assert.Equal(t, 1, stored.Committee.ThresholdM)
 }
 
 func TestProposalService_ApplyShrinkCommittee_ExpiresPendingProposals(t *testing.T) {
@@ -977,36 +863,18 @@ func TestProposalService_ApplyShrinkCommittee_ExpiresPendingProposals(t *testing
 	_, err := raiseWith(t, svc, l.ID, proposal.ActionShrinkCommittee, proposal.ShrinkCommitteePayload{
 		RemoveAddress: testAddr3,
 	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	stored := pRepo.data[pending.ID]
-	if stored.Status != proposal.StatusExpired {
-		t.Errorf("pre-existing pending proposal: want EXPIRED, got %s", stored.Status)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, proposal.StatusExpired, pRepo.data[pending.ID].Status, "pre-existing pending proposal should be EXPIRED")
 }
 
 func TestProposalService_ApplyShrinkCommittee_MemberNotFound(t *testing.T) {
+	// Removing an address that is not in the 1-of-3 committee must fail.
+	const unknownAddr = "cosmos1sxpg8py9s6rc3zv23wxgmr50jzge9yu5r5slya"
 	l := test1of3Launch()
 	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
 
-	// testAddr1 is the proposer (committee member); testAddr2/testAddr3 are also members;
-	// use an address not in the committee.
 	_, err := raiseWith(t, svc, l.ID, proposal.ActionShrinkCommittee, proposal.ShrinkCommitteePayload{
-		RemoveAddress: testAddr1, // removing the proposer/lead is allowed by domain, but use a non-existent one
-	})
-	// testAddr1 IS in the committee, so this succeeds. Instead test with an unlisted address via
-	// a direct address that's not in testCommittee(1,3).
-	_ = err
-
-	// Use cosmos1sxpg8py9s6rc3zv23wxgmr50jzge9yu5r5slya which is not in the 1-of-3 committee.
-	const unknownAddr = "cosmos1sxpg8py9s6rc3zv23wxgmr50jzge9yu5r5slya"
-	l2 := test1of3Launch()
-	svc2 := newProposalSvc(newFakeLaunchRepo(l2), newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
-	_, err = raiseWith(t, svc2, l2.ID, proposal.ActionShrinkCommittee, proposal.ShrinkCommitteePayload{
 		RemoveAddress: unknownAddr,
 	})
-	if err == nil {
-		t.Fatal("expected error: remove_address not in committee")
-	}
+	require.Error(t, err, "remove_address not in committee")
 }

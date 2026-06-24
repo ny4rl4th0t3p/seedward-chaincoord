@@ -14,7 +14,7 @@ import (
 )
 
 func newLaunchSvc(launchRepo *fakeLaunchRepo, genesisStore *fakeGenesisStore) *LaunchService {
-	return NewLaunchService(launchRepo, newFakeJoinRequestRepo(), newFakeReadinessRepo(), genesisStore, &fakeEventPublisher{}, &fakeAuditLogWriter{})
+	return NewLaunchService(launchRepo, newFakeJoinRequestRepo(), newFakeReadinessRepo(), genesisStore, newFakeAllocationStore(), &fakeEventPublisher{}, &fakeAuditLogWriter{})
 }
 
 // --- CreateLaunch ---
@@ -188,7 +188,7 @@ func TestLaunchService_UploadFinalGenesis_Success(t *testing.T) {
 
 // newLaunchSvcWithJR creates a LaunchService with a custom join request repo.
 func newLaunchSvcWithJR(launchRepo *fakeLaunchRepo, jrRepo *fakeJoinRequestRepo, genesisStore *fakeGenesisStore) *LaunchService {
-	return NewLaunchService(launchRepo, jrRepo, newFakeReadinessRepo(), genesisStore, &fakeEventPublisher{}, &fakeAuditLogWriter{})
+	return NewLaunchService(launchRepo, jrRepo, newFakeReadinessRepo(), genesisStore, newFakeAllocationStore(), &fakeEventPublisher{}, &fakeAuditLogWriter{})
 }
 
 func TestLaunchService_UploadFinalGenesis_GenesisTimeZero(t *testing.T) {
@@ -787,11 +787,11 @@ func TestLaunchService_GetCommittee_NotFound(t *testing.T) {
 // --- CancelLaunch ---
 
 func newLaunchSvcWithReadiness(launchRepo *fakeLaunchRepo, readinessRepo *fakeReadinessRepo) *LaunchService {
-	return NewLaunchService(launchRepo, newFakeJoinRequestRepo(), readinessRepo, newFakeGenesisStore(), &fakeEventPublisher{}, &fakeAuditLogWriter{})
+	return NewLaunchService(launchRepo, newFakeJoinRequestRepo(), readinessRepo, newFakeGenesisStore(), newFakeAllocationStore(), &fakeEventPublisher{}, &fakeAuditLogWriter{})
 }
 
 func newLaunchSvcWithAudit(launchRepo *fakeLaunchRepo, genesisStore *fakeGenesisStore, audit *fakeAuditLogWriter) *LaunchService {
-	return NewLaunchService(launchRepo, newFakeJoinRequestRepo(), newFakeReadinessRepo(), genesisStore, &fakeEventPublisher{}, audit)
+	return NewLaunchService(launchRepo, newFakeJoinRequestRepo(), newFakeReadinessRepo(), genesisStore, newFakeAllocationStore(), &fakeEventPublisher{}, audit)
 }
 
 func TestLaunchService_CancelLaunch_Success(t *testing.T) {
@@ -898,7 +898,7 @@ func TestLaunchService_CreateLaunch_AuditEvent(t *testing.T) {
 func TestLaunchService_CancelLaunch_AuditEvent(t *testing.T) {
 	l := testLaunch()
 	audit := &fakeAuditLogWriter{}
-	svc := NewLaunchService(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeReadinessRepo(), newFakeGenesisStore(), &fakeEventPublisher{}, audit)
+	svc := NewLaunchService(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeReadinessRepo(), newFakeGenesisStore(), newFakeAllocationStore(), &fakeEventPublisher{}, audit)
 
 	if err := svc.CancelLaunch(context.Background(), l.ID, testAddr1); err != nil {
 		t.Fatalf("unexpected error: %v", err)

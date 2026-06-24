@@ -29,9 +29,7 @@ const (
 	ActionApproveValidator        ActionType = "APPROVE_VALIDATOR"
 	ActionRejectValidator         ActionType = "REJECT_VALIDATOR"
 	ActionRemoveApprovedValidator ActionType = "REMOVE_APPROVED_VALIDATOR"
-	ActionAddGenesisAccount       ActionType = "ADD_GENESIS_ACCOUNT"
-	ActionRemoveGenesisAccount    ActionType = "REMOVE_GENESIS_ACCOUNT"
-	ActionModifyGenesisAccount    ActionType = "MODIFY_GENESIS_ACCOUNT"
+	ActionApproveAllocationFile   ActionType = "APPROVE_ALLOCATION_FILE"
 	ActionPublishChainRecord      ActionType = "PUBLISH_CHAIN_RECORD"
 	ActionCloseApplicationWindow  ActionType = "CLOSE_APPLICATION_WINDOW"
 	ActionPublishGenesis          ActionType = "PUBLISH_GENESIS"
@@ -275,8 +273,15 @@ func (p *Proposal) emitExecutionEvents() {
 			LaunchID: p.LaunchID,
 		}.WithTime(now))
 
-	case ActionAddGenesisAccount, ActionRemoveGenesisAccount, ActionModifyGenesisAccount,
-		ActionReplaceCommitteeMember, ActionExpandCommittee, ActionShrinkCommittee:
+	case ActionApproveAllocationFile:
+		allocType, hash := extractAllocationFields(p.Payload)
+		p.events = append(p.events, domain.AllocationFileApproved{
+			LaunchID:       p.LaunchID,
+			AllocationType: allocType,
+			SHA256:         hash,
+		}.WithTime(now))
+
+	case ActionReplaceCommitteeMember, ActionExpandCommittee, ActionShrinkCommittee:
 		// These actions mutate launch state directly via applyAndSave; no domain event needed.
 	}
 }

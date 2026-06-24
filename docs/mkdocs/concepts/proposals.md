@@ -58,18 +58,33 @@ blocked once the genesis is published — revert to `WINDOW_CLOSED` via `REVISE_
 | `PUBLISH_GENESIS`          | `WINDOW_CLOSED` → `GENESIS_READY` | `WINDOW_CLOSED`            |
 | `REVISE_GENESIS`           | `GENESIS_READY` → `WINDOW_CLOSED` | `GENESIS_READY`            |
 
-### Genesis metadata
+### Genesis metadata & allocations
 
-Genesis-account changes are rejected once the genesis is published (`GENESIS_READY`, `LAUNCHED`, or `CANCELED`) — they
-could no longer affect the published file. `UPDATE_GENESIS_TIME` is blocked only after `LAUNCHED` (it is designed to run
-at `GENESIS_READY` as part of the revise flow, where it invalidates existing readiness confirmations).
+`UPDATE_GENESIS_TIME` is blocked only after `LAUNCHED` (it is designed to run at `GENESIS_READY` as part of the revise
+flow, where it invalidates existing readiness confirmations). `APPROVE_ALLOCATION_FILE` is rejected once the genesis is
+published (`GENESIS_READY`, `LAUNCHED`, or `CANCELED`) — an approval could no longer affect the published file.
 
-| Action                   | Effect                                                                    | Allowed status                               |
-|--------------------------|---------------------------------------------------------------------------|----------------------------------------------|
-| `UPDATE_GENESIS_TIME`    | Updates the `genesis_time` field; invalidates all readiness confirmations | any pre-`LAUNCHED`                           |
-| `ADD_GENESIS_ACCOUNT`    | Adds a pre-funded account to the genesis                                  | before `GENESIS_READY` (address must be new) |
-| `REMOVE_GENESIS_ACCOUNT` | Removes a pre-funded account                                              | before `GENESIS_READY` (account must exist)  |
-| `MODIFY_GENESIS_ACCOUNT` | Changes amount or vesting schedule                                        | before `GENESIS_READY` (account must exist)  |
+| Action                    | Effect                                                                    | Allowed status         |
+|---------------------------|---------------------------------------------------------------------------|------------------------|
+| `UPDATE_GENESIS_TIME`     | Updates the `genesis_time` field; invalidates all readiness confirmations | any pre-`LAUNCHED`     |
+| `APPROVE_ALLOCATION_FILE` | Approves the curated allocation file of one type, bound to its SHA-256    | before `GENESIS_READY` |
+
+#### Allocation files
+
+Genesis allocations (`accounts`, `claims`, `grants`, `authz`, `feegrant`) are governed as **whole files**, not
+per-entry. A committee member uploads the curated file for a type (`POST /launch/{id}/allocations/{type}`, dual-mode
+like genesis: attestor URL+hash or host bytes); it lands in `PENDING`. The content is **opaque** to coordd — gentool
+emits CSV/TSV, not JSON — so the server stores and hashes the bytes but does not parse them.
+
+Each file is then governed by its own `APPROVE_ALLOCATION_FILE` proposal, carrying `{type, hash}`:
+
+- The payload `hash` must equal the file's **current** SHA-256 when the proposal executes. If the file was re-uploaded
+  in the meantime (new hash), execution fails — you cannot approve bytes that have since changed.
+- On quorum the file becomes `APPROVED` (bound to the executing proposal). A single **VETO** marks it `REJECTED`.
+- Re-uploading a corrected file resets it to `PENDING` for a fresh approval, invalidating any prior decision.
+
+This supersedes the old per-entry `ADD`/`REMOVE`/`MODIFY_GENESIS_ACCOUNT` proposals, which no longer exist — curated
+files are reviewed and approved as a unit by humans, with the hash as the integrity anchor.
 
 ### Committee management
 

@@ -317,6 +317,10 @@ func buildTestServer(t *testing.T, admins []string) *testServer {
 	if err != nil {
 		t.Fatalf("genesis store: %v", err)
 	}
+	allocationStore, err := fsStore.NewAllocationStore(filepath.Join(dir, "genesis"))
+	if err != nil {
+		t.Fatalf("allocation store: %v", err)
+	}
 	al, err := auditlog.Open(filepath.Join(dir, "audit.jsonl"), nil)
 	if err != nil {
 		t.Fatalf("auditlog: %v", err)
@@ -342,7 +346,7 @@ func buildTestServer(t *testing.T, admins []string) *testServer {
 	allowlistRepo := sqlite.NewCoordinatorAllowlistRepo(db)
 
 	authSvc := services.NewAuthService(challengeStore, sessionStore, nonceStore, verifier)
-	launchSvc := services.NewLaunchService(launchRepo, joinReqRepo, readinessRepo, genesisStore, sseBroker, al).
+	launchSvc := services.NewLaunchService(launchRepo, joinReqRepo, readinessRepo, genesisStore, allocationStore, sseBroker, al).
 		WithURLValidator(netutil.ValidateRPCURLFormat)
 	joinReqSvc := services.NewJoinRequestService(launchRepo, joinReqRepo, nonceStore, verifier, e2eGentxValidator{})
 	proposalSvc := services.NewProposalService(
@@ -354,7 +358,7 @@ func buildTestServer(t *testing.T, admins []string) *testServer {
 	apiServer := api.NewServer(
 		zerolog.Nop(), "", admins,
 		authSvc, launchSvc, joinReqSvc, proposalSvc, readinessSvc,
-		sessionStore, sseBroker, genesisStore, al,
+		sessionStore, sseBroker, genesisStore, allocationStore, al,
 		al.PubKey(), allowlistRepo, "open", true, 64<<20, true,
 	)
 

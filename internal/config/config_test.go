@@ -24,7 +24,7 @@ func allRequired(v *viper.Viper) {
 	v.Set("db_path", "/tmp/coord.db")
 	v.Set("audit_log_path", "/tmp/audit.jsonl")
 	v.Set("audit_private_key", testAuditKey)
-	v.Set("genesis_path", "/tmp/genesis")
+	v.Set("files_path", "/tmp/genesis")
 	v.Set("jwt_private_key", testJWTKey)
 }
 
@@ -114,7 +114,7 @@ db_path: "/data/coord.db"
 audit_log_path: "/data/audit.jsonl"
 audit_private_key: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 jwt_private_key: "AQIDAQIDAQIDAQIDAQIDAQIDAQIDAQIDAQIDAQIDAQI="
-genesis_path: "/data/genesis"
+files_path: "/data/genesis"
 log_level: "debug"
 `
 	dir := t.TempDir()
@@ -137,8 +137,8 @@ log_level: "debug"
 	if cfg.AuditLogPath != "/data/audit.jsonl" {
 		t.Errorf("AuditLogPath: got %q", cfg.AuditLogPath)
 	}
-	if cfg.GenesisPath != "/data/genesis" {
-		t.Errorf("GenesisPath: got %q", cfg.GenesisPath)
+	if cfg.FilesPath != "/data/genesis" {
+		t.Errorf("FilesPath: got %q", cfg.FilesPath)
 	}
 	if cfg.LogLevel != "debug" {
 		t.Errorf("LogLevel: got %q", cfg.LogLevel)
@@ -149,7 +149,7 @@ func TestLoad_FromEnvVars(t *testing.T) {
 	t.Setenv("COORD_DB_PATH", "/env/coord.db")
 	t.Setenv("COORD_AUDIT_LOG_PATH", "/env/audit.jsonl")
 	t.Setenv("COORD_AUDIT_PRIVATE_KEY", testAuditKey)
-	t.Setenv("COORD_GENESIS_PATH", "/env/genesis")
+	t.Setenv("COORD_FILES_PATH", "/env/genesis")
 	t.Setenv("COORD_JWT_PRIVATE_KEY", testJWTKey)
 
 	v := newViper()
@@ -163,15 +163,15 @@ func TestLoad_FromEnvVars(t *testing.T) {
 	if cfg.AuditLogPath != "/env/audit.jsonl" {
 		t.Errorf("AuditLogPath from env: got %q", cfg.AuditLogPath)
 	}
-	if cfg.GenesisPath != "/env/genesis" {
-		t.Errorf("GenesisPath from env: got %q", cfg.GenesisPath)
+	if cfg.FilesPath != "/env/genesis" {
+		t.Errorf("FilesPath from env: got %q", cfg.FilesPath)
 	}
 }
 
 func TestLoad_MissingDBPath(t *testing.T) {
 	v := newViper()
 	v.Set("audit_log_path", "/tmp/audit.jsonl")
-	v.Set("genesis_path", "/tmp/genesis")
+	v.Set("files_path", "/tmp/genesis")
 	_, err := config.Load(v, "")
 	if err == nil {
 		t.Fatal("expected validation error for missing db_path")
@@ -182,7 +182,7 @@ func TestLoad_MissingAuditLogPath(t *testing.T) {
 	v := newViper()
 	v.Set("db_path", "/tmp/coord.db")
 	v.Set("audit_private_key", testAuditKey)
-	v.Set("genesis_path", "/tmp/genesis")
+	v.Set("files_path", "/tmp/genesis")
 	_, err := config.Load(v, "")
 	if err == nil {
 		t.Fatal("expected validation error for missing audit_log_path")
@@ -193,7 +193,7 @@ func TestLoad_MissingAuditPrivateKey(t *testing.T) {
 	v := newViper()
 	v.Set("db_path", "/tmp/coord.db")
 	v.Set("audit_log_path", "/tmp/audit.jsonl")
-	v.Set("genesis_path", "/tmp/genesis")
+	v.Set("files_path", "/tmp/genesis")
 	_, err := config.Load(v, "")
 	if err == nil {
 		t.Fatal("expected validation error for missing audit_private_key")
@@ -205,21 +205,21 @@ func TestLoad_InvalidAuditPrivateKey(t *testing.T) {
 	v.Set("db_path", "/tmp/coord.db")
 	v.Set("audit_log_path", "/tmp/audit.jsonl")
 	v.Set("audit_private_key", "not-valid-base64!!!")
-	v.Set("genesis_path", "/tmp/genesis")
+	v.Set("files_path", "/tmp/genesis")
 	_, err := config.Load(v, "")
 	if err == nil {
 		t.Fatal("expected validation error for invalid audit_private_key base64")
 	}
 }
 
-func TestLoad_MissingGenesisPath(t *testing.T) {
+func TestLoad_MissingFilesPath(t *testing.T) {
 	v := newViper()
 	v.Set("db_path", "/tmp/coord.db")
 	v.Set("audit_log_path", "/tmp/audit.jsonl")
 	v.Set("audit_private_key", testAuditKey)
 	_, err := config.Load(v, "")
 	if err == nil {
-		t.Fatal("expected validation error for missing genesis_path")
+		t.Fatal("expected validation error for missing files_path")
 	}
 }
 
@@ -298,7 +298,7 @@ func TestLoad_MissingJWTPrivateKey(t *testing.T) {
 	v.Set("db_path", "/tmp/coord.db")
 	v.Set("audit_log_path", "/tmp/audit.jsonl")
 	v.Set("audit_private_key", testAuditKey)
-	v.Set("genesis_path", "/tmp/genesis")
+	v.Set("files_path", "/tmp/genesis")
 	// jwt_private_key intentionally absent
 	_, err := config.Load(v, "")
 	if err == nil {
@@ -327,7 +327,7 @@ func TestLoad_AuditPrivateKeyFromFile(t *testing.T) {
 	v.Set("db_path", "/tmp/coord.db")
 	v.Set("audit_log_path", "/tmp/audit.jsonl")
 	v.Set("audit_private_key_file", keyFile)
-	v.Set("genesis_path", "/tmp/genesis")
+	v.Set("files_path", "/tmp/genesis")
 	v.Set("jwt_private_key", testJWTKey)
 	// audit_private_key intentionally absent — should be loaded from file
 
@@ -401,7 +401,7 @@ func TestLoad_JWTPrivateKeyFromFile(t *testing.T) {
 	v.Set("db_path", "/tmp/coord.db")
 	v.Set("audit_log_path", "/tmp/audit.jsonl")
 	v.Set("audit_private_key", testAuditKey)
-	v.Set("genesis_path", "/tmp/genesis")
+	v.Set("files_path", "/tmp/genesis")
 	v.Set("jwt_private_key_file", keyFile)
 	// jwt_private_key intentionally absent — should be loaded from file
 

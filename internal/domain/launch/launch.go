@@ -113,9 +113,10 @@ type Launch struct {
 	InitialGenesisSHA256 string
 	FinalGenesisSHA256   string // empty until GENESIS_READY
 
-	// GenesisAccounts is the list of pre-funded accounts declared for this launch.
-	// Managed by ADD/REMOVE/MODIFY_GENESIS_ACCOUNT committee proposals; ordered by address.
-	GenesisAccounts []GenesisAccount
+	// AllocationFiles holds the curated allocation files (≤1 per type). Each is
+	// uploaded by a committee member and approved independently by an
+	// APPROVE_ALLOCATION_FILE committee proposal. Ordered by type.
+	AllocationFiles []AllocationFile
 
 	// MonitorRPCURL is the CometBFT RPC endpoint polled by the block monitoring job.
 	// Set by the coordinator via PATCH /launch/:id; empty disables monitoring.
@@ -361,63 +362,102 @@ func (l *Launch) ShrinkCommittee(removeAddr OperatorAddress, newThresholdM int) 
 	return nil
 }
 
-// genesisAccountsLocked reports whether the genesis-account set is frozen: once
-// the genesis is published (GENESIS_READY) or the launch is terminal, account
-// changes can no longer affect the published genesis, so they are rejected.
-func (l *Launch) genesisAccountsLocked() bool {
+// allocationLocked reports whether the allocation-file set is frozen: once the
+// genesis is published (GENESIS_READY) or the launch is terminal, file changes
+// can no longer affect the published genesis, so upload/approve are rejected.
+func (l *Launch) allocationLocked() bool {
 	return l.Status == StatusGenesisReady || l.Status == StatusLaunched || l.Status == StatusCancelled
 }
 
-// AddGenesisAccount appends a new pre-funded account to the launch.
-// Returns an error if an account with the same address already exists, or if the
-// genesis-account set is locked (genesis already published).
-func (l *Launch) AddGenesisAccount(account GenesisAccount) error {
-	if l.genesisAccountsLocked() {
-		return fmt.Errorf("launch: genesis accounts cannot be changed in %s status", l.Status)
-	}
-	for _, a := range l.GenesisAccounts {
-		if a.Address == account.Address {
-			return fmt.Errorf("launch: genesis account %s already exists", account.Address)
+// AllocationFileOf returns the allocation file of the given type, if present.
+func (l *Launch) AllocationFileOf(t AllocationType) (AllocationFile, bool) {
+	for _, f := range l.AllocationFiles {
+		if f.Type == t {
+			return f, true
 		}
 	}
-	l.GenesisAccounts = append(l.GenesisAccounts, account)
+	return AllocationFile{}, false
+}
+
+// UploadAllocationFile records (or replaces) the allocation file of type t with the
+// given content hash, landing it in PENDING status. A re-upload with a different hash
+// invalidates any prior approval (status resets to PENDING, ApprovedByProposal cleared).
+// Returns an error for an unknown type or once the allocation set is locked.
+func (l *Launch) UploadAllocationFile(t AllocationType, sha256 string) error {
+	if l.allocationLocked() {
+		return fmt.Errorf("launch: %s status: %w", l.Status, ErrAllocationLocked)
+	}
+	if !ValidAllocationType(t) {
+		return fmt.Errorf("launch: %q: %w", t, ErrUnknownAllocationType)
+	}
+	if sha256 == "" {
+		return fmt.Errorf("launch: %q: %w", t, ErrAllocationEmptyHash)
+	}
+	now := time.Now().UTC()
+	for i := range l.AllocationFiles {
+		if l.AllocationFiles[i].Type != t {
+			continue
+		}
+		l.AllocationFiles[i].SHA256 = sha256
+		l.AllocationFiles[i].Status = AllocationPending
+		l.AllocationFiles[i].ApprovedByProposal = nil
+		l.AllocationFiles[i].UploadedAt = now
+		l.touch()
+		return nil
+	}
+	l.AllocationFiles = append(l.AllocationFiles, AllocationFile{
+		Type:       t,
+		SHA256:     sha256,
+		Status:     AllocationPending,
+		UploadedAt: now,
+	})
 	l.touch()
 	return nil
 }
 
-// RemoveGenesisAccount removes the account with the given address.
-// Returns an error if no such account exists, or if the genesis-account set is
-// locked (genesis already published).
-func (l *Launch) RemoveGenesisAccount(address string) error {
-	if l.genesisAccountsLocked() {
-		return fmt.Errorf("launch: genesis accounts cannot be changed in %s status", l.Status)
+// ApproveAllocationFile marks the file of type t APPROVED, binding the approval to the
+// given proposal. The hash must match the file's current hash (a stale approval against
+// a hash that has since been re-uploaded is rejected). Returns an error if no file of
+// that type exists, the hash is stale, or the allocation set is locked.
+func (l *Launch) ApproveAllocationFile(t AllocationType, hash string, proposalID uuid.UUID) error {
+	if l.allocationLocked() {
+		return fmt.Errorf("launch: %s status: %w", l.Status, ErrAllocationLocked)
 	}
-	for i, a := range l.GenesisAccounts {
-		if a.Address == address {
-			l.GenesisAccounts = append(l.GenesisAccounts[:i], l.GenesisAccounts[i+1:]...)
-			l.touch()
-			return nil
+	for i := range l.AllocationFiles {
+		if l.AllocationFiles[i].Type != t {
+			continue
 		}
+		if l.AllocationFiles[i].SHA256 != hash {
+			return fmt.Errorf("launch: %q: %w", t, ErrAllocationStaleHash)
+		}
+		pid := proposalID
+		l.AllocationFiles[i].Status = AllocationApproved
+		l.AllocationFiles[i].ApprovedByProposal = &pid
+		l.touch()
+		return nil
 	}
-	return fmt.Errorf("launch: genesis account %s not found", address)
+	return fmt.Errorf("launch: %q: %w", t, ErrAllocationNotFound)
 }
 
-// ModifyGenesisAccount updates the amount and vesting schedule of an existing account.
-// Returns an error if no such account exists, or if the genesis-account set is
-// locked (genesis already published).
-func (l *Launch) ModifyGenesisAccount(address, amount string, vesting *string) error {
-	if l.genesisAccountsLocked() {
-		return fmt.Errorf("launch: genesis accounts cannot be changed in %s status", l.Status)
-	}
-	for i, a := range l.GenesisAccounts {
-		if a.Address == address {
-			l.GenesisAccounts[i].Amount = amount
-			l.GenesisAccounts[i].VestingSchedule = vesting
-			l.touch()
-			return nil
+// RejectAllocationFile marks the file of type t REJECTED if a file of that type exists
+// with the given hash. It reports whether it transitioned a file to REJECTED: false when
+// no such file exists or it has since been re-uploaded with a different hash (a stale veto,
+// left PENDING). It is the side effect of a vetoed APPROVE_ALLOCATION_FILE proposal, where
+// neither "no file" nor "stale" is an error — the veto itself still stands.
+func (l *Launch) RejectAllocationFile(t AllocationType, hash string) (rejected bool) {
+	for i := range l.AllocationFiles {
+		if l.AllocationFiles[i].Type != t {
+			continue
 		}
+		if l.AllocationFiles[i].SHA256 != hash {
+			return false // superseded by a re-upload; leave the new file PENDING
+		}
+		l.AllocationFiles[i].Status = AllocationRejected
+		l.AllocationFiles[i].ApprovedByProposal = nil
+		l.touch()
+		return true
 	}
-	return fmt.Errorf("launch: genesis account %s not found", address)
+	return false
 }
 
 // RecordValidatorApproval records the voting power contribution of an approved validator.

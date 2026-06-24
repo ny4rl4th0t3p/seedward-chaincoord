@@ -38,6 +38,7 @@ type Server struct {
 	sessions             ports.SessionStore
 	sseBroker            sseSubscriber
 	genesisStore         ports.GenesisStore
+	allocationStore      ports.AllocationStore
 	auditLog             ports.AuditLogReader
 	auditPubKey          ed25519.PublicKey // nil if no audit signing key is configured
 	coordinatorAllowlist ports.CoordinatorAllowlistRepository
@@ -69,6 +70,7 @@ func NewServer(
 	sessions ports.SessionStore,
 	sseBroker sseSubscriber,
 	genesisStore ports.GenesisStore,
+	allocationStore ports.AllocationStore,
 	auditLog ports.AuditLogReader,
 	auditPubKey ed25519.PublicKey,
 	coordinatorAllowlist ports.CoordinatorAllowlistRepository,
@@ -107,6 +109,7 @@ func NewServer(
 		sessions:             sessions,
 		sseBroker:            sseBroker,
 		genesisStore:         genesisStore,
+		allocationStore:      allocationStore,
 		auditLog:             auditLog,
 		auditPubKey:          auditPubKey,
 		coordinatorAllowlist: coordinatorAllowlist,
@@ -214,6 +217,12 @@ func (s *Server) Handler() http.Handler {
 	r.Post("/launch/{id}/genesis", s.requireAuth(s.handleGenesisUpload))
 	r.Get("/launch/{id}/genesis", s.handleGenesisGet)
 	r.Get("/launch/{id}/genesis/hash", s.handleGenesisHashGet)
+
+	// Allocation file endpoints — committee-gated dual-mode upload (like genesis);
+	// list + serve. Approval/rejection goes through the generic proposal endpoints.
+	r.Post("/launch/{id}/allocations/{type}", s.requireAuth(s.handleAllocationUpload))
+	r.Get("/launch/{id}/allocations", s.optionalAuth(s.handleAllocationList))
+	r.Get("/launch/{id}/allocations/{type}", s.optionalAuth(s.handleAllocationGet))
 
 	// Validator write endpoints — rate-limited to 60 req/IP/min (abuse prevention).
 	r.Group(func(r chi.Router) {
