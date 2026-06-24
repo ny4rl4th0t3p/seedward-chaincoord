@@ -1089,6 +1089,18 @@ by <code>coordd audit verify</code>.</p>
 <td><code>REMOVE_APPROVED_VALIDATOR</code> proposal executed</td>
 </tr>
 <tr>
+<td><code>AllocationFileUploaded</code></td>
+<td>Allocation file uploaded or registered via attestor URL (status → <code>PENDING</code>)</td>
+</tr>
+<tr>
+<td><code>AllocationFileApproved</code></td>
+<td><code>APPROVE_ALLOCATION_FILE</code> proposal executed — file approved</td>
+</tr>
+<tr>
+<td><code>AllocationFileRejected</code></td>
+<td><code>APPROVE_ALLOCATION_FILE</code> proposal vetoed — file rejected</td>
+</tr>
+<tr>
 <td><code>LaunchCancelled</code></td>
 <td>Lead coordinator cancels the launch</td>
 </tr>
@@ -1101,8 +1113,8 @@ by <code>coordd audit verify</code>.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 </div>
-<p>Proposal actions that do not directly transition launch state (e.g. <code>ADD_GENESIS_ACCOUNT</code>, <code>REPLACE_COMMITTEE_MEMBER</code>)
-are recorded in the database but do not produce audit log entries in the current implementation.</p>
+<p>Proposal actions that do not directly transition launch state (e.g. <code>REPLACE_COMMITTEE_MEMBER</code>, <code>EXPAND_COMMITTEE</code>,
+<code>SHRINK_COMMITTEE</code>) are recorded in the database but do not produce audit log entries in the current implementation.</p>
 <hr />
 <h2 id="signature-verification">Signature verification<a class="headerlink" href="#signature-verification" title="Permanent link">&para;</a></h2>
 <p>The signature covers the canonical JSON of the entry with the <code>signature</code> field omitted (<code>prev_hash</code> is included).

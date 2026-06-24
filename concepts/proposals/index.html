@@ -682,13 +682,30 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#genesis-metadata" class="md-nav__link">
+  <a href="#genesis-metadata-allocations" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Genesis metadata
+        Genesis metadata &amp; allocations
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Genesis metadata &amp; allocations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#allocation-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Allocation files
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
         
@@ -1011,13 +1028,30 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#genesis-metadata" class="md-nav__link">
+  <a href="#genesis-metadata-allocations" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Genesis metadata
+        Genesis metadata &amp; allocations
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Genesis metadata &amp; allocations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#allocation-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Allocation files
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
         
@@ -1203,10 +1237,10 @@ blocked once the genesis is published — revert to <code>WINDOW_CLOSED</code> v
 </tr>
 </tbody>
 </table>
-<h3 id="genesis-metadata">Genesis metadata<a class="headerlink" href="#genesis-metadata" title="Permanent link">&para;</a></h3>
-<p>Genesis-account changes are rejected once the genesis is published (<code>GENESIS_READY</code>, <code>LAUNCHED</code>, or <code>CANCELED</code>) — they
-could no longer affect the published file. <code>UPDATE_GENESIS_TIME</code> is blocked only after <code>LAUNCHED</code> (it is designed to run
-at <code>GENESIS_READY</code> as part of the revise flow, where it invalidates existing readiness confirmations).</p>
+<h3 id="genesis-metadata-allocations">Genesis metadata &amp; allocations<a class="headerlink" href="#genesis-metadata-allocations" title="Permanent link">&para;</a></h3>
+<p><code>UPDATE_GENESIS_TIME</code> is blocked only after <code>LAUNCHED</code> (it is designed to run at <code>GENESIS_READY</code> as part of the revise
+flow, where it invalidates existing readiness confirmations). <code>APPROVE_ALLOCATION_FILE</code> is rejected once the genesis is
+published (<code>GENESIS_READY</code>, <code>LAUNCHED</code>, or <code>CANCELED</code>) — an approval could no longer affect the published file.</p>
 <table>
 <thead>
 <tr>
@@ -1222,22 +1256,26 @@ at <code>GENESIS_READY</code> as part of the revise flow, where it invalidates e
 <td>any pre-<code>LAUNCHED</code></td>
 </tr>
 <tr>
-<td><code>ADD_GENESIS_ACCOUNT</code></td>
-<td>Adds a pre-funded account to the genesis</td>
-<td>before <code>GENESIS_READY</code> (address must be new)</td>
-</tr>
-<tr>
-<td><code>REMOVE_GENESIS_ACCOUNT</code></td>
-<td>Removes a pre-funded account</td>
-<td>before <code>GENESIS_READY</code> (account must exist)</td>
-</tr>
-<tr>
-<td><code>MODIFY_GENESIS_ACCOUNT</code></td>
-<td>Changes amount or vesting schedule</td>
-<td>before <code>GENESIS_READY</code> (account must exist)</td>
+<td><code>APPROVE_ALLOCATION_FILE</code></td>
+<td>Approves the curated allocation file of one type, bound to its SHA-256</td>
+<td>before <code>GENESIS_READY</code></td>
 </tr>
 </tbody>
 </table>
+<h4 id="allocation-files">Allocation files<a class="headerlink" href="#allocation-files" title="Permanent link">&para;</a></h4>
+<p>Genesis allocations (<code>accounts</code>, <code>claims</code>, <code>grants</code>, <code>authz</code>, <code>feegrant</code>) are governed as <strong>whole files</strong>, not
+per-entry. A committee member uploads the curated file for a type (<code>POST /launch/{id}/allocations/{type}</code>, dual-mode
+like genesis: attestor URL+hash or host bytes); it lands in <code>PENDING</code>. The content is <strong>opaque</strong> to coordd — gentool
+emits CSV/TSV, not JSON — so the server stores and hashes the bytes but does not parse them.</p>
+<p>Each file is then governed by its own <code>APPROVE_ALLOCATION_FILE</code> proposal, carrying <code>{type, hash}</code>:</p>
+<ul>
+<li>The payload <code>hash</code> must equal the file's <strong>current</strong> SHA-256 when the proposal executes. If the file was re-uploaded
+  in the meantime (new hash), execution fails — you cannot approve bytes that have since changed.</li>
+<li>On quorum the file becomes <code>APPROVED</code> (bound to the executing proposal). A single <strong>VETO</strong> marks it <code>REJECTED</code>.</li>
+<li>Re-uploading a corrected file resets it to <code>PENDING</code> for a fresh approval, invalidating any prior decision.</li>
+</ul>
+<p>This supersedes the old per-entry <code>ADD</code>/<code>REMOVE</code>/<code>MODIFY_GENESIS_ACCOUNT</code> proposals, which no longer exist — curated
+files are reviewed and approved as a unit by humans, with the hash as the integrity anchor.</p>
 <h3 id="committee-management">Committee management<a class="headerlink" href="#committee-management" title="Permanent link">&para;</a></h3>
 <table>
 <thead>

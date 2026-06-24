@@ -1017,24 +1017,20 @@
 revision) and each is gated by a committee proposal, except for opening the application window.</p>
 <pre class="mermaid"><code>stateDiagram-v2
     direction TB
-
     [*] --&gt; DRAFT
-
-    DRAFT      --&gt; PUBLISHED     : PUBLISH_CHAIN_RECORD proposal
-    PUBLISHED  --&gt; WINDOW_OPEN   : committee member calls open-window
-    WINDOW_OPEN --&gt; WINDOW_CLOSED : CLOSE_APPLICATION_WINDOW proposal
-    WINDOW_CLOSED --&gt; GENESIS_READY : PUBLISH_GENESIS proposal
-    GENESIS_READY --&gt; LAUNCHED   : Block monitor detects first block
-    GENESIS_READY --&gt; WINDOW_CLOSED : REVISE_GENESIS proposal
-
-    DRAFT         --&gt; CANCELED : Lead cancels
-    PUBLISHED     --&gt; CANCELED : Lead cancels
-    WINDOW_OPEN   --&gt; CANCELED : Lead cancels
-    WINDOW_CLOSED --&gt; CANCELED : Lead cancels
-    GENESIS_READY --&gt; CANCELED : Lead cancels
-
-    LAUNCHED  --&gt; [*]
-    CANCELED  --&gt; [*]</code></pre>
+    DRAFT --&gt; PUBLISHED: PUBLISH_CHAIN_RECORD proposal
+    PUBLISHED --&gt; WINDOW_OPEN: committee member calls open-window
+    WINDOW_OPEN --&gt; WINDOW_CLOSED: CLOSE_APPLICATION_WINDOW proposal
+    WINDOW_CLOSED --&gt; GENESIS_READY: PUBLISH_GENESIS proposal
+    GENESIS_READY --&gt; LAUNCHED: Block monitor detects first block
+    GENESIS_READY --&gt; WINDOW_CLOSED: REVISE_GENESIS proposal
+    DRAFT --&gt; CANCELED: Lead cancels
+    PUBLISHED --&gt; CANCELED: Lead cancels
+    WINDOW_OPEN --&gt; CANCELED: Lead cancels
+    WINDOW_CLOSED --&gt; CANCELED: Lead cancels
+    GENESIS_READY --&gt; CANCELED: Lead cancels
+    LAUNCHED --&gt; [*]
+    CANCELED --&gt; [*]</code></pre>
 <hr />
 <h2 id="draft">DRAFT<a class="headerlink" href="#draft" title="Permanent link">&para;</a></h2>
 <p>The launch exists but is not visible to validators. The lead coordinator uses this phase to:</p>
@@ -1076,15 +1072,19 @@ reaches or exceeds 1/3 of the total.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Download all approved gentxs</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>curl<span class="w"> </span>.../launch/:id/gentxs<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;.gentxs[]&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>...
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># Add genesis accounts for each approved validator</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>gaiad<span class="w"> </span>genesis<span class="w"> </span>add-genesis-account<span class="w"> </span>&lt;addr&gt;<span class="w"> </span>&lt;amount&gt;
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># Download the committee-approved allocation files (accounts, claims, grants, …)</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>curl<span class="w"> </span>.../launch/:id/allocations/accounts<span class="w"> </span>&gt;<span class="w"> </span>accounts.csv
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c1"># Collect gentxs</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>gaiad<span class="w"> </span>genesis<span class="w"> </span>collect-gentxs
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="c1"># Validate</span>
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>gaiad<span class="w"> </span>genesis<span class="w"> </span>validate
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c1"># Apply the approved allocations + gentxs with gentool / the chain binary</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>gentool<span class="w"> </span>genesis<span class="w"> </span>...<span class="w">        </span><span class="c1"># consumes the approved allocation files</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>gaiad<span class="w"> </span>genesis<span class="w"> </span>collect-gentxs
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="c1"># Validate</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>gaiad<span class="w"> </span>genesis<span class="w"> </span>validate
 </code></pre></div>
+<p>The genesis allocations are no longer added entry-by-entry: the committee approves each curated allocation file as a
+whole (see <a href="../proposals/#allocation-files">Proposals → Allocation files</a>), and the coordinator feeds the <strong>approved</strong>
+files into gentool here.</p>
 <p>Then uploads the result: <code>POST /launch/:id/genesis?type=final</code>.</p>
 <hr />
 <h2 id="genesis_ready">GENESIS_READY<a class="headerlink" href="#genesis_ready" title="Permanent link">&para;</a></h2>

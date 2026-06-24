@@ -5,6 +5,31 @@ definitions:
       address:
         type: string
     type: object
+  api.allocationFileMeta:
+    properties:
+      approved_by_proposal:
+        type: string
+      sha256:
+        type: string
+      status:
+        type: string
+      type:
+        type: string
+      uploaded_at:
+        type: string
+    type: object
+  api.allocationListResponse:
+    properties:
+      allocations:
+        items:
+          $ref: '#/definitions/api.allocationFileMeta'
+        type: array
+    type: object
+  api.allocationUploadResponse:
+    properties:
+      sha256:
+        type: string
+    type: object
   api.auditPubKeyResponse:
     properties:
       public_key:
@@ -476,9 +501,7 @@ definitions:
     - APPROVE_VALIDATOR
     - REJECT_VALIDATOR
     - REMOVE_APPROVED_VALIDATOR
-    - ADD_GENESIS_ACCOUNT
-    - REMOVE_GENESIS_ACCOUNT
-    - MODIFY_GENESIS_ACCOUNT
+    - APPROVE_ALLOCATION_FILE
     - PUBLISH_CHAIN_RECORD
     - CLOSE_APPLICATION_WINDOW
     - PUBLISH_GENESIS
@@ -492,9 +515,7 @@ definitions:
     - ActionApproveValidator
     - ActionRejectValidator
     - ActionRemoveApprovedValidator
-    - ActionAddGenesisAccount
-    - ActionRemoveGenesisAccount
-    - ActionModifyGenesisAccount
+    - ActionApproveAllocationFile
     - ActionPublishChainRecord
     - ActionCloseApplicationWindow
     - ActionPublishGenesis
@@ -1025,6 +1046,128 @@ paths:
       summary: Update a launch
       tags:
       - launches
+  /launch/{id}/allocations:
+    get:
+      parameters:
+      - description: Launch UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.allocationListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+      summary: List allocation files
+      tags:
+      - allocations
+  /launch/{id}/allocations/{type}:
+    get:
+      description: Returns 302 redirect (attestor mode) or streams the raw opaque
+        file bytes (host mode).
+      parameters:
+      - description: Launch UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Allocation type
+        enum:
+        - accounts
+        - claims
+        - grants
+        - authz
+        - feegrant
+        in: path
+        name: type
+        required: true
+        type: string
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: Raw allocation file bytes (host mode)
+          schema:
+            type: string
+        "302":
+          description: Redirect to external URL (attestor mode)
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+      summary: Download an allocation file
+      tags:
+      - allocations
+    post:
+      consumes:
+      - application/json
+      - application/octet-stream
+      description: |-
+        Committee members only.
+        Attestor mode (default): register external URL + SHA-256.
+        Host mode: upload raw bytes (requires COORD_GENESIS_HOST_MODE=true).
+      parameters:
+      - description: Launch UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Allocation type
+        enum:
+        - accounts
+        - claims
+        - grants
+        - authz
+        - feegrant
+        in: path
+        name: type
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.allocationUploadResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Upload an allocation file
+      tags:
+      - allocations
   /launch/{id}/audit:
     get:
       description: Returns all audit log entries for a launch. Visibility-gated (same
