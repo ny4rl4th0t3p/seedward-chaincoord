@@ -24,8 +24,9 @@ type allocationUploadResponse struct {
 	SHA256 string `json:"sha256"`
 }
 
-// allocationFileJSON is one curated allocation file's governance metadata.
-type allocationFileJSON struct {
+// allocationFileMeta is one curated allocation file's governance metadata (the file
+// content itself is opaque and served separately — this is only the PENDING/APPROVED state).
+type allocationFileMeta struct {
 	Type               string    `json:"type"`
 	SHA256             string    `json:"sha256"`
 	Status             string    `json:"status"`
@@ -35,7 +36,7 @@ type allocationFileJSON struct {
 
 // allocationListResponse is the list of a launch's allocation files.
 type allocationListResponse struct {
-	Allocations []allocationFileJSON `json:"allocations"`
+	Allocations []allocationFileMeta `json:"allocations"`
 }
 
 // POST /launch/{id}/allocations/{type}
@@ -167,9 +168,9 @@ func (s *Server) handleAllocationList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	out := make([]allocationFileJSON, 0, len(l.AllocationFiles))
+	out := make([]allocationFileMeta, 0, len(l.AllocationFiles))
 	for _, f := range l.AllocationFiles {
-		item := allocationFileJSON{
+		item := allocationFileMeta{
 			Type:       string(f.Type),
 			SHA256:     f.SHA256,
 			Status:     string(f.Status),

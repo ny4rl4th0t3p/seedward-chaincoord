@@ -6,7 +6,8 @@ The `coordd` HTTP API uses JSON for all request and response bodies. Authenticat
 The complete, machine-readable contract is the OpenAPI spec at `docs/mkdocs/api/swagger.yaml`, rendered as an
 interactive explorer below. It is **generated from the server** and is the source of truth for every endpoint, request
 body, and response shape (grouped by tag: auth, launches, join-requests, proposals, committee, readiness, genesis,
-audit, admin, events). This page covers only the cross-cutting conventions the spec can't explain on its own.
+allocations, audit, admin, events). This page covers only the cross-cutting conventions the spec can't explain on its
+own.
 
 <swagger-ui src="../../api/swagger.yaml"/>
 
@@ -54,7 +55,14 @@ The paginated list endpoints — `GET /launches`, `GET /launch/{id}/join`, `GET 
 paginated envelope:
 
 ```json
-{ "items": [ ... ], "total": 42, "page": 1, "per_page": 20 }
+{
+  "items": [
+    ...
+  ],
+  "total": 42,
+  "page": 1,
+  "per_page": 20
+}
 ```
 
 Other list-style endpoints (`dashboard`, `peers`, `gentxs`, `audit`) return the full set and are not paginated.
@@ -91,9 +99,20 @@ in-browser validator):
     "code": "gentx_invalid",
     "message": "gentx validation failed: commission_bounds, self_delegation",
     "invariants": [
-      { "invariant": "commission_bounds", "ok": false, "reason": "rate 0.30 above launch ceiling 0.20" },
-      { "invariant": "self_delegation",   "ok": false, "reason": "self-bond 100 below launch floor 1000000" },
-      { "invariant": "bond_denom",        "ok": true }
+      {
+        "invariant": "commission_bounds",
+        "ok": false,
+        "reason": "rate 0.30 above launch ceiling 0.20"
+      },
+      {
+        "invariant": "self_delegation",
+        "ok": false,
+        "reason": "self-bond 100 below launch floor 1000000"
+      },
+      {
+        "invariant": "bond_denom",
+        "ok": true
+      }
     ]
   }
 }
