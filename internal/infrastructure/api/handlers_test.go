@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/ports"
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/joinrequest"
@@ -622,6 +624,149 @@ func TestHandleGenesisHashGet_Success(t *testing.T) {
 	w := h.do("GET", "/launch/"+l.ID.String()+"/genesis/hash", nil, nil)
 	assertStatusCode(t, w, http.StatusOK)
 	assertContentTypeJSON(t, w)
+}
+
+// ---- POST /launch/{id}/allocations/{type} -----------------------------------
+
+// validAllocSHA256 is a syntactically valid (64-char lowercase hex) SHA-256 digest.
+const validAllocSHA256 = "a3f9b72c1d4e8e05a6b2c3d4e5f5a890a1b2c3d4e5f6789012345678901234ab"
+
+func TestHandleAllocationUpload_NoAuth(t *testing.T) {
+	h := newHarness(t)
+	l := testLaunch()
+	h.launches.data[l.ID] = l
+	w := h.do("POST", "/launch/"+l.ID.String()+"/allocations/claims",
+		[]byte(`{"url":"https://example.com/claims.csv","sha256":"`+validAllocSHA256+`"}`),
+		map[string]string{"Content-Type": "application/json"})
+	assertStatusCode(t, w, http.StatusUnauthorized)
+}
+
+func TestHandleAllocationUpload_NonCommittee_Forbidden(t *testing.T) {
+	h := newHarness(t)
+	l := soloCommitteeLaunch() // 1-of-1: only testAddr1
+	h.launches.data[l.ID] = l
+	tok := h.seedSession(testAddr2) // not a committee member
+	w := h.do("POST", "/launch/"+l.ID.String()+"/allocations/claims",
+		[]byte(`{"url":"https://example.com/claims.csv","sha256":"`+validAllocSHA256+`"}`),
+		map[string]string{"Authorization": "Bearer " + tok, "Content-Type": "application/json"})
+	assertStatusCode(t, w, http.StatusForbidden)
+}
+
+func TestHandleAllocationUpload_AttestorSuccess(t *testing.T) {
+	h := newHarness(t)
+	l := testLaunch() // DRAFT; testAddr1 is a committee member
+	h.launches.data[l.ID] = l
+	tok := h.seedSession(testAddr1)
+	w := h.do("POST", "/launch/"+l.ID.String()+"/allocations/claims",
+		[]byte(`{"url":"https://example.com/claims.csv","sha256":"`+validAllocSHA256+`"}`),
+		map[string]string{"Authorization": "Bearer " + tok, "Content-Type": "application/json"})
+	assertStatusCode(t, w, http.StatusOK)
+	assertContentTypeJSON(t, w)
+}
+
+func TestHandleAllocationUpload_UnknownType(t *testing.T) {
+	h := newHarness(t)
+	l := testLaunch()
+	h.launches.data[l.ID] = l
+	tok := h.seedSession(testAddr1)
+	w := h.do("POST", "/launch/"+l.ID.String()+"/allocations/bogus",
+		[]byte(`{"url":"https://example.com/x.csv","sha256":"`+validAllocSHA256+`"}`),
+		map[string]string{"Authorization": "Bearer " + tok, "Content-Type": "application/json"})
+	assertStatusCode(t, w, http.StatusBadRequest)
+}
+
+func TestHandleAllocationUpload_MissingURL(t *testing.T) {
+	h := newHarness(t)
+	l := testLaunch()
+	h.launches.data[l.ID] = l
+	tok := h.seedSession(testAddr1)
+	w := h.do("POST", "/launch/"+l.ID.String()+"/allocations/claims",
+		[]byte(`{"sha256":"`+validAllocSHA256+`"}`),
+		map[string]string{"Authorization": "Bearer " + tok, "Content-Type": "application/json"})
+	assertStatusCode(t, w, http.StatusBadRequest)
+}
+
+func TestHandleAllocationUpload_HostModeDisabled(t *testing.T) {
+	h := newHarness(t) // host mode off by default
+	l := testLaunch()
+	h.launches.data[l.ID] = l
+	tok := h.seedSession(testAddr1)
+	// Non-JSON content-type → host-mode (bytes) path, which is disabled.
+	w := h.do("POST", "/launch/"+l.ID.String()+"/allocations/claims",
+		[]byte("address,amount\ncosmos1abc,1000\n"),
+		map[string]string{"Authorization": "Bearer " + tok, "Content-Type": "text/csv"})
+	assertStatusCode(t, w, http.StatusBadRequest)
+}
+
+// TestHandleAllocationUpload_HostModeCSV_Success is the regression guard for the
+// fix that allocation file content is opaque (CSV/TSV), not JSON: a raw CSV upload
+// in host mode must succeed.
+func TestHandleAllocationUpload_HostModeCSV_Success(t *testing.T) {
+	h := newHarnessHostMode(t, 32<<20)
+	l := testLaunch() // DRAFT; testAddr1 is a committee member
+	h.launches.data[l.ID] = l
+	tok := h.seedSession(testAddr1)
+	w := h.do("POST", "/launch/"+l.ID.String()+"/allocations/claims",
+		[]byte("address,amount\ncosmos1abc,1000\ncosmos1def,2000\n"),
+		map[string]string{"Authorization": "Bearer " + tok, "Content-Type": "text/csv"})
+	assertStatusCode(t, w, http.StatusOK)
+	assertContentTypeJSON(t, w)
+}
+
+// ---- GET /launch/{id}/allocations -------------------------------------------
+
+func TestHandleAllocationList_BadUUID(t *testing.T) {
+	h := newHarness(t)
+	w := h.do("GET", "/launch/not-a-uuid/allocations", nil, nil)
+	assertStatusCode(t, w, http.StatusBadRequest)
+}
+
+func TestHandleAllocationList_Success(t *testing.T) {
+	h := newHarness(t)
+	l := testLaunch()
+	require.NoError(t, l.UploadAllocationFile(launch.AllocationClaims, "deadbeefclaims"))
+	h.launches.data[l.ID] = l
+	w := h.do("GET", "/launch/"+l.ID.String()+"/allocations", nil, nil)
+	assertStatusCode(t, w, http.StatusOK)
+	assertContentTypeJSON(t, w)
+	body := w.Body.String()
+	assert.Contains(t, body, "claims", "listing should include the claims file")
+	assert.Contains(t, body, "PENDING", "listing should include the PENDING status")
+}
+
+// ---- GET /launch/{id}/allocations/{type} ------------------------------------
+
+func TestHandleAllocationGet_Attestor_Redirect(t *testing.T) {
+	h := newHarness(t)
+	l := testLaunch()
+	h.launches.data[l.ID] = l
+	h.allocation.refs[l.ID.String()+":claims"] = &ports.StoredFileRef{
+		ExternalURL: "https://example.com/claims.csv",
+		SHA256:      validAllocSHA256,
+	}
+	w := h.do("GET", "/launch/"+l.ID.String()+"/allocations/claims", nil, nil)
+	assertStatusCode(t, w, http.StatusFound)
+	assert.Equal(t, "https://example.com/claims.csv", w.Header().Get("Location"))
+}
+
+func TestHandleAllocationGet_HostMode_Stream(t *testing.T) {
+	h := newHarness(t)
+	l := testLaunch()
+	h.launches.data[l.ID] = l
+	csv := "address,amount\ncosmos1abc,1000\n"
+	h.allocation.bytes[l.ID.String()+":claims"] = []byte(csv)
+	w := h.do("GET", "/launch/"+l.ID.String()+"/allocations/claims", nil, nil)
+	assertStatusCode(t, w, http.StatusOK)
+	assert.Equal(t, "application/octet-stream", w.Header().Get("Content-Type"))
+	assert.Equal(t, csv, w.Body.String())
+}
+
+func TestHandleAllocationGet_NotFound(t *testing.T) {
+	h := newHarness(t)
+	l := testLaunch()
+	h.launches.data[l.ID] = l // launch exists, but no allocation file stored
+	w := h.do("GET", "/launch/"+l.ID.String()+"/allocations/claims", nil, nil)
+	assertStatusCode(t, w, http.StatusNotFound)
 }
 
 // ---- POST /launch/{id}/join -------------------------------------------------

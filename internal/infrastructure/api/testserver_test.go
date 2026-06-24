@@ -19,6 +19,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/ny4rl4th0t3p/seedward-libs/gentxvalidate"
 
@@ -368,9 +369,7 @@ func (h *harness) seedSession(addr string) string {
 // assertStatus fails the test if the response status code differs from want.
 func assertStatus(t *testing.T, got *httptest.ResponseRecorder, want int) {
 	t.Helper()
-	if got.Code != want {
-		t.Errorf("status: want %d, got %d (body: %s)", want, got.Code, got.Body.String())
-	}
+	assert.Equal(t, want, got.Code, "body: %s", got.Body.String())
 }
 
 // ---- thin fakes -------------------------------------------------------------
@@ -812,17 +811,12 @@ func (*thinSSEBroker) Unsubscribe(_ string, _ chan domain.DomainEvent) {}
 
 func assertStatusCode(t *testing.T, w *httptest.ResponseRecorder, want int) {
 	t.Helper()
-	if w.Code != want {
-		t.Errorf("want status %d, got %d (body: %s)", want, w.Code, w.Body.String())
-	}
+	assert.Equal(t, want, w.Code, "body: %s", w.Body.String())
 }
 
 func assertContentTypeJSON(t *testing.T, w *httptest.ResponseRecorder) {
 	t.Helper()
-	ct := w.Header().Get("Content-Type")
-	if ct != "application/json" {
-		t.Errorf("want Content-Type application/json, got %q", ct)
-	}
+	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
 }
 
 // ---- response helpers -------------------------------------------------------
