@@ -17,8 +17,9 @@ import (
 	"os"
 	"sync"
 
+	"github.com/ny4rl4th0t3p/seedward-libs/canonicaljson"
+
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/ports"
-	"github.com/ny4rl4th0t3p/seedward-chaincoord/pkg/canonicaljson"
 )
 
 // JSONLWriter writes audit events to an append-only JSONL file.

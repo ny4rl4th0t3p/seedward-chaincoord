@@ -13,8 +13,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ny4rl4th0t3p/seedward-libs/canonicaljson"
+
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/ports"
-	"github.com/ny4rl4th0t3p/seedward-chaincoord/pkg/canonicaljson"
 )
 
 func openTmp(t *testing.T) (w *JSONLWriter, path string) {

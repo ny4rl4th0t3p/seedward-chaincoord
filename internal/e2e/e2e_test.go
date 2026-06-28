@@ -45,7 +45,7 @@ import (
 	fsStore "github.com/ny4rl4th0t3p/seedward-chaincoord/internal/infrastructure/storage/fs"
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/infrastructure/storage/sqlite"
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/netutil"
-	"github.com/ny4rl4th0t3p/seedward-chaincoord/pkg/canonicaljson"
+	"github.com/ny4rl4th0t3p/seedward-libs/canonicaljson"
 	"github.com/ny4rl4th0t3p/seedward-libs/gentxvalidate"
 )
 

@@ -203,6 +203,8 @@ github.com/ncruces/go-strftime v1.0.0/go.mod h1:Fwc5htZGVVkseilnfgOVb9mKy6w1naJm
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
 github.com/ny4rl4th0t3p/seedward-libs v0.3.0 h1:GgpLOSkPtoxh1KMrvt18O4PACC2CGp3icpgKTlYuMdQ=
 github.com/ny4rl4th0t3p/seedward-libs v0.3.0/go.mod h1:lIYU/2fTkgEfmJ7QBGOS4EndKwY3kpJ2LY/8mPFQ84A=
+github.com/ny4rl4th0t3p/seedward-libs v0.4.1 h1:E6Rm/Ol1GmRekJ1YxjQfmOStmd/NSXHjJP7DQrZm8NM=
+github.com/ny4rl4th0t3p/seedward-libs v0.4.1/go.mod h1:ukkKY2oWjsHpvdFl7i/ELs1ySWs1YKFXh6ka4Z22yE4=
 github.com/pb33f/doctor v0.0.78 h1:6bAgJDacnUYNd6Neg9/nBl+L6aukmvBFopx37eqgHYw=
 github.com/pb33f/doctor v0.0.78/go.mod h1:UCAKkAJpdcndw0vlTpQXTwq6npad1/m2Hvqem4zSMSw=
 github.com/pb33f/jsonpath v0.8.2 h1:Ou4C7zjYClBm97dfZjDCjdZGusJoynv/vrtiEKNfj2Y=
