@@ -7,8 +7,8 @@ package services_test
 // signArbitrary. This test pins the exact output so any Go-side change that
 // would break the TypeScript client causes an immediate build failure.
 //
-// If this test needs to change, the TypeScript buildAuthPayload function in
-// web/app/utils/auth.ts must be updated to match before merging.
+// If this test needs to change, the TypeScript buildAuthPayload function in the
+// seedward-chaincoord-web repo (web/app/utils/auth.ts) must be updated to match before merging.
 
 import (
 	"strings"
