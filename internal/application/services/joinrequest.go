@@ -17,7 +17,12 @@ import (
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/launch"
 )
 
-const maxJoinRequestsPerSubmitter = 3
+// maxJoinRequestsPerSubmitter caps submissions per submitter per launch as an
+// anti-spam backstop. It counts ALL statuses (see CountBySubmitter) — every
+// rejected/expired submission consumes a slot and is never refunded, so a noisy
+// submitter is bounded to this many attempts regardless of how often they retry.
+// Set well above realistic fleet sizes since one submitter may bring many nodes.
+const maxJoinRequestsPerSubmitter = 50
 
 // JoinRequestService handles validator join request submission and retrieval.
 type JoinRequestService struct {
@@ -97,27 +102,56 @@ type SubmitInput struct {
 	Signature   string          `json:"signature"`
 }
 
-// Submit validates and stores a join request from a validator.
-func (s *JoinRequestService) Submit(ctx context.Context, launchID uuid.UUID, input SubmitInput) (*joinrequest.JoinRequest, error) {
-	// Replay protection first.
+// verifyRequestAuth enforces replay protection, timestamp freshness, and the
+// request signature over the canonical payload. It must run before any launch
+// state is touched.
+func (s *JoinRequestService) verifyRequestAuth(ctx context.Context, input SubmitInput) error {
 	if err := s.nonces.Consume(ctx, input.OperatorAddress, input.Nonce); err != nil {
-		return nil, fmt.Errorf("submit join request: nonce rejected: %w", err)
+		return fmt.Errorf("submit join request: nonce rejected: %w", err)
 	}
 	if err := validateTimestamp(input.Timestamp); err != nil {
-		return nil, fmt.Errorf("submit join request: %w", err)
+		return fmt.Errorf("submit join request: %w", err)
 	}
-
-	// Verify signature over canonical JSON of the payload.
 	message, err := canonicaljson.MarshalForSigning(input)
 	if err != nil {
-		return nil, fmt.Errorf("submit join request: signing bytes: %w", err)
+		return fmt.Errorf("submit join request: signing bytes: %w", err)
 	}
 	sigBytes, err := decodeBase64Sig(input.Signature)
 	if err != nil {
-		return nil, fmt.Errorf("submit join request: signature encoding: %w", err)
+		return fmt.Errorf("submit join request: signature encoding: %w", err)
 	}
 	if err := s.verifier.Verify(input.OperatorAddress, input.PubKeyB64, message, sigBytes); err != nil {
-		return nil, fmt.Errorf("submit join request: signature invalid: %w", err)
+		return fmt.Errorf("submit join request: signature invalid: %w", err)
+	}
+	return nil
+}
+
+// parseConnectionFields validates the peer address, the optional RPC endpoint,
+// and the request signature value object carried on the join request.
+func parseConnectionFields(input SubmitInput) (
+	peerAddr launch.PeerAddress,
+	rpcEndpoint launch.RPCEndpoint,
+	sig launch.Signature,
+	err error,
+) {
+	if peerAddr, err = launch.NewPeerAddress(input.PeerAddress); err != nil {
+		return peerAddr, rpcEndpoint, sig, fmt.Errorf("submit join request: peer_address: %w: %w", err, ports.ErrBadRequest)
+	}
+	if input.RPCEndpoint != "" {
+		if rpcEndpoint, err = launch.NewRPCEndpoint(input.RPCEndpoint); err != nil {
+			return peerAddr, rpcEndpoint, sig, fmt.Errorf("submit join request: rpc_endpoint: %w: %w", err, ports.ErrBadRequest)
+		}
+	}
+	if sig, err = launch.NewSignature(input.Signature); err != nil {
+		return peerAddr, rpcEndpoint, sig, fmt.Errorf("submit join request: signature value: %w: %w", err, ports.ErrBadRequest)
+	}
+	return peerAddr, rpcEndpoint, sig, nil
+}
+
+// Submit validates and stores a join request from a validator.
+func (s *JoinRequestService) Submit(ctx context.Context, launchID uuid.UUID, input SubmitInput) (*joinrequest.JoinRequest, error) {
+	if err := s.verifyRequestAuth(ctx, input); err != nil {
+		return nil, err
 	}
 
 	// Load the launch and check it's open for applications.
@@ -131,9 +165,25 @@ func (s *JoinRequestService) Submit(ctx context.Context, launchID uuid.UUID, inp
 		return nil, fmt.Errorf("submit join request: submitter address: %w", err)
 	}
 
-	// TODO(S3/D3): gate the gentx's validator address against the allowlist (after validation),
-	// not the submitter; for now the submitter is gated, preserving prior behavior.
-	if err := l.CanValidatorApply(submitterAddr); err != nil {
+	// Pre-acceptance gentx validation (shared invariant set, authoritative server-side).
+	// Runs BEFORE the allowlist check: the gentx cryptographically proves the
+	// validator's operator address, and that — not the submitter — is what the
+	// allowlist gates. Returns the extracted consensus pubkey + the validator
+	// operator address, or a per-invariant error.
+	consensusPubKey, validatorAddrStr, err := s.validateGentx(l, input.GentxJSON)
+	if err != nil {
+		return nil, err
+	}
+	validatorAddr, err := launch.NewOperatorAddress(validatorAddrStr)
+	if err != nil {
+		return nil, fmt.Errorf("submit join request: validator address: %w", err)
+	}
+
+	// Gate the verified validator address against the launch's join policy
+	// (window-open + allowlist). D3: the allowlist controls the validator SET, so
+	// it checks the gentx's validator — not the submitter, who needs only to be
+	// authenticated. (Removing open-join / always-gating every launch is S4.)
+	if err := l.CanValidatorApply(validatorAddr); err != nil {
 		return nil, fmt.Errorf("submit join request: %w: %w", err, ports.ErrForbidden)
 	}
 
@@ -153,30 +203,9 @@ func (s *JoinRequestService) Submit(ctx context.Context, launchID uuid.UUID, inp
 		return nil, fmt.Errorf("submit join request: maximum %d submissions per submitter per window", maxJoinRequestsPerSubmitter)
 	}
 
-	// Pre-acceptance gentx validation (shared invariant set, authoritative server-side).
-	// Returns the extracted consensus pubkey + the validator operator address, or a per-invariant error.
-	consensusPubKey, validatorAddrStr, err := s.validateGentx(l, input.GentxJSON)
+	peerAddr, rpcEndpoint, sig, err := parseConnectionFields(input)
 	if err != nil {
 		return nil, err
-	}
-	validatorAddr, err := launch.NewOperatorAddress(validatorAddrStr)
-	if err != nil {
-		return nil, fmt.Errorf("submit join request: validator address: %w", err)
-	}
-
-	peerAddr, err := launch.NewPeerAddress(input.PeerAddress)
-	if err != nil {
-		return nil, fmt.Errorf("submit join request: peer_address: %w: %w", err, ports.ErrBadRequest)
-	}
-	var rpcEndpoint launch.RPCEndpoint
-	if input.RPCEndpoint != "" {
-		if rpcEndpoint, err = launch.NewRPCEndpoint(input.RPCEndpoint); err != nil {
-			return nil, fmt.Errorf("submit join request: rpc_endpoint: %w: %w", err, ports.ErrBadRequest)
-		}
-	}
-	sig, err := launch.NewSignature(input.Signature)
-	if err != nil {
-		return nil, fmt.Errorf("submit join request: signature value: %w: %w", err, ports.ErrBadRequest)
 	}
 
 	jr := joinrequest.New(
@@ -210,8 +239,10 @@ func (s *JoinRequestService) Submit(ctx context.Context, launchID uuid.UUID, inp
 	return jr, nil
 }
 
-// GetByID returns a single join request. Coordinators can see any; validators
-// can only see their own.
+// GetByID returns a single join request. Coordinators can see any; otherwise the
+// caller must be a party to the request — either the validator (OperatorAddress)
+// or the submitter who signed it (SubmitterAddress), since the two may differ
+// (an ops/company account may submit on a validator's behalf).
 func (s *JoinRequestService) GetByID(
 	ctx context.Context,
 	id uuid.UUID,
@@ -222,7 +253,9 @@ func (s *JoinRequestService) GetByID(
 	if err != nil {
 		return nil, err
 	}
-	if !isCoordinator && jr.OperatorAddress.String() != callerAddr {
+	if !isCoordinator &&
+		jr.OperatorAddress.String() != callerAddr &&
+		jr.SubmitterAddress.String() != callerAddr {
 		return nil, ports.ErrForbidden
 	}
 	return jr, nil

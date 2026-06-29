@@ -185,6 +185,54 @@ func TestJoinRequestService_Submit_Success(t *testing.T) {
 	}
 }
 
+// D3: a PUBLIC launch admits any validated validator without an allowlist (open
+// join). The fake validator's address (testAddr2) is on no list; submission
+// succeeds purely because Visibility is PUBLIC. (Removing this open-join path —
+// always-gating every launch — is S4.)
+func TestJoinRequestService_Submit_PublicAdmitsAnyValidator(t *testing.T) {
+	l := testLaunch() // VisibilityPublic, empty allowlist
+	l.Status = launch.StatusWindowOpen
+
+	svc := newJoinReqSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo())
+
+	if _, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l)); err != nil {
+		t.Fatalf("PUBLIC launch should admit any validated validator: %v", err)
+	}
+}
+
+// D3: on an ALLOWLIST launch the gate follows the gentx's validator address, not
+// the submitter. The validator (fake: testAddr2) is allowlisted; the submitter
+// (testAddr1, the signer) is NOT — submission must still succeed.
+func TestJoinRequestService_Submit_AllowlistGatesValidatorNotSubmitter(t *testing.T) {
+	l := testLaunch()
+	l.Status = launch.StatusWindowOpen
+	l.Visibility = launch.VisibilityAllowlist
+	l.Allowlist = launch.NewAllowlist([]launch.OperatorAddress{mustAddr(testAddr2)}) // validator only
+
+	svc := newJoinReqSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo())
+
+	if _, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l)); err != nil {
+		t.Fatalf("validator is allowlisted; submission should succeed: %v", err)
+	}
+}
+
+// D3: conversely, an allowlisted submitter cannot get a non-allowlisted validator
+// in — the allowlist controls the validator set. Submitter (testAddr1) is on the
+// list; validator (fake: testAddr2) is not → forbidden.
+func TestJoinRequestService_Submit_AllowlistRejectsNonAllowlistedValidator(t *testing.T) {
+	l := testLaunch()
+	l.Status = launch.StatusWindowOpen
+	l.Visibility = launch.VisibilityAllowlist
+	l.Allowlist = launch.NewAllowlist([]launch.OperatorAddress{mustAddr(testAddr1)}) // submitter only
+
+	svc := newJoinReqSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo())
+
+	_, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
+	if !errors.Is(err, ports.ErrForbidden) {
+		t.Fatalf("non-allowlisted validator: want ErrForbidden, got %v", err)
+	}
+}
+
 func TestJoinRequestService_Submit_GentxInvalid(t *testing.T) {
 	l := testLaunch()
 	l.Status = launch.StatusWindowOpen
@@ -301,6 +349,29 @@ func TestJoinRequestService_GetByID_AllowedForCoordinator(t *testing.T) {
 	}
 }
 
+func TestJoinRequestService_GetByID_AllowedForSubmitter(t *testing.T) {
+	l := testLaunch()
+	jrRepo := newFakeJoinRequestRepo()
+	// Validator (operator) is testAddr2; the request was submitted/signed by testAddr1.
+	jr := makeJoinRequestSplit(t, l.ID, testAddr2, testAddr1)
+	jrRepo.data[jr.ID] = jr
+	svc := newJoinReqSvc(newFakeLaunchRepo(l), jrRepo)
+
+	// The submitter (testAddr1), though not the validator, is a party to the request.
+	got, err := svc.GetByID(context.Background(), jr.ID, testAddr1, false)
+	if err != nil {
+		t.Fatalf("submitter should be allowed: %v", err)
+	}
+	if got.ID != jr.ID {
+		t.Errorf("ID mismatch")
+	}
+
+	// An address that is neither validator nor submitter is still forbidden.
+	if _, err := svc.GetByID(context.Background(), jr.ID, testAddr3, false); !errors.Is(err, ports.ErrForbidden) {
+		t.Fatalf("unrelated address: want ErrForbidden, got %v", err)
+	}
+}
+
 // --- ListForLaunch ---
 
 func TestJoinRequestService_ListForLaunch_ReturnsAll(t *testing.T) {
@@ -326,6 +397,13 @@ func TestJoinRequestService_ListForLaunch_ReturnsAll(t *testing.T) {
 // makeJoinRequest builds a minimal join request for the given operator address.
 func makeJoinRequest(t *testing.T, launchID uuid.UUID, addr string) *joinrequest.JoinRequest {
 	t.Helper()
+	return makeJoinRequestSplit(t, launchID, addr, addr)
+}
+
+// makeJoinRequestSplit builds a join request whose validator (operator) and
+// submitter identities may differ, exercising the submitter-vs-validator split.
+func makeJoinRequestSplit(t *testing.T, launchID uuid.UUID, validatorAddr, submitterAddr string) *joinrequest.JoinRequest {
+	t.Helper()
 	rec := testChainRecord()
 	gentx, _ := json.Marshal(map[string]any{
 		"body": map[string]any{
@@ -349,8 +427,8 @@ func makeJoinRequest(t *testing.T, launchID uuid.UUID, addr string) *joinrequest
 
 	jr := joinrequest.New(
 		uuid.New(), launchID,
-		mustAddr(addr), // operator (validator)
-		mustAddr(addr), // submitter
+		mustAddr(validatorAddr), // operator (validator)
+		mustAddr(submitterAddr), // submitter
 		gentx,
 		peer, rpc, "test-memo",
 		mustSig(),

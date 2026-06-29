@@ -479,6 +479,43 @@ func TestJoinRequestRepository_CountBySubmitter(t *testing.T) {
 				}
 			},
 		},
+		{
+			// D2 anti-flood semantic: the cap must count ALL statuses, so that
+			// rejected/expired submissions consume the budget and are never
+			// refunded — a noisy submitter cannot reset the counter by getting
+			// rejected. (Distinct from the active-only consensus-pubkey check.)
+			name: "counts terminal-status submissions toward the cap",
+			run: func(t *testing.T, lRepo *LaunchRepository, jrRepo *JoinRequestRepository) {
+				ctx := context.Background()
+				l := testLaunch(t)
+				if err := lRepo.Save(ctx, l); err != nil {
+					t.Fatal(err)
+				}
+
+				pending := testJoinRequest(t, l.ID)
+				rejected := testJoinRequest(t, l.ID)
+				if err := rejected.Reject("bad commission"); err != nil {
+					t.Fatal(err)
+				}
+				expired := testJoinRequest(t, l.ID)
+				if err := expired.Expire(); err != nil {
+					t.Fatal(err)
+				}
+				for _, jr := range []*joinrequest.JoinRequest{pending, rejected, expired} {
+					if err := jrRepo.Save(ctx, jr); err != nil {
+						t.Fatal(err)
+					}
+				}
+
+				n, err := jrRepo.CountBySubmitter(ctx, l.ID, addr1)
+				if err != nil {
+					t.Fatalf("CountBySubmitter: %v", err)
+				}
+				if n != 3 {
+					t.Errorf("expected all 3 statuses counted, got %d", n)
+				}
+			},
+		},
 	}
 
 	for _, tc := range tests {

@@ -258,13 +258,16 @@ func (l *Launch) MarkLaunched() error {
 	return nil
 }
 
-// CanValidatorApply reports whether the given operator address may submit a join request.
+// CanValidatorApply reports whether a validator with the given operator address
+// may join: the window must be open and, on an ALLOWLIST launch, the validator
+// must be allowlisted. The caller passes the gentx's verified validator address
+// (not the request submitter) — the allowlist gates the validator SET (D3).
 func (l *Launch) CanValidatorApply(addr OperatorAddress) error {
 	if l.Status != StatusWindowOpen {
 		return fmt.Errorf("application window is not open (status: %s)", l.Status)
 	}
 	if l.Visibility == VisibilityAllowlist && !l.Allowlist.Contains(addr) {
-		return fmt.Errorf("operator address not on allowlist")
+		return fmt.Errorf("validator address not on allowlist")
 	}
 	return nil
 }
