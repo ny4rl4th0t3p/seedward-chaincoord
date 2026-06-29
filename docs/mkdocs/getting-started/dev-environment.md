@@ -1,13 +1,7 @@
 # Dev Environment
 
-The dev environment starts `coordd` and the web frontend together with a single command. It is the fastest way to
-explore the full system locally — no manual key generation or config files needed.
-
-!!! warning "Web frontend is being extracted"
-The `web` service in this environment (and the [Web App](web-app.md) page) is **deprecated** — the frontend is moving to
-its own repository. The `coordd` backend setup described here remains current and supported, but the bundled `web`
-container, the frontend-specific environment variables (`NEXT_PUBLIC_API_URL`, `COORD_BACKEND_URL`), and the "local
-development without Docker" frontend steps may change or stop working in upcoming iterations.
+The dev environment starts `coordd` with a single command. It is the fastest way to run the backend locally — no
+manual key generation or config files needed.
 
 ---
 
@@ -15,7 +9,6 @@ development without Docker" frontend steps may change or stop working in upcomin
 
 - Docker with Compose v2 (`docker compose`)
 - `make`
-- Keplr or Leap wallet browser extension
 
 ---
 
@@ -25,15 +18,11 @@ development without Docker" frontend steps may change or stop working in upcomin
 make dev-up
 ```
 
-This builds both images (`Dockerfile` for the Go backend, `Dockerfile.web` for the Next.js frontend) and starts the
-following services:
+This builds the `coordd` image (`Dockerfile`) and starts it:
 
 | Service  | URL                   | Role             |
 |----------|-----------------------|------------------|
 | `coordd` | http://localhost:8080 | Coordination API |
-| `web`    | http://localhost:3000 | Web frontend     |
-
-Open **http://localhost:3000** in a browser with your wallet extension active.
 
 On first boot, `coordd` auto-generates its Ed25519 audit and JWT keys and runs database migrations. All data persists in
 the `coordd-dev-data` Docker volume across restarts.
@@ -65,8 +54,7 @@ Multiple admins are supported as a comma-separated list:
 COORD_ADMIN_ADDRESSES=cosmos1abc,cosmos1def
 ```
 
-The address must match the one you sign in with in the browser (Cosmos Hub, Osmosis, or Juno — whichever chain you
-select in the header sign-in dropdown).
+The address must match the operator address you authenticate with.
 
 !!! tip
 If you forget to set this before `make dev-up`, stop the stack, update `.env`, and run `make dev-up` again. The
@@ -86,21 +74,12 @@ Removing the volume resets the database and keys — the next `make dev-up` star
 
 ## Local development without Docker
 
-For frontend hot-reload or backend debugging, run the two components separately:
+For backend debugging, run `coordd` directly:
 
 ```bash
-# Terminal 1 — backend
 bin/coordd migrate --config config.yaml
 bin/coordd serve --config config.yaml
-
-# Terminal 2 — frontend
-cd web/app
-yarn install
-yarn dev
 ```
-
-The Next.js dev server runs on `http://localhost:3000` and proxies API calls to `http://localhost:8080` by default. No
-extra env vars needed.
 
 See [Quickstart](quickstart.md) to build `bin/coordd` and create a minimal `config.yaml`.
 
@@ -111,5 +90,3 @@ See [Quickstart](quickstart.md) to build `bin/coordd` and create a minimal `conf
 | Variable                | Default                                                                         | Description                                                                                                                                                                   |
 |-------------------------|---------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `COORD_ADMIN_ADDRESSES` | *(empty)*                                                                       | Comma-separated operator addresses with admin access                                                                                                                          |
-| `NEXT_PUBLIC_API_URL`   | `http://localhost:8080`                                                         | Backend URL used by the browser for SSE. Baked at build time.                                                                                                                 |
-| `COORD_BACKEND_URL`     | `http://coordd:8080` (dev image); `http://localhost:8080` (non-Docker fallback) | Backend URL used by Next.js server-side rewrites. The dev image (`Dockerfile.web`) bakes the `coordd` compose service name; outside Docker it falls back to `localhost:8080`. |

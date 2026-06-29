@@ -5,7 +5,7 @@ VERSION             ?= $(shell git describe --tags --always --dirty 2>/dev/null 
 LDFLAGS             := -X $(MODULE)/cmd/coordd/cmd.Version=$(VERSION)
 
 
-.PHONY: build build-server build-smoke-signer build-web test test-integration test-e2e test-jest test-playwright lint lint-web swagger swagger-check lint-openapi release clean docker-build test-smoke test-down-smoke test-secrets-smoke dev-build dev-up dev-down install-web
+.PHONY: build build-server build-smoke-signer test test-integration test-e2e lint swagger swagger-check lint-openapi release clean docker-build test-smoke test-down-smoke test-secrets-smoke dev-build dev-up dev-down
 
 build: build-server build-smoke-signer
 
@@ -23,21 +23,6 @@ test-integration:
 
 test-e2e:
 	go test -tags e2e -count=1 ./internal/e2e/...
-
-install-web:
-	cd web/app && yarn install --frozen-lockfile
-
-build-web:
-	cd web/app && yarn build
-
-lint-web:
-	cd web/app && yarn lint
-
-test-jest:
-	cd web/app && yarn test
-
-test-playwright: build-server
-	cd web/app && yarn playwright test
 
 lint:
 	go vet ./...
@@ -88,7 +73,7 @@ test-smoke: test-down-smoke test-secrets-smoke
 test-down-smoke:
 	docker compose -f docker/docker-compose.smoke.yml down --volumes
 
-# ── Dev environment (coordd + web frontend) ───────────────────────────────────
+# ── Dev environment (coordd) ──────────────────────────────────────────────────
 
 dev-build:
 	docker compose -f docker/docker-compose.yml build

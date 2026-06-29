@@ -22,7 +22,7 @@ services:
       COORD_GENESIS_HOST_MODE: "false"
       COORD_AUDIT_PRIVATE_KEY_FILE: "/data/audit_key"
       COORD_JWT_PRIVATE_KEY_FILE: "/data/jwt_key"
-      # Required to access the admin panel (/admin) in the web UI.
+      # Required for the admin endpoints (/admin).
       # Set this to the Cosmos Hub (or other coordinator chain) address you will
       # sign in with. Without it, no one can manage the coordinator allowlist.
       # Example: COORD_ADMIN_ADDRESSES=cosmos1abc...xyz
@@ -34,16 +34,6 @@ services:
       interval: 2s
       timeout: 5s
       retries: 20
-
-  web:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.web
-    depends_on:
-      coordd:
-        condition: service_healthy
-    ports:
-      - "3000:3000"
 
 volumes:
   coordd-dev-data:

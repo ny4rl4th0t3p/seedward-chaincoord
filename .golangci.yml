@@ -118,8 +118,6 @@ linters:
         - name: unused-receiver
 
   exclusions:
-    paths:
-      - web/
     presets:
       - comments
       - std-error-handling

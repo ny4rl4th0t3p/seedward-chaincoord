@@ -10,9 +10,6 @@ of launching and running a Cosmos chain. All three are Apache 2.0 and self-hosta
 > **Training project for an SDD (Spec Driven Development) exercise.** This codebase was built to explore
 > the design space of decentralised genesis coordination. The heavy lifting was done by a supervised AI
 > agent. It is research-grade — not for production use.
->
-> **Warning:** The web UI has not been fully validated end-to-end. Visual and interaction regressions may exist even
-> when the full test suite passes.
 
 📖 **[Full documentation](https://ny4rl4th0t3p.github.io/seedward-chaincoord)** · 🏗️ **[Design document](docs/DESIGN.md)**
 
@@ -54,7 +51,6 @@ before it executes. A tamper-evident audit log records every action and can be v
 | Component      | Role                                                                                                                                                  |
 |----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `coordd`       | Coordination server — HTTP API + background block monitor                                                                                             |
-| `web/app`      | React + TypeScript web frontend — coordinators and validators use their Keplr/Leap wallet to authenticate and interact with the full launch lifecycle |
 | `smoke-signer` | Test utility for signing committee and validator actions in E2E / smoke tests                                                                         |
 
 ---
@@ -119,8 +115,6 @@ Full documentation is available at **https://ny4rl4th0t3p.github.io/seedward-cha
 
 - [Dev Environment](https://ny4rl4th0t3p.github.io/seedward-chaincoord/getting-started/dev-environment/) — full-stack setup,
   admin config, local dev
-- [Web App](https://ny4rl4th0t3p.github.io/seedward-chaincoord/getting-started/web-app/) — sign-in paths, coordinator and
-  validator flows, admin panel
 - [Concepts overview](https://ny4rl4th0t3p.github.io/seedward-chaincoord/concepts/overview/) — roles, proposals, and the audit
   log
 - [Launch lifecycle](https://ny4rl4th0t3p.github.io/seedward-chaincoord/concepts/lifecycle/) — all seven states in detail
@@ -147,5 +141,3 @@ Full documentation is available at **https://ny4rl4th0t3p.github.io/seedward-cha
 - SQLite-backed by default; not designed for high availability
 - Storage and RPC layers are interface-backed — adding PostgreSQL, MySQL, or a different chain RPC adapter requires only
   implementing the relevant interface and wiring it at startup
-- The web UI has not been fully validated end-to-end; visual and interaction regressions may exist even when the full
-  test suite passes
