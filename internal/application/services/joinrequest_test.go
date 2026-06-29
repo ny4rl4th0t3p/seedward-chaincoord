@@ -21,11 +21,13 @@ func newJoinReqSvc(launchRepo *fakeLaunchRepo, jrRepo *fakeJoinRequestRepo) *Joi
 }
 
 // fakeGentxValidator is a stub ports.GentxValidator. By default it reports a
-// fully passing gentx carrying the osmosis consensus pubkey; set failResults to
-// simulate invariant failures. It records the last params it received.
+// fully passing gentx carrying the osmosis consensus pubkey and a validator
+// (operator) address; set failResults to simulate invariant failures. It records
+// the last params it received.
 type fakeGentxValidator struct {
-	failResults []gentxvalidate.Result
-	gotParams   gentxvalidate.Params
+	failResults   []gentxvalidate.Result
+	validatorAddr string // ValidatorAddress on a passing gentx; defaults to testAddr2
+	gotParams     gentxvalidate.Params
 }
 
 func (f *fakeGentxValidator) Validate(_ []byte, p gentxvalidate.Params) ports.GentxValidationOutcome {
@@ -33,9 +35,14 @@ func (f *fakeGentxValidator) Validate(_ []byte, p gentxvalidate.Params) ports.Ge
 	if f.failResults != nil {
 		return ports.GentxValidationOutcome{Results: f.failResults}
 	}
+	validator := f.validatorAddr
+	if validator == "" {
+		validator = testAddr2 // valid operator address, distinct from the default submitter testAddr1
+	}
 	return ports.GentxValidationOutcome{
 		Results:            []gentxvalidate.Result{{Invariant: gentxvalidate.InvWellFormed, OK: true}},
 		ConsensusPubKeyB64: osmosisPubKey,
+		ValidatorAddress:   validator,
 	}
 }
 
@@ -143,7 +150,7 @@ func TestJoinRequestService_Submit_RateLimitExceeded(t *testing.T) {
 	l := testLaunch()
 	l.Status = launch.StatusWindowOpen
 	jrRepo := newFakeJoinRequestRepo()
-	jrRepo.setCount(l.ID, testAddr1, maxJoinRequestsPerOperator) // already at limit
+	jrRepo.setCount(l.ID, testAddr1, maxJoinRequestsPerSubmitter) // already at limit
 	svc := newJoinReqSvc(newFakeLaunchRepo(l), jrRepo)
 
 	_, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
@@ -167,6 +174,14 @@ func TestJoinRequestService_Submit_Success(t *testing.T) {
 	}
 	if _, ok := jrRepo.data[jr.ID]; !ok {
 		t.Fatal("join request not persisted")
+	}
+	// Identity split: OperatorAddress is the validator from the gentx (fake: testAddr2);
+	// SubmitterAddress is the request signer (validSubmitInput signs as testAddr1). They differ.
+	if jr.OperatorAddress.String() != testAddr2 {
+		t.Errorf("OperatorAddress = %q, want the gentx validator %q", jr.OperatorAddress, testAddr2)
+	}
+	if jr.SubmitterAddress.String() != testAddr1 {
+		t.Errorf("SubmitterAddress = %q, want the signer %q", jr.SubmitterAddress, testAddr1)
 	}
 }
 
@@ -334,7 +349,8 @@ func makeJoinRequest(t *testing.T, launchID uuid.UUID, addr string) *joinrequest
 
 	jr := joinrequest.New(
 		uuid.New(), launchID,
-		mustAddr(addr),
+		mustAddr(addr), // operator (validator)
+		mustAddr(addr), // submitter
 		gentx,
 		peer, rpc, "test-memo",
 		mustSig(),

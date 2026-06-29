@@ -17,7 +17,7 @@ import (
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/launch"
 )
 
-const maxJoinRequestsPerOperator = 3
+const maxJoinRequestsPerSubmitter = 3
 
 // JoinRequestService handles validator join request submission and retrieval.
 type JoinRequestService struct {
@@ -60,9 +60,10 @@ func requiresSelfDelegationFloor(lt launch.LaunchType) bool {
 
 // validateGentx runs the shared invariant set over the gentx using params built
 // from the launch (the self-delegation floor applies only to launch types that
-// declare one) and returns the extracted consensus pubkey. A failing gentx yields
-// a *ports.GentxInvalidError carrying the per-invariant detail.
-func (s *JoinRequestService) validateGentx(l *launch.Launch, gentxJSON json.RawMessage) (string, error) {
+// declare one) and returns the extracted consensus pubkey and the validator's
+// operator (self-delegator) account address. A failing gentx yields a
+// *ports.GentxInvalidError carrying the per-invariant detail.
+func (s *JoinRequestService) validateGentx(l *launch.Launch, gentxJSON json.RawMessage) (consensusPubKey, validatorAddr string, err error) {
 	params := gentxvalidate.Params{
 		ChainID:                 l.Record.ChainID,
 		BondDenom:               l.Record.Denom,
@@ -75,9 +76,9 @@ func (s *JoinRequestService) validateGentx(l *launch.Launch, gentxJSON json.RawM
 	}
 	outcome := s.gentxValidator.Validate(gentxJSON, params)
 	if !gentxvalidate.AllOK(outcome.Results) {
-		return "", &ports.GentxInvalidError{Results: outcome.Results}
+		return "", "", &ports.GentxInvalidError{Results: outcome.Results}
 	}
-	return outcome.ConsensusPubKeyB64, nil
+	return outcome.ConsensusPubKeyB64, outcome.ValidatorAddress, nil
 }
 
 // SubmitInput is the deserialized join request payload from the validator.
@@ -125,12 +126,14 @@ func (s *JoinRequestService) Submit(ctx context.Context, launchID uuid.UUID, inp
 		return nil, fmt.Errorf("submit join request: launch: %w", err)
 	}
 
-	operatorAddr, err := launch.NewOperatorAddress(input.OperatorAddress)
+	submitterAddr, err := launch.NewOperatorAddress(input.OperatorAddress)
 	if err != nil {
-		return nil, fmt.Errorf("submit join request: operator address: %w", err)
+		return nil, fmt.Errorf("submit join request: submitter address: %w", err)
 	}
 
-	if err := l.CanValidatorApply(operatorAddr); err != nil {
+	// TODO(S3/D3): gate the gentx's validator address against the allowlist (after validation),
+	// not the submitter; for now the submitter is gated, preserving prior behavior.
+	if err := l.CanValidatorApply(submitterAddr); err != nil {
 		return nil, fmt.Errorf("submit join request: %w: %w", err, ports.ErrForbidden)
 	}
 
@@ -141,20 +144,24 @@ func (s *JoinRequestService) Submit(ctx context.Context, launchID uuid.UUID, inp
 			l.Record.GentxDeadline.Format(time.RFC3339), ports.ErrBadRequest)
 	}
 
-	// Rate limit: max 3 submissions per operator per launch.
-	count, err := s.joinRequests.CountByOperator(ctx, launchID, input.OperatorAddress)
+	// Rate limit: cap submissions per submitter per launch.
+	count, err := s.joinRequests.CountBySubmitter(ctx, launchID, input.OperatorAddress)
 	if err != nil {
 		return nil, fmt.Errorf("submit join request: count check: %w", err)
 	}
-	if count >= maxJoinRequestsPerOperator {
-		return nil, fmt.Errorf("submit join request: maximum %d submissions per validator per window", maxJoinRequestsPerOperator)
+	if count >= maxJoinRequestsPerSubmitter {
+		return nil, fmt.Errorf("submit join request: maximum %d submissions per submitter per window", maxJoinRequestsPerSubmitter)
 	}
 
-	// Pre-acceptance gentx validation (shared invariant set, authoritative
-	// server-side). Returns the extracted consensus pubkey or a per-invariant error.
-	consensusPubKey, err := s.validateGentx(l, input.GentxJSON)
+	// Pre-acceptance gentx validation (shared invariant set, authoritative server-side).
+	// Returns the extracted consensus pubkey + the validator operator address, or a per-invariant error.
+	consensusPubKey, validatorAddrStr, err := s.validateGentx(l, input.GentxJSON)
 	if err != nil {
 		return nil, err
+	}
+	validatorAddr, err := launch.NewOperatorAddress(validatorAddrStr)
+	if err != nil {
+		return nil, fmt.Errorf("submit join request: validator address: %w", err)
 	}
 
 	peerAddr, err := launch.NewPeerAddress(input.PeerAddress)
@@ -175,7 +182,8 @@ func (s *JoinRequestService) Submit(ctx context.Context, launchID uuid.UUID, inp
 	jr := joinrequest.New(
 		uuid.New(),
 		launchID,
-		operatorAddr,
+		validatorAddr, // operator (validator), from the verified gentx
+		submitterAddr, // request signer
 		input.GentxJSON,
 		peerAddr,
 		rpcEndpoint,

@@ -126,7 +126,8 @@ func testJoinRequest(t *testing.T, launchID uuid.UUID) *joinrequest.JoinRequest 
 
 	jr := joinrequest.New(
 		uuid.New(), launchID,
-		mustAddr(addr1),
+		mustAddr(addr1), // operator (validator)
+		mustAddr(addr1), // submitter
 		gentxBytes,
 		peer, rpc, "",
 		mustSig(),

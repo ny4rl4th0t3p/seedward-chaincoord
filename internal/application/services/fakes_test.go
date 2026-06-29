@@ -419,7 +419,7 @@ func (f *fakeJoinRequestRepo) FindApprovedByLaunch(_ context.Context, launchID u
 	return out, nil
 }
 
-func (f *fakeJoinRequestRepo) CountByOperator(_ context.Context, launchID uuid.UUID, addr string) (int, error) {
+func (f *fakeJoinRequestRepo) CountBySubmitter(_ context.Context, launchID uuid.UUID, addr string) (int, error) {
 	return f.countByOp[launchID.String()+":"+addr], nil
 }
 

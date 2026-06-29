@@ -34,8 +34,9 @@ func (r *JoinRequestRepository) Save(ctx context.Context, jr *joinrequest.JoinRe
 		INSERT INTO join_requests (
 			id, launch_id, operator_address, consensus_pubkey, gentx_json,
 			peer_address, rpc_endpoint, memo, submitted_at, operator_signature,
-			status, rejection_reason, approved_by_proposal, self_delegation_amount
-		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+			status, rejection_reason, approved_by_proposal, self_delegation_amount,
+			submitter_address
+		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET
 			status=excluded.status,
 			rejection_reason=excluded.rejection_reason,
@@ -50,6 +51,7 @@ func (r *JoinRequestRepository) Save(ctx context.Context, jr *joinrequest.JoinRe
 		string(jr.Status), jr.RejectionReason,
 		approvedBy,
 		jr.SelfDelegationAmount(),
+		jr.SubmitterAddress.String(),
 	)
 	if err != nil {
 		return fmt.Errorf("join request save: %w", err)
@@ -136,14 +138,15 @@ func (r *JoinRequestRepository) FindApprovedByLaunch(ctx context.Context, launch
 	return scanJoinRequestRows(rows)
 }
 
-func (r *JoinRequestRepository) CountByOperator(ctx context.Context, launchID uuid.UUID, operatorAddr string) (int, error) {
+// CountBySubmitter counts a launch's join requests by the request signer (the per-submitter cap).
+func (r *JoinRequestRepository) CountBySubmitter(ctx context.Context, launchID uuid.UUID, submitterAddr string) (int, error) {
 	q := conn(ctx, r.db)
 	var n int
 	err := q.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM join_requests WHERE launch_id=? AND operator_address=?`,
-		uuidToStr(launchID), operatorAddr).Scan(&n)
+		`SELECT COUNT(*) FROM join_requests WHERE launch_id=? AND submitter_address=?`,
+		uuidToStr(launchID), submitterAddr).Scan(&n)
 	if err != nil {
-		return 0, fmt.Errorf("count by operator: %w", err)
+		return 0, fmt.Errorf("count by submitter: %w", err)
 	}
 	return n, nil
 }
@@ -169,6 +172,7 @@ func scanJoinRequest(scan func(dest ...any) error) (*joinrequest.JoinRequest, er
 		status, rejectionReason                  string
 		approvedByProposal                       *string
 		selfDelegation                           int64
+		submitterAddr                            string
 	)
 	err := scan(
 		&idStr, &launchIDStr,
@@ -176,6 +180,7 @@ func scanJoinRequest(scan func(dest ...any) error) (*joinrequest.JoinRequest, er
 		&peerAddr, &rpcEndpoint, &memo,
 		&submittedAt, &operatorSig,
 		&status, &rejectionReason, &approvedByProposal, &selfDelegation,
+		&submitterAddr,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ports.ErrNotFound
@@ -218,11 +223,18 @@ func scanJoinRequest(scan func(dest ...any) error) (*joinrequest.JoinRequest, er
 	if err != nil {
 		return nil, err
 	}
+	var submitter launch.OperatorAddress
+	if submitterAddr != "" { // empty on pre-0005 / unmigrated rows (POC reset)
+		if submitter, err = launch.NewOperatorAddress(submitterAddr); err != nil {
+			return nil, fmt.Errorf("scan submitter address: %w", err)
+		}
+	}
 
 	jr := &joinrequest.JoinRequest{
 		ID:                 id,
 		LaunchID:           launchID,
 		OperatorAddress:    oa,
+		SubmitterAddress:   submitter,
 		ConsensusPubKey:    consensusPubKey,
 		GentxJSON:          []byte(gentxJSON),
 		PeerAddress:        pa,

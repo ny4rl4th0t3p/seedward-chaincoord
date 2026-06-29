@@ -100,8 +100,9 @@ func actorConsensusKey(a actor) string {
 // embedding the Ed25519 consensus key derived from its secp256k1 keypair.
 func makeValidatorGentx(a actor, moniker string) json.RawMessage {
 	msg := map[string]any{
-		"@type":       "/cosmos.staking.v1beta1.MsgCreateValidator",
-		"description": map[string]any{"moniker": moniker},
+		"@type":             "/cosmos.staking.v1beta1.MsgCreateValidator",
+		"description":       map[string]any{"moniker": moniker},
+		"delegator_address": a.addr, // the validator's self-delegation (operator) account
 		"pubkey": map[string]any{
 			"@type": "/cosmos.crypto.ed25519.PubKey",
 			"key":   actorConsensusKey(a),
@@ -118,7 +119,9 @@ func makeValidatorGentx(a actor, moniker string) json.RawMessage {
 
 // e2eGentxValidator is an all-passing ports.GentxValidator for the e2e flow,
 // whose gentxs carry no real signature. It echoes the embedded consensus pubkey
-// so the per-launch uniqueness check still distinguishes validators.
+// (so the per-launch uniqueness check still distinguishes validators) and the
+// embedded delegator_address as the validator (operator) identity, mirroring a
+// real gentx where the self-delegator address is the validator's operator account.
 type e2eGentxValidator struct{}
 
 func (e2eGentxValidator) Validate(gentxJSON []byte, _ gentxvalidate.Params) ports.GentxValidationOutcome {
@@ -128,7 +131,8 @@ func (e2eGentxValidator) Validate(gentxJSON []byte, _ gentxvalidate.Params) port
 	var doc struct {
 		Body struct {
 			Messages []struct {
-				PubKey struct {
+				DelegatorAddress string `json:"delegator_address"`
+				PubKey           struct {
 					Key string `json:"key"`
 				} `json:"pubkey"`
 			} `json:"messages"`
@@ -136,6 +140,7 @@ func (e2eGentxValidator) Validate(gentxJSON []byte, _ gentxvalidate.Params) port
 	}
 	if err := json.Unmarshal(gentxJSON, &doc); err == nil && len(doc.Body.Messages) > 0 {
 		out.ConsensusPubKeyB64 = doc.Body.Messages[0].PubKey.Key
+		out.ValidatorAddress = doc.Body.Messages[0].DelegatorAddress
 	}
 	return out
 }

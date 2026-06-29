@@ -117,6 +117,9 @@ func (thinGentxValidator) Validate(gentxJSON []byte, _ gentxvalidate.Params) por
 	return ports.GentxValidationOutcome{
 		Results:            []gentxvalidate.Result{{Invariant: gentxvalidate.InvWellFormed, OK: true}},
 		ConsensusPubKeyB64: gentxConsensusPubKeyForTest(gentxJSON),
+		// HTTP-layer stub: a fixed valid validator (operator) account address — these tests don't
+		// exercise the validator-identity derivation (that's in the service/gentxvalidate tests).
+		ValidatorAddress: testAddr2,
 	}
 }
 
@@ -566,7 +569,7 @@ func (r *thinJoinRequestRepo) FindApprovedByLaunch(_ context.Context, launchID u
 	return out, nil
 }
 
-func (*thinJoinRequestRepo) CountByOperator(_ context.Context, _ uuid.UUID, _ string) (int, error) {
+func (*thinJoinRequestRepo) CountBySubmitter(_ context.Context, _ uuid.UUID, _ string) (int, error) {
 	return 0, nil
 }
 

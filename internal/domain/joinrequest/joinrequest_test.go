@@ -80,7 +80,8 @@ func newJR(selfDelegation int64) *joinrequest.JoinRequest {
 	return joinrequest.New(
 		uuid.New(),
 		uuid.New(),
-		addr(),
+		addr(), // operator (validator)
+		addr(), // submitter
 		makeGentx(selfDelegation),
 		peer(),
 		rpc(),

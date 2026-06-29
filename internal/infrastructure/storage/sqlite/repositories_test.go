@@ -414,6 +414,32 @@ func TestJoinRequestRepository_Save(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "persists and hydrates the validator/submitter identity split",
+			run: func(t *testing.T, lRepo *LaunchRepository, jrRepo *JoinRequestRepository) {
+				ctx := context.Background()
+				l := testLaunch(t)
+				if err := lRepo.Save(ctx, l); err != nil {
+					t.Fatal(err)
+				}
+				jr := testJoinRequest(t, l.ID)
+				jr.OperatorAddress = mustAddr(addr1)  // validator (operator)
+				jr.SubmitterAddress = mustAddr(addr2) // distinct signer
+				if err := jrRepo.Save(ctx, jr); err != nil {
+					t.Fatalf("Save: %v", err)
+				}
+				got, err := jrRepo.FindByID(ctx, jr.ID)
+				if err != nil {
+					t.Fatalf("FindByID: %v", err)
+				}
+				if got.OperatorAddress.String() != addr1 {
+					t.Errorf("OperatorAddress = %q, want %q", got.OperatorAddress, addr1)
+				}
+				if got.SubmitterAddress.String() != addr2 {
+					t.Errorf("SubmitterAddress = %q, want %q", got.SubmitterAddress, addr2)
+				}
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -425,7 +451,7 @@ func TestJoinRequestRepository_Save(t *testing.T) {
 	}
 }
 
-func TestJoinRequestRepository_CountByOperator(t *testing.T) {
+func TestJoinRequestRepository_CountBySubmitter(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -433,7 +459,7 @@ func TestJoinRequestRepository_CountByOperator(t *testing.T) {
 		run  func(t *testing.T, lRepo *LaunchRepository, jrRepo *JoinRequestRepository)
 	}{
 		{
-			name: "counts join requests submitted by operator for a launch",
+			name: "counts join requests by submitter for a launch",
 			run: func(t *testing.T, lRepo *LaunchRepository, jrRepo *JoinRequestRepository) {
 				ctx := context.Background()
 				l := testLaunch(t)
@@ -444,9 +470,9 @@ func TestJoinRequestRepository_CountByOperator(t *testing.T) {
 					t.Fatal(err)
 				}
 
-				n, err := jrRepo.CountByOperator(ctx, l.ID, addr1)
+				n, err := jrRepo.CountBySubmitter(ctx, l.ID, addr1)
 				if err != nil {
-					t.Fatalf("CountByOperator: %v", err)
+					t.Fatalf("CountBySubmitter: %v", err)
 				}
 				if n != 1 {
 					t.Errorf("expected 1, got %d", n)

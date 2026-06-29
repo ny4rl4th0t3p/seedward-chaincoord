@@ -57,9 +57,9 @@ type JoinRequestRepository interface {
 	// FindApprovedByLaunch returns all APPROVED join requests for genesis assembly.
 	FindApprovedByLaunch(ctx context.Context, launchID uuid.UUID) ([]*joinrequest.JoinRequest, error)
 
-	// CountByOperator returns the number of join requests submitted by an operator
-	// for a launch (for rate limiting: max 3 per operator per window).
-	CountByOperator(ctx context.Context, launchID uuid.UUID, operatorAddr string) (int, error)
+	// CountBySubmitter returns the number of join requests a submitter (the request signer) has
+	// made for a launch — the per-submitter rate-limit cap.
+	CountBySubmitter(ctx context.Context, launchID uuid.UUID, submitterAddr string) (int, error)
 
 	// CountByConsensusPubKey returns the number of join requests with the given
 	// consensus pubkey for a launch (spec §2.4: no duplicate consensus pubkey).
