@@ -10,7 +10,7 @@ require (
 	github.com/go-chi/httprate v0.15.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
-	github.com/ny4rl4th0t3p/seedward-libs v0.4.1
+	github.com/ny4rl4th0t3p/seedward-libs v0.4.2
 	github.com/rs/zerolog v1.35.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0

@@ -18,9 +18,11 @@ type Validator struct{}
 // New returns a Validator.
 func New() *Validator { return &Validator{} }
 
-// Validate runs every server invariant over gentxJSON. On success it also returns
-// the base64 consensus pubkey in the exact format coordd persists, so the
-// consensus-pubkey unique index keeps matching across old and new rows.
+// Validate runs every server invariant over gentxJSON. On a fully passing result it also
+// returns the base64 consensus pubkey (in the exact format coordd persists, so the
+// consensus-pubkey unique index keeps matching across old and new rows) and the validator's
+// self-delegation account address — the genesis identity (the operator-address invariant has
+// passed, so it derives cleanly from the verified signer).
 func (*Validator) Validate(gentxJSON []byte, p gentxvalidate.Params) ports.GentxValidationOutcome {
 	results := gentxvalidate.RunAll(gentxJSON, p)
 	out := ports.GentxValidationOutcome{Results: results}
@@ -28,6 +30,9 @@ func (*Validator) Validate(gentxJSON []byte, p gentxvalidate.Params) ports.Gentx
 		// RunAll already passed well_formed, so Decode cannot fail here.
 		if g, err := gentxvalidate.Decode(gentxJSON); err == nil {
 			out.ConsensusPubKeyB64 = base64.StdEncoding.EncodeToString(g.Msg.ConsensusPubKey)
+			if addr, err := g.AccountAddress(p.Bech32Prefix); err == nil {
+				out.ValidatorAddress = addr
+			}
 		}
 	}
 	return out

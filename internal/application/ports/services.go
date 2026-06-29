@@ -114,10 +114,14 @@ type NonceStore interface {
 }
 
 // GentxValidationOutcome is the result of running the gentx invariant set over a
-// single gentx. ConsensusPubKeyB64 is populated only when every result passed.
+// single gentx. ConsensusPubKeyB64 and ValidatorAddress are populated only when every
+// result passed.
 type GentxValidationOutcome struct {
 	Results            []gentxvalidate.Result
 	ConsensusPubKeyB64 string
+	// ValidatorAddress is the validator's self-delegation account address (account form,
+	// derived from the verified gentx signer) — the genesis-relevant validator identity.
+	ValidatorAddress string
 }
 
 // GentxValidator runs the shared gentxvalidate server invariant set over a gentx.
