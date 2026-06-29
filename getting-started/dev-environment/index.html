@@ -14,7 +14,7 @@
         <link rel="prev" href="../quickstart/">
       
       
-        <link rel="next" href="../web-app/">
+        <link rel="next" href="../smoke-test/">
       
       
         
@@ -468,34 +468,6 @@
   
 </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../web-app/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Web App
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -991,28 +963,19 @@
 
 
 <h1 id="dev-environment">Dev Environment<a class="headerlink" href="#dev-environment" title="Permanent link">&para;</a></h1>
-<p>The dev environment starts <code>coordd</code> and the web frontend together with a single command. It is the fastest way to
-explore the full system locally — no manual key generation or config files needed.</p>
-<div class="admonition warning">
-<p class="admonition-title">Web frontend is being extracted</p>
-</div>
-<p>The <code>web</code> service in this environment (and the <a href="../web-app/">Web App</a> page) is <strong>deprecated</strong> — the frontend is moving to
-its own repository. The <code>coordd</code> backend setup described here remains current and supported, but the bundled <code>web</code>
-container, the frontend-specific environment variables (<code>NEXT_PUBLIC_API_URL</code>, <code>COORD_BACKEND_URL</code>), and the "local
-development without Docker" frontend steps may change or stop working in upcoming iterations.</p>
+<p>The dev environment starts <code>coordd</code> with a single command. It is the fastest way to run the backend locally — no
+manual key generation or config files needed.</p>
 <hr />
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Docker with Compose v2 (<code>docker compose</code>)</li>
 <li><code>make</code></li>
-<li>Keplr or Leap wallet browser extension</li>
 </ul>
 <hr />
 <h2 id="start-the-stack">Start the stack<a class="headerlink" href="#start-the-stack" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>make<span class="w"> </span>dev-up
 </code></pre></div>
-<p>This builds both images (<code>Dockerfile</code> for the Go backend, <code>Dockerfile.web</code> for the Next.js frontend) and starts the
-following services:</p>
+<p>This builds the <code>coordd</code> image (<code>Dockerfile</code>) and starts it:</p>
 <table>
 <thead>
 <tr>
@@ -1027,14 +990,8 @@ following services:</p>
 <td>http://localhost:8080</td>
 <td>Coordination API</td>
 </tr>
-<tr>
-<td><code>web</code></td>
-<td>http://localhost:3000</td>
-<td>Web frontend</td>
-</tr>
 </tbody>
 </table>
-<p>Open <strong>http://localhost:3000</strong> in a browser with your wallet extension active.</p>
 <p>On first boot, <code>coordd</code> auto-generates its Ed25519 audit and JWT keys and runs database migrations. All data persists in
 the <code>coordd-dev-data</code> Docker volume across restarts.</p>
 <hr />
@@ -1052,8 +1009,7 @@ the stack — it is read at boot.</p>
 <p>Multiple admins are supported as a comma-separated list:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nv">COORD_ADMIN_ADDRESSES</span><span class="o">=</span>cosmos1abc,cosmos1def
 </code></pre></div>
-<p>The address must match the one you sign in with in the browser (Cosmos Hub, Osmosis, or Juno — whichever chain you
-select in the header sign-in dropdown).</p>
+<p>The address must match the operator address you authenticate with.</p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
 </div>
@@ -1066,18 +1022,10 @@ environment variable is read by <code>coordd</code> at startup.</p>
 <p>Removing the volume resets the database and keys — the next <code>make dev-up</code> starts fresh.</p>
 <hr />
 <h2 id="local-development-without-docker">Local development without Docker<a class="headerlink" href="#local-development-without-docker" title="Permanent link">&para;</a></h2>
-<p>For frontend hot-reload or backend debugging, run the two components separately:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Terminal 1 — backend</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>bin/coordd<span class="w"> </span>migrate<span class="w"> </span>--config<span class="w"> </span>config.yaml
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>bin/coordd<span class="w"> </span>serve<span class="w"> </span>--config<span class="w"> </span>config.yaml
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="c1"># Terminal 2 — frontend</span>
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="nb">cd</span><span class="w"> </span>web/app
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>yarn<span class="w"> </span>install
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>yarn<span class="w"> </span>dev
+<p>For backend debugging, run <code>coordd</code> directly:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>bin/coordd<span class="w"> </span>migrate<span class="w"> </span>--config<span class="w"> </span>config.yaml
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>bin/coordd<span class="w"> </span>serve<span class="w"> </span>--config<span class="w"> </span>config.yaml
 </code></pre></div>
-<p>The Next.js dev server runs on <code>http://localhost:3000</code> and proxies API calls to <code>http://localhost:8080</code> by default. No
-extra env vars needed.</p>
 <p>See <a href="../quickstart/">Quickstart</a> to build <code>bin/coordd</code> and create a minimal <code>config.yaml</code>.</p>
 <hr />
 <h2 id="environment-variables">Environment variables<a class="headerlink" href="#environment-variables" title="Permanent link">&para;</a></h2>
@@ -1094,16 +1042,6 @@ extra env vars needed.</p>
 <td><code>COORD_ADMIN_ADDRESSES</code></td>
 <td><em>(empty)</em></td>
 <td>Comma-separated operator addresses with admin access</td>
-</tr>
-<tr>
-<td><code>NEXT_PUBLIC_API_URL</code></td>
-<td><code>http://localhost:8080</code></td>
-<td>Backend URL used by the browser for SSE. Baked at build time.</td>
-</tr>
-<tr>
-<td><code>COORD_BACKEND_URL</code></td>
-<td><code>http://coordd:8080</code> (dev image); <code>http://localhost:8080</code> (non-Docker fallback)</td>
-<td>Backend URL used by Next.js server-side rewrites. The dev image (<code>Dockerfile.web</code>) bakes the <code>coordd</code> compose service name; outside Docker it falls back to <code>localhost:8080</code>.</td>
 </tr>
 </tbody>
 </table>
