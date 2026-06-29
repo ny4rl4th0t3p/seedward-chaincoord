@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -148,6 +149,40 @@ func parseConnectionFields(input SubmitInput) (
 	return peerAddr, rpcEndpoint, sig, nil
 }
 
+// supersedePending applies D4 dedup keyed on the validator identity. If the validator already
+// has an ACTIVE request: an APPROVED one locks the validator (ErrConflict — revoke first); a
+// PENDING one is superseded — expired in place so the incoming submission replaces it (the new
+// gentx is validator-signed, so its content is self-authorized regardless of submitter).
+// REJECTED/EXPIRED requests are terminal and never reach here, so they never block. Must run
+// before the consensus-pubkey check so a validator re-submitting its own key is not blocked by
+// its own now-expired prior request.
+func (s *JoinRequestService) supersedePending(ctx context.Context, launchID uuid.UUID, validatorAddr launch.OperatorAddress) error {
+	existing, err := s.joinRequests.FindActiveByValidator(ctx, launchID, validatorAddr.String())
+	if errors.Is(err, ports.ErrNotFound) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("submit join request: active request check: %w", err)
+	}
+	switch existing.Status {
+	case joinrequest.StatusApproved:
+		return fmt.Errorf("submit join request: validator already has an approved request (revoke it first): %w", ports.ErrConflict)
+	case joinrequest.StatusPending:
+		if err := existing.Expire(); err != nil { // EXPIRED is the terminal "superseded" state (D4)
+			return fmt.Errorf("submit join request: supersede pending: %w", err)
+		}
+		if err := s.joinRequests.Save(ctx, existing); err != nil {
+			return fmt.Errorf("submit join request: supersede save: %w", err)
+		}
+		return nil
+	case joinrequest.StatusRejected, joinrequest.StatusExpired:
+		// FindActiveByValidator returns only PENDING/APPROVED, so a terminal status here is a bug.
+		return fmt.Errorf("submit join request: unexpected terminal status %q from active lookup", existing.Status)
+	}
+	// Unreachable for the four known statuses; guards against a future enum value.
+	return fmt.Errorf("submit join request: unknown join request status %q", existing.Status)
+}
+
 // Submit validates and stores a join request from a validator.
 func (s *JoinRequestService) Submit(ctx context.Context, launchID uuid.UUID, input SubmitInput) (*joinrequest.JoinRequest, error) {
 	if err := s.verifyRequestAuth(ctx, input); err != nil {
@@ -203,6 +238,14 @@ func (s *JoinRequestService) Submit(ctx context.Context, launchID uuid.UUID, inp
 		return nil, fmt.Errorf("submit join request: maximum %d submissions per submitter per window", maxJoinRequestsPerSubmitter)
 	}
 
+	// Dedup on the validator identity (D4): supersede a stale PENDING request, or
+	// reject if the validator already has a locked APPROVED one. Runs before the
+	// consensus-pubkey check below so a re-submission is not blocked by the request
+	// it is replacing.
+	if err := s.supersedePending(ctx, launchID, validatorAddr); err != nil {
+		return nil, err
+	}
+
 	peerAddr, rpcEndpoint, sig, err := parseConnectionFields(input)
 	if err != nil {
 		return nil, err
@@ -222,9 +265,10 @@ func (s *JoinRequestService) Submit(ctx context.Context, launchID uuid.UUID, inp
 		time.Now(),
 	)
 
-	// Reject duplicate consensus pubkey for the same launch. The pubkey was
-	// extracted by the validator above; the DB also enforces this via a UNIQUE
-	// index as the raceless safety net.
+	// No two ACTIVE requests in a launch may share a consensus key. CountByConsensusPubKey
+	// counts only PENDING/APPROVED rows, so a re-submission of this validator's own key is not
+	// blocked by its just-superseded request; a different active validator holding the key is.
+	// The partial idx_jr_consensus_pubkey unique index is the raceless safety net.
 	cpCount, err := s.joinRequests.CountByConsensusPubKey(ctx, launchID, jr.ConsensusPubKey)
 	if err != nil {
 		return nil, fmt.Errorf("submit join request: consensus pubkey check: %w", err)

@@ -151,16 +151,37 @@ func (r *JoinRequestRepository) CountBySubmitter(ctx context.Context, launchID u
 	return n, nil
 }
 
+// CountByConsensusPubKey counts a launch's ACTIVE (PENDING/APPROVED) join requests with the
+// given consensus pubkey. Terminal (REJECTED/EXPIRED) rows are excluded (D4): the consensus key
+// guards only the genesis-relevant set, so a rejected validator can re-submit the same key, and a
+// superseded request frees its key. Mirrors the partial idx_jr_consensus_pubkey unique index.
 func (r *JoinRequestRepository) CountByConsensusPubKey(ctx context.Context, launchID uuid.UUID, consensusPubKey string) (int, error) {
 	q := conn(ctx, r.db)
 	var n int
 	err := q.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM join_requests WHERE launch_id=? AND consensus_pubkey=?`,
+		`SELECT COUNT(*) FROM join_requests
+		 WHERE launch_id=? AND consensus_pubkey=? AND status IN ('PENDING', 'APPROVED')`,
 		uuidToStr(launchID), consensusPubKey).Scan(&n)
 	if err != nil {
 		return 0, fmt.Errorf("count by consensus pubkey: %w", err)
 	}
 	return n, nil
+}
+
+// FindActiveByValidator returns the single ACTIVE (PENDING or APPROVED) join request for a
+// validator in a launch, or ports.ErrNotFound if none. operator_address holds the validator
+// identity (migration 0005). At most one active row can exist per validator (the partial
+// idx_jr_active_validator unique index), so this is the supersede/lock decision point (D4).
+func (r *JoinRequestRepository) FindActiveByValidator(
+	ctx context.Context, launchID uuid.UUID, validatorAddr string,
+) (*joinrequest.JoinRequest, error) {
+	q := conn(ctx, r.db)
+	row := q.QueryRowContext(ctx,
+		`SELECT * FROM join_requests
+		 WHERE launch_id=? AND operator_address=? AND status IN ('PENDING', 'APPROVED')
+		 ORDER BY submitted_at DESC LIMIT 1`,
+		uuidToStr(launchID), validatorAddr)
+	return scanJoinRequest(row.Scan)
 }
 
 func scanJoinRequest(scan func(dest ...any) error) (*joinrequest.JoinRequest, error) {

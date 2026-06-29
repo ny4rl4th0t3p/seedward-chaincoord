@@ -698,6 +698,92 @@ func TestJoinRequestRepository_FindApprovedByLaunch(t *testing.T) {
 	}
 }
 
+func TestJoinRequestRepository_FindActiveByValidator(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		run  func(t *testing.T, lRepo *LaunchRepository, jrRepo *JoinRequestRepository)
+	}{
+		{
+			name: "returns the active request and ignores terminal ones",
+			run: func(t *testing.T, lRepo *LaunchRepository, jrRepo *JoinRequestRepository) {
+				ctx := context.Background()
+				l := testLaunch(t)
+				if err := lRepo.Save(ctx, l); err != nil {
+					t.Fatal(err)
+				}
+				// A terminal (rejected) and an active (pending) request for the same validator (addr1).
+				rejected := testJoinRequest(t, l.ID)
+				if err := rejected.Reject("bad commission"); err != nil {
+					t.Fatal(err)
+				}
+				if err := jrRepo.Save(ctx, rejected); err != nil {
+					t.Fatal(err)
+				}
+				pending := testJoinRequest(t, l.ID)
+				if err := jrRepo.Save(ctx, pending); err != nil {
+					t.Fatal(err)
+				}
+
+				got, err := jrRepo.FindActiveByValidator(ctx, l.ID, addr1)
+				if err != nil {
+					t.Fatalf("FindActiveByValidator: %v", err)
+				}
+				if got.ID != pending.ID {
+					t.Errorf("got %s, want the active request %s", got.ID, pending.ID)
+				}
+			},
+		},
+		{
+			name: "returns ErrNotFound when only terminal requests exist",
+			run: func(t *testing.T, lRepo *LaunchRepository, jrRepo *JoinRequestRepository) {
+				ctx := context.Background()
+				l := testLaunch(t)
+				if err := lRepo.Save(ctx, l); err != nil {
+					t.Fatal(err)
+				}
+				rejected := testJoinRequest(t, l.ID)
+				if err := rejected.Reject("bad commission"); err != nil {
+					t.Fatal(err)
+				}
+				if err := jrRepo.Save(ctx, rejected); err != nil {
+					t.Fatal(err)
+				}
+
+				if _, err := jrRepo.FindActiveByValidator(ctx, l.ID, addr1); !errors.Is(err, ports.ErrNotFound) {
+					t.Fatalf("want ErrNotFound, got %v", err)
+				}
+			},
+		},
+		{
+			name: "partial unique index blocks a second active request for the same validator",
+			run: func(t *testing.T, lRepo *LaunchRepository, jrRepo *JoinRequestRepository) {
+				ctx := context.Background()
+				l := testLaunch(t)
+				if err := lRepo.Save(ctx, l); err != nil {
+					t.Fatal(err)
+				}
+				if err := jrRepo.Save(ctx, testJoinRequest(t, l.ID)); err != nil {
+					t.Fatal(err)
+				}
+				// A second PENDING request for the same validator (addr1) must violate idx_jr_active_validator.
+				if err := jrRepo.Save(ctx, testJoinRequest(t, l.ID)); err == nil {
+					t.Fatal("expected a unique-index violation for a second active request, got nil")
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			db := openTestDB(t)
+			tc.run(t, NewLaunchRepository(db), NewJoinRequestRepository(db))
+		})
+	}
+}
+
 // ---- ProposalRepository ----
 
 func TestProposalRepository_Save(t *testing.T) {

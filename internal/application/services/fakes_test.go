@@ -425,11 +425,26 @@ func (f *fakeJoinRequestRepo) CountBySubmitter(_ context.Context, launchID uuid.
 
 func (f *fakeJoinRequestRepo) CountByConsensusPubKey(_ context.Context, launchID uuid.UUID, pubKey string) (int, error) {
 	for _, jr := range f.data {
-		if jr.LaunchID == launchID && jr.ConsensusPubKey == pubKey {
+		if jr.LaunchID == launchID && jr.ConsensusPubKey == pubKey && isActiveStatus(jr.Status) {
 			return 1, nil
 		}
 	}
 	return 0, nil
+}
+
+func (f *fakeJoinRequestRepo) FindActiveByValidator(_ context.Context, launchID uuid.UUID, validatorAddr string) (*joinrequest.JoinRequest, error) {
+	for _, jr := range f.data {
+		if jr.LaunchID == launchID && jr.OperatorAddress.String() == validatorAddr && isActiveStatus(jr.Status) {
+			return jr, nil
+		}
+	}
+	return nil, ports.ErrNotFound
+}
+
+// isActiveStatus mirrors the partial-index predicate: PENDING/APPROVED are active,
+// REJECTED/EXPIRED are terminal (D4).
+func isActiveStatus(s joinrequest.Status) bool {
+	return s == joinrequest.StatusPending || s == joinrequest.StatusApproved
 }
 
 // ---- fakeProposalRepo -----------------------------------------------------

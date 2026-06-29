@@ -300,6 +300,92 @@ func TestJoinRequestService_Submit_DeadlinePassed(t *testing.T) {
 	}
 }
 
+// --- D4 dedup: validator identity + status ---
+
+// A re-submission for a validator with a PENDING request supersedes it: the old
+// request is expired and the new one replaces it (the new gentx is validator-signed,
+// so its content is self-authorized). The shared consensus key does not block this,
+// because the superseded request is terminal and excluded from the active-key check.
+func TestJoinRequestService_Submit_SupersedesPendingFromSameValidator(t *testing.T) {
+	l := testLaunch()
+	l.Status = launch.StatusWindowOpen
+	jrRepo := newFakeJoinRequestRepo()
+	svc := newJoinReqSvc(newFakeLaunchRepo(l), jrRepo)
+
+	first, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
+	if err != nil {
+		t.Fatalf("first submit: %v", err)
+	}
+	second, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
+	if err != nil {
+		t.Fatalf("second submit should supersede, not fail: %v", err)
+	}
+	if second.ID == first.ID {
+		t.Fatal("expected a new request, got the same ID")
+	}
+	if second.Status != joinrequest.StatusPending {
+		t.Errorf("new request status = %q, want PENDING", second.Status)
+	}
+	if got := jrRepo.data[first.ID]; got.Status != joinrequest.StatusExpired {
+		t.Errorf("superseded request status = %q, want EXPIRED", got.Status)
+	}
+	active, err := jrRepo.FindActiveByValidator(context.Background(), l.ID, testAddr2)
+	if err != nil {
+		t.Fatalf("FindActiveByValidator: %v", err)
+	}
+	if active.ID != second.ID {
+		t.Errorf("active request = %s, want the new one %s", active.ID, second.ID)
+	}
+}
+
+// A validator with an APPROVED request is locked: a new submission is rejected with
+// ErrConflict (changing terms requires revoke → re-submit).
+func TestJoinRequestService_Submit_RejectsWhenValidatorHasApproved(t *testing.T) {
+	l := testLaunch()
+	l.Status = launch.StatusWindowOpen
+	approved := makeJoinRequestSplit(t, l.ID, testAddr2, testAddr1) // validator = fake's testAddr2
+	if err := approved.Approve(uuid.New()); err != nil {
+		t.Fatal(err)
+	}
+	svc := newJoinReqSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(approved))
+
+	_, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
+	if !errors.Is(err, ports.ErrConflict) {
+		t.Fatalf("validator with an approved request is locked: want ErrConflict, got %v", err)
+	}
+}
+
+// A prior REJECTED/EXPIRED request for the validator never blocks a fresh submission,
+// and does not hold the consensus key (terminal rows are excluded from dedup).
+func TestJoinRequestService_Submit_TerminalRequestDoesNotBlock(t *testing.T) {
+	cases := []struct {
+		name       string
+		transition func(*joinrequest.JoinRequest) error
+	}{
+		{"rejected", func(jr *joinrequest.JoinRequest) error { return jr.Reject("fix your commission") }},
+		{"expired", func(jr *joinrequest.JoinRequest) error { return jr.Expire() }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			l := testLaunch()
+			l.Status = launch.StatusWindowOpen
+			prior := makeJoinRequestSplit(t, l.ID, testAddr2, testAddr1)
+			if err := tc.transition(prior); err != nil {
+				t.Fatal(err)
+			}
+			svc := newJoinReqSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(prior))
+
+			fresh, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
+			if err != nil {
+				t.Fatalf("%s prior request should not block: %v", tc.name, err)
+			}
+			if fresh.Status != joinrequest.StatusPending {
+				t.Errorf("new request status = %q, want PENDING", fresh.Status)
+			}
+		})
+	}
+}
+
 // --- GetByID ---
 
 func TestJoinRequestService_GetByID_ForbiddenForOtherValidator(t *testing.T) {

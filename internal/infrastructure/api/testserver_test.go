@@ -577,6 +577,10 @@ func (*thinJoinRequestRepo) CountByConsensusPubKey(_ context.Context, _ uuid.UUI
 	return 0, nil
 }
 
+func (*thinJoinRequestRepo) FindActiveByValidator(_ context.Context, _ uuid.UUID, _ string) (*joinrequest.JoinRequest, error) {
+	return nil, ports.ErrNotFound
+}
+
 // thinProposalRepo is an in-memory proposal repository.
 type thinProposalRepo struct {
 	data map[uuid.UUID]*proposal.Proposal

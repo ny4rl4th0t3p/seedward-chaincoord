@@ -54,6 +54,12 @@ type JoinRequestRepository interface {
 	// for a given launch, or ErrNotFound.
 	FindByOperator(ctx context.Context, launchID uuid.UUID, operatorAddr string) (*joinrequest.JoinRequest, error)
 
+	// FindActiveByValidator returns the single ACTIVE (PENDING or APPROVED) join request for a
+	// validator in a launch, or ErrNotFound. Used by Submit to decide whether to supersede a
+	// PENDING request or reject against a locked APPROVED one (D4). At most one active request
+	// can exist per validator (enforced by a partial unique index).
+	FindActiveByValidator(ctx context.Context, launchID uuid.UUID, validatorAddr string) (*joinrequest.JoinRequest, error)
+
 	// FindApprovedByLaunch returns all APPROVED join requests for genesis assembly.
 	FindApprovedByLaunch(ctx context.Context, launchID uuid.UUID) ([]*joinrequest.JoinRequest, error)
 
