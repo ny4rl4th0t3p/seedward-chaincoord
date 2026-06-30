@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/cosmos/btcutil/bech32"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/infrastructure/crypto"
 )
@@ -34,58 +35,44 @@ const knownAddr = "cosmos1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5lzv7xu"
 
 func TestEd25519Verifier_ValidSignature(t *testing.T) {
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	msg := []byte("test message")
 	sig := ed25519.Sign(priv, msg)
 	pubB64 := base64.StdEncoding.EncodeToString(pub)
 	addr := deriveTestAddress(pub)
 
 	v := crypto.NewEd25519Verifier()
-	if err := v.Verify(addr, pubB64, msg, sig); err != nil {
-		t.Fatalf("expected nil, got %v", err)
-	}
+	require.NoError(t, v.Verify(addr, pubB64, msg, sig))
 }
 
 func TestEd25519Verifier_EmptyOperatorAddr(t *testing.T) {
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	msg := []byte("test message")
 	sig := ed25519.Sign(priv, msg)
 	pubB64 := base64.StdEncoding.EncodeToString(pub)
 
 	v := crypto.NewEd25519Verifier()
-	if err := v.Verify("", pubB64, msg, sig); err == nil {
-		t.Fatal("expected error for empty operator address")
-	}
+	require.Error(t, v.Verify("", pubB64, msg, sig), "expected error for empty operator address")
 }
 
 func TestEd25519Verifier_EmptyPublicKey(t *testing.T) {
 	v := crypto.NewEd25519Verifier()
 	err := v.Verify(knownAddr, "", []byte("msg"), []byte("sig"))
-	if err == nil {
-		t.Fatal("expected error for empty public key")
-	}
+	require.Error(t, err, "expected error for empty public key")
 }
 
 func TestEd25519Verifier_BadBase64PublicKey(t *testing.T) {
 	v := crypto.NewEd25519Verifier()
 	err := v.Verify(knownAddr, "not-valid-base64!!!", []byte("msg"), []byte("sig"))
-	if err == nil {
-		t.Fatal("expected error for bad base64 public key")
-	}
+	require.Error(t, err, "expected error for bad base64 public key")
 }
 
 func TestEd25519Verifier_WrongSizePublicKey(t *testing.T) {
 	short := base64.StdEncoding.EncodeToString([]byte("tooshort"))
 	v := crypto.NewEd25519Verifier()
 	err := v.Verify(knownAddr, short, []byte("msg"), []byte("sig"))
-	if err == nil {
-		t.Fatal("expected error for wrong-size public key")
-	}
+	require.Error(t, err, "expected error for wrong-size public key")
 }
 
 func TestEd25519Verifier_AddressMismatch(t *testing.T) {
@@ -102,16 +89,12 @@ func TestEd25519Verifier_AddressMismatch(t *testing.T) {
 
 	v := crypto.NewEd25519Verifier()
 	err := v.Verify(addr2, pub1B64, msg, sig)
-	if err == nil {
-		t.Fatal("expected error: pubkey does not correspond to claimed address")
-	}
+	require.Error(t, err, "expected error: pubkey does not correspond to claimed address")
 }
 
 func TestEd25519Verifier_TamperedMessage(t *testing.T) {
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	msg := []byte("original message")
 	sig := ed25519.Sign(priv, msg)
 	pubB64 := base64.StdEncoding.EncodeToString(pub)
@@ -119,7 +102,5 @@ func TestEd25519Verifier_TamperedMessage(t *testing.T) {
 
 	v := crypto.NewEd25519Verifier()
 	tampered := []byte("tampered message")
-	if err := v.Verify(addr, pubB64, tampered, sig); err == nil {
-		t.Fatal("expected error for tampered message")
-	}
+	require.Error(t, v.Verify(addr, pubB64, tampered, sig), "expected error for tampered message")
 }

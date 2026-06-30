@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // adminHarness returns a harness where testAddr1 is an admin with a valid session.
@@ -48,15 +51,9 @@ func TestHandleCoordinatorAdd(t *testing.T) {
 		assertContentTypeJSON(t, w)
 
 		var body map[string]string
-		if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
-			t.Fatalf("decode body: %v", err)
-		}
-		if body["address"] != testAddr2 {
-			t.Errorf("address: got %q, want %q", body["address"], testAddr2)
-		}
-		if body["added_by"] != testAddr1 {
-			t.Errorf("added_by: got %q, want %q", body["added_by"], testAddr1)
-		}
+		require.NoError(t, json.NewDecoder(w.Body).Decode(&body), "decode body")
+		assert.Equal(t, testAddr2, body["address"])
+		assert.Equal(t, testAddr1, body["added_by"])
 	})
 
 	t.Run("idempotent — second add → 201", func(t *testing.T) {
@@ -131,12 +128,8 @@ func TestHandleCoordinatorList(t *testing.T) {
 		var pg struct {
 			Total int `json:"total"`
 		}
-		if err := json.NewDecoder(w.Body).Decode(&pg); err != nil {
-			t.Fatalf("decode: %v", err)
-		}
-		if pg.Total != 0 {
-			t.Errorf("total: got %d, want 0", pg.Total)
-		}
+		require.NoError(t, json.NewDecoder(w.Body).Decode(&pg), "decode")
+		assert.Equal(t, 0, pg.Total)
 	})
 
 	t.Run("lists added entries with correct total", func(t *testing.T) {
@@ -153,11 +146,7 @@ func TestHandleCoordinatorList(t *testing.T) {
 		var pg struct {
 			Total int `json:"total"`
 		}
-		if err := json.NewDecoder(w.Body).Decode(&pg); err != nil {
-			t.Fatalf("decode: %v", err)
-		}
-		if pg.Total != 2 {
-			t.Errorf("total: got %d, want 2", pg.Total)
-		}
+		require.NoError(t, json.NewDecoder(w.Body).Decode(&pg), "decode")
+		assert.Equal(t, 2, pg.Total)
 	})
 }

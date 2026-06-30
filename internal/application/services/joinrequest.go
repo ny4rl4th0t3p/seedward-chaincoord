@@ -122,7 +122,8 @@ func (s *JoinRequestService) verifyRequestAuth(ctx context.Context, input Submit
 		return fmt.Errorf("submit join request: signature encoding: %w", err)
 	}
 	if err := s.verifier.Verify(input.OperatorAddress, input.PubKeyB64, message, sigBytes); err != nil {
-		return fmt.Errorf("submit join request: signature invalid: %w", err)
+		// Invalid signature is an auth failure (401); the verifier returns a bare error.
+		return fmt.Errorf("submit join request: signature invalid: %w: %w", err, ports.ErrUnauthorized)
 	}
 	return nil
 }
@@ -166,7 +167,7 @@ func (s *JoinRequestService) supersedePending(ctx context.Context, launchID uuid
 	}
 	switch existing.Status {
 	case joinrequest.StatusApproved:
-		return fmt.Errorf("submit join request: validator already has an approved request (revoke it first): %w", ports.ErrConflict)
+		return fmt.Errorf("submit join request: %w", ports.ErrValidatorAlreadyApproved)
 	case joinrequest.StatusPending:
 		if err := existing.Expire(); err != nil { // EXPIRED is the terminal "superseded" state (D4)
 			return fmt.Errorf("submit join request: supersede pending: %w", err)
@@ -235,7 +236,7 @@ func (s *JoinRequestService) Submit(ctx context.Context, launchID uuid.UUID, inp
 		return nil, fmt.Errorf("submit join request: count check: %w", err)
 	}
 	if count >= maxJoinRequestsPerSubmitter {
-		return nil, fmt.Errorf("submit join request: maximum %d submissions per submitter per window", maxJoinRequestsPerSubmitter)
+		return nil, fmt.Errorf("submit join request: max %d per window: %w", maxJoinRequestsPerSubmitter, ports.ErrSubmissionCapReached)
 	}
 
 	// Dedup on the validator identity (D4): supersede a stale PENDING request, or
@@ -274,7 +275,7 @@ func (s *JoinRequestService) Submit(ctx context.Context, launchID uuid.UUID, inp
 		return nil, fmt.Errorf("submit join request: consensus pubkey check: %w", err)
 	}
 	if cpCount > 0 {
-		return nil, fmt.Errorf("submit join request: consensus pubkey already submitted for this launch: %w", ports.ErrConflict)
+		return nil, fmt.Errorf("submit join request: %w", ports.ErrConsensusKeyAlreadyUsed)
 	}
 
 	if err := s.joinRequests.Save(ctx, jr); err != nil {

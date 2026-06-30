@@ -88,6 +88,11 @@ func (s *Server) handleAuthVerify(w http.ResponseWriter, r *http.Request) {
 
 	token, err := s.auth.VerifyChallenge(r.Context(), input)
 	if err != nil {
+		// Every verification failure returns a uniform 401 rather than being routed
+		// through writeServiceError (which would surface a 400 for a malformed field, a
+		// 404 for an unknown challenge, etc.). Distinguishing those cases would tell an
+		// attacker which part of the signed challenge was wrong; the uniform 401 is a
+		// deliberate anti-enumeration choice for this unauthenticated endpoint.
 		writeError(w, http.StatusUnauthorized, "auth_failed", err.Error())
 		return
 	}

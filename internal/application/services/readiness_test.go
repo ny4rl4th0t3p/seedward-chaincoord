@@ -2,11 +2,12 @@ package services
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/ports"
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/joinrequest"
@@ -47,9 +48,7 @@ func validConfirmInput(l *launch.Launch) ConfirmInput {
 func approvedJoinRequest(t *testing.T, launchID uuid.UUID, addr string) *joinrequest.JoinRequest {
 	t.Helper()
 	jr := makeJoinRequest(t, launchID, addr)
-	if err := jr.Approve(uuid.New()); err != nil {
-		t.Fatalf("approvedJoinRequest: %v", err)
-	}
+	require.NoError(t, jr.Approve(uuid.New()), "approvedJoinRequest")
 	return jr
 }
 
@@ -62,9 +61,7 @@ func TestReadinessService_Confirm_NonceConflict(t *testing.T) {
 	svc := newReadinessSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeReadinessRepo(), nonces, &fakeVerifier{})
 
 	_, err := svc.Confirm(context.Background(), l.ID, validConfirmInput(l))
-	if err == nil {
-		t.Fatal("expected error for nonce conflict")
-	}
+	require.ErrorIs(t, err, ports.ErrConflict, "a rejected nonce must surface as a conflict")
 }
 
 func TestReadinessService_Confirm_BadTimestamp(t *testing.T) {
@@ -74,9 +71,7 @@ func TestReadinessService_Confirm_BadTimestamp(t *testing.T) {
 	input := validConfirmInput(l)
 	input.Timestamp = expiredTS()
 	_, err := svc.Confirm(context.Background(), l.ID, input)
-	if err == nil {
-		t.Fatal("expected error for expired timestamp")
-	}
+	require.ErrorIs(t, err, ports.ErrUnauthorized, "expired timestamp is an auth failure")
 }
 
 func TestReadinessService_Confirm_SigFails(t *testing.T) {
@@ -85,9 +80,7 @@ func TestReadinessService_Confirm_SigFails(t *testing.T) {
 	svc := newReadinessSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeReadinessRepo(), newFakeNonceStore(), verifier)
 
 	_, err := svc.Confirm(context.Background(), l.ID, validConfirmInput(l))
-	if err == nil {
-		t.Fatal("expected error for invalid signature")
-	}
+	require.ErrorIs(t, err, ports.ErrUnauthorized, "invalid signature must map to 401")
 }
 
 func TestReadinessService_Confirm_LaunchNotGenesisReady(t *testing.T) {
@@ -95,9 +88,8 @@ func TestReadinessService_Confirm_LaunchNotGenesisReady(t *testing.T) {
 	svc := newReadinessSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
 
 	_, err := svc.Confirm(context.Background(), l.ID, validConfirmInput(l))
-	if err == nil {
-		t.Fatal("expected error: launch not in GENESIS_READY")
-	}
+	require.ErrorIs(t, err, ports.ErrLaunchNotGenesisReady)
+	assert.ErrorIs(t, err, ports.ErrConflict, "should map to 409")
 }
 
 func TestReadinessService_Confirm_NoApprovedJoinRequest(t *testing.T) {
@@ -106,9 +98,7 @@ func TestReadinessService_Confirm_NoApprovedJoinRequest(t *testing.T) {
 	svc := newReadinessSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
 
 	_, err := svc.Confirm(context.Background(), l.ID, validConfirmInput(l))
-	if !errors.Is(err, ports.ErrForbidden) {
-		t.Fatalf("want ErrForbidden, got %v", err)
-	}
+	require.ErrorIs(t, err, ports.ErrForbidden)
 }
 
 func TestReadinessService_Confirm_JoinRequestNotApproved(t *testing.T) {
@@ -118,9 +108,8 @@ func TestReadinessService_Confirm_JoinRequestNotApproved(t *testing.T) {
 	svc := newReadinessSvc(newFakeLaunchRepo(l), jrRepo, newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
 
 	_, err := svc.Confirm(context.Background(), l.ID, validConfirmInput(l))
-	if err == nil {
-		t.Fatal("expected error for non-approved join request")
-	}
+	require.ErrorIs(t, err, ports.ErrJoinRequestNotApproved)
+	assert.ErrorIs(t, err, ports.ErrForbidden, "should map to 403")
 }
 
 func TestReadinessService_Confirm_GenesisHashMismatch(t *testing.T) {
@@ -132,9 +121,7 @@ func TestReadinessService_Confirm_GenesisHashMismatch(t *testing.T) {
 	input := validConfirmInput(l)
 	input.GenesisHashConfirmed = "wrong-hash"
 	_, err := svc.Confirm(context.Background(), l.ID, input)
-	if err == nil {
-		t.Fatal("expected error for genesis hash mismatch")
-	}
+	require.ErrorIs(t, err, ports.ErrBadRequest)
 }
 
 func TestReadinessService_Confirm_BinaryHashMismatch(t *testing.T) {
@@ -146,9 +133,7 @@ func TestReadinessService_Confirm_BinaryHashMismatch(t *testing.T) {
 	input := validConfirmInput(l)
 	input.BinaryHashConfirmed = "wrong-binary-hash"
 	_, err := svc.Confirm(context.Background(), l.ID, input)
-	if err == nil {
-		t.Fatal("expected error for binary hash mismatch")
-	}
+	require.ErrorIs(t, err, ports.ErrBadRequest)
 }
 
 func TestReadinessService_Confirm_DuplicateValid(t *testing.T) {
@@ -168,9 +153,44 @@ func TestReadinessService_Confirm_DuplicateValid(t *testing.T) {
 	svc := newReadinessSvc(newFakeLaunchRepo(l), jrRepo, rcRepo, newFakeNonceStore(), &fakeVerifier{})
 
 	_, err := svc.Confirm(context.Background(), l.ID, validConfirmInput(l))
-	if err == nil {
-		t.Fatal("expected error: duplicate valid confirmation")
+	require.ErrorIs(t, err, ports.ErrReadinessAlreadyConfirmed)
+	assert.ErrorIs(t, err, ports.ErrConflict, "should map to 409")
+}
+
+// A prior confirmation that was invalidated (e.g. by a genesis-time update) must
+// not block a fresh confirmation — exercises the !IsValid() branch.
+func TestReadinessService_Confirm_ReconfirmsAfterInvalidation(t *testing.T) {
+	l := genesisReadyLaunch()
+	jr := approvedJoinRequest(t, l.ID, testAddr1)
+	jrRepo := newFakeJoinRequestRepo(jr)
+
+	stale := &launch.ReadinessConfirmation{
+		ID:              uuid.New(),
+		LaunchID:        l.ID,
+		JoinRequestID:   jr.ID,
+		OperatorAddress: mustAddr(testAddr1),
+		ConfirmedAt:     time.Now().UTC(),
 	}
+	stale.Invalidate(time.Now().UTC())
+	rcRepo := newFakeReadinessRepo(stale)
+	svc := newReadinessSvc(newFakeLaunchRepo(l), jrRepo, rcRepo, newFakeNonceStore(), &fakeVerifier{})
+
+	rc, err := svc.Confirm(context.Background(), l.ID, validConfirmInput(l))
+	require.NoError(t, err, "an invalidated prior confirmation should not block re-confirmation")
+	require.NotEqual(t, stale.ID, rc.ID, "expected a fresh confirmation")
+}
+
+// A non-NotFound error from the existing-confirmation lookup aborts the confirm.
+func TestReadinessService_Confirm_ExistingCheckError(t *testing.T) {
+	l := genesisReadyLaunch()
+	jr := approvedJoinRequest(t, l.ID, testAddr1)
+	jrRepo := newFakeJoinRequestRepo(jr)
+	rcRepo := newFakeReadinessRepo()
+	rcRepo.findByOpErr = ports.ErrConflict // any non-NotFound error
+	svc := newReadinessSvc(newFakeLaunchRepo(l), jrRepo, rcRepo, newFakeNonceStore(), &fakeVerifier{})
+
+	_, err := svc.Confirm(context.Background(), l.ID, validConfirmInput(l))
+	require.Error(t, err, "a lookup error on the existing confirmation must abort")
 }
 
 func TestReadinessService_Confirm_Success(t *testing.T) {
@@ -181,15 +201,10 @@ func TestReadinessService_Confirm_Success(t *testing.T) {
 	svc := newReadinessSvc(newFakeLaunchRepo(l), jrRepo, rcRepo, newFakeNonceStore(), &fakeVerifier{})
 
 	rc, err := svc.Confirm(context.Background(), l.ID, validConfirmInput(l))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if rc.ID == uuid.Nil {
-		t.Fatal("expected non-nil readiness confirmation ID")
-	}
-	if _, ok := rcRepo.data[rc.ID]; !ok {
-		t.Fatal("readiness confirmation not persisted")
-	}
+	require.NoError(t, err)
+	require.NotEqual(t, uuid.Nil, rc.ID, "expected non-nil readiness confirmation ID")
+	_, ok := rcRepo.data[rc.ID]
+	require.True(t, ok, "readiness confirmation not persisted")
 }
 
 // --- GetDashboard ---
@@ -199,15 +214,9 @@ func TestReadinessService_GetDashboard_Empty(t *testing.T) {
 	svc := newReadinessSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
 
 	dash, err := svc.GetDashboard(context.Background(), l.ID)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if dash.TotalApproved != 0 {
-		t.Errorf("want 0 total, got %d", dash.TotalApproved)
-	}
-	if dash.ThresholdStatus != "AT_RISK" {
-		t.Errorf("want AT_RISK for empty dashboard, got %s", dash.ThresholdStatus)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, 0, dash.TotalApproved)
+	assert.Equal(t, "AT_RISK", dash.ThresholdStatus, "empty dashboard is AT_RISK")
 }
 
 func TestReadinessService_GetDashboard_Confirmed(t *testing.T) {
@@ -226,15 +235,9 @@ func TestReadinessService_GetDashboard_Confirmed(t *testing.T) {
 
 	svc := newReadinessSvc(newFakeLaunchRepo(l), jrRepo, rcRepo, newFakeNonceStore(), &fakeVerifier{})
 	dash, err := svc.GetDashboard(context.Background(), l.ID)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if dash.ThresholdStatus != "CONFIRMED" {
-		t.Errorf("want CONFIRMED when all validators ready, got %s", dash.ThresholdStatus)
-	}
-	if dash.ConfirmedReady != 2 {
-		t.Errorf("want 2 confirmed, got %d", dash.ConfirmedReady)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "CONFIRMED", dash.ThresholdStatus, "all validators ready")
+	assert.Equal(t, 2, dash.ConfirmedReady)
 }
 
 func TestReadinessService_GetDashboard_AtRisk(t *testing.T) {
@@ -246,12 +249,8 @@ func TestReadinessService_GetDashboard_AtRisk(t *testing.T) {
 	svc := newReadinessSvc(newFakeLaunchRepo(l), jrRepo, newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
 
 	dash, err := svc.GetDashboard(context.Background(), l.ID)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if dash.ThresholdStatus != "AT_RISK" {
-		t.Errorf("want AT_RISK, got %s", dash.ThresholdStatus)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "AT_RISK", dash.ThresholdStatus)
 }
 
 // --- GetPeers ---
@@ -264,10 +263,6 @@ func TestReadinessService_GetPeers_Success(t *testing.T) {
 	svc := newReadinessSvc(newFakeLaunchRepo(l), jrRepo, newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
 
 	peers, err := svc.GetPeers(context.Background(), l.ID)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(peers) != 2 {
-		t.Errorf("want 2 peers, got %d", len(peers))
-	}
+	require.NoError(t, err)
+	assert.Len(t, peers, 2)
 }

@@ -38,7 +38,7 @@ func NewAuthService(
 // IssueChallenge generates a short-lived challenge string for the given operator address.
 func (s *AuthService) IssueChallenge(ctx context.Context, operatorAddr string) (string, error) {
 	if operatorAddr == "" {
-		return "", fmt.Errorf("operator address is required")
+		return "", fmt.Errorf("operator address is required: %w", ports.ErrBadRequest)
 	}
 	return s.challenges.Issue(ctx, operatorAddr)
 }
@@ -77,7 +77,7 @@ type VerifyChallengeInput struct {
 // VerifyChallenge validates a signed challenge response and issues a session token.
 func (s *AuthService) VerifyChallenge(ctx context.Context, input VerifyChallengeInput) (token string, err error) {
 	if input.OperatorAddress == "" {
-		return "", fmt.Errorf("operator_address is required")
+		return "", fmt.Errorf("operator_address is required: %w", ports.ErrBadRequest)
 	}
 
 	// Replay protection: consume the nonce before anything else.
@@ -94,7 +94,7 @@ func (s *AuthService) VerifyChallenge(ctx context.Context, input VerifyChallenge
 		return "", fmt.Errorf("auth: challenge not found or expired: %w", err)
 	}
 	if input.Challenge != expected {
-		return "", fmt.Errorf("auth: challenge mismatch")
+		return "", fmt.Errorf("auth: %w", ports.ErrChallengeMismatch)
 	}
 
 	// Verify the signature over canonical JSON of the payload (minus signature field).
@@ -107,7 +107,10 @@ func (s *AuthService) VerifyChallenge(ctx context.Context, input VerifyChallenge
 		return "", fmt.Errorf("auth: invalid signature encoding: %w", err)
 	}
 	if err := s.verifier.Verify(input.OperatorAddress, input.PubKeyB64, message, sigBytes); err != nil {
-		return "", fmt.Errorf("auth: signature verification failed: %w", err)
+		// Invalid signature is an auth failure (401); the verifier returns a bare
+		// error, so attach the sentinel lest it map to 500. Both wrapped (the
+		// verifier error carries no competing sentinel, so the status stays 401).
+		return "", fmt.Errorf("auth: signature verification failed: %w: %w", err, ports.ErrUnauthorized)
 	}
 
 	return s.sessions.Issue(ctx, input.OperatorAddress)

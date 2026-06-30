@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain"
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/infrastructure/sse"
@@ -23,7 +25,7 @@ func recv(t *testing.T, ch chan domain.DomainEvent) domain.DomainEvent {
 	case ev := <-ch:
 		return ev
 	case <-time.After(500 * time.Millisecond):
-		t.Fatal("timed out waiting for event")
+		require.Fail(t, "timed out waiting for event")
 		return nil
 	}
 }
@@ -39,9 +41,7 @@ func TestBroker_SubscribeReceivesPublishedEvent(t *testing.T) {
 	b.Publish(windowClosed(lid))
 
 	ev := recv(t, ch)
-	if ev.GetLaunchID() != lid {
-		t.Errorf("want launchID %s, got %s", lid, ev.GetLaunchID())
-	}
+	assert.Equal(t, lid, ev.GetLaunchID())
 }
 
 func TestBroker_UnsubscribeClosesChannel(t *testing.T) {
@@ -53,11 +53,9 @@ func TestBroker_UnsubscribeClosesChannel(t *testing.T) {
 	// Channel should be closed — receive should return zero value immediately.
 	select {
 	case _, ok := <-ch:
-		if ok {
-			t.Error("expected channel to be closed")
-		}
+		assert.False(t, ok, "expected channel to be closed")
 	case <-time.After(100 * time.Millisecond):
-		t.Error("channel was not closed after Unsubscribe")
+		assert.Fail(t, "channel was not closed after Unsubscribe")
 	}
 }
 
@@ -119,7 +117,7 @@ func TestBroker_EventsRoutedByLaunchID(t *testing.T) {
 	recv(t, ch1)
 	select {
 	case ev := <-ch2:
-		t.Errorf("ch2 should not receive events for lid1, got %v", ev)
+		assert.Fail(t, "ch2 should not receive events for lid1", "got %v", ev)
 	case <-time.After(50 * time.Millisecond):
 		// expected — no cross-talk
 	}
@@ -151,7 +149,7 @@ func TestBroker_SlowSubscriberEventDropped(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(500 * time.Millisecond):
-		t.Fatal("Publish blocked on slow subscriber")
+		require.Fail(t, "Publish blocked on slow subscriber")
 	}
 
 	// fast subscriber still received the event.

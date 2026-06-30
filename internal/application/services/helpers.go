@@ -37,7 +37,14 @@ func validateTimestamp(ts string) error {
 	return nil
 }
 
-// decodeBase64Sig is shared by all service files that verify signatures.
+// decodeBase64Sig is shared by all service files that verify signatures. A
+// malformed signature is a client error, so it wraps ErrBadRequest (400) — the
+// callers return it straight to the API, which would otherwise map a bare base64
+// error to 500.
 func decodeBase64Sig(s string) ([]byte, error) {
-	return base64.StdEncoding.DecodeString(s)
+	b, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		return nil, fmt.Errorf("invalid base64 signature: %w", ports.ErrBadRequest)
+	}
+	return b, nil
 }

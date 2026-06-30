@@ -110,11 +110,11 @@ func (s *LaunchService) UploadInitialGenesis(
 		return "", fmt.Errorf("upload genesis: caller is not a committee member: %w", ports.ErrForbidden)
 	}
 	if l.Status != launch.StatusDraft {
-		return "", fmt.Errorf("upload genesis: launch must be in DRAFT status, current: %s", l.Status)
+		return "", fmt.Errorf("upload genesis: launch must be in DRAFT status, current: %s: %w", l.Status, ports.ErrConflict)
 	}
 
 	if err := validateGenesisStructure(genesisData, l.Record.ChainID); err != nil {
-		return "", fmt.Errorf("upload genesis: validation: %w", err)
+		return "", fmt.Errorf("upload genesis: validation: %w: %w", err, ports.ErrBadRequest)
 	}
 
 	hash := sha256Hex(genesisData)
@@ -149,11 +149,11 @@ func (s *LaunchService) UploadFinalGenesis(
 		return "", fmt.Errorf("upload final genesis: caller is not a committee member: %w", ports.ErrForbidden)
 	}
 	if l.Status != launch.StatusWindowClosed {
-		return "", fmt.Errorf("upload final genesis: launch must be in WINDOW_CLOSED status, current: %s", l.Status)
+		return "", fmt.Errorf("upload final genesis: launch must be in WINDOW_CLOSED status, current: %s: %w", l.Status, ports.ErrConflict)
 	}
 
 	if err := validateGenesisStructure(genesisData, l.Record.ChainID); err != nil {
-		return "", fmt.Errorf("upload final genesis: validation: %w", err)
+		return "", fmt.Errorf("upload final genesis: validation: %w: %w", err, ports.ErrBadRequest)
 	}
 
 	approved, err := s.joinRequests.FindApprovedByLaunch(ctx, launchID)
@@ -162,7 +162,7 @@ func (s *LaunchService) UploadFinalGenesis(
 	}
 	genesisTime, err := validateFinalGenesis(genesisData, approved)
 	if err != nil {
-		return "", fmt.Errorf("upload final genesis: structural check: %w", err)
+		return "", fmt.Errorf("upload final genesis: structural check: %w: %w", err, ports.ErrBadRequest)
 	}
 
 	// Sync the authoritative genesis time from the file into the launch record so
@@ -249,7 +249,7 @@ func (s *LaunchService) uploadGenesisRef(
 		return fmt.Errorf("%s: caller is not a committee member: %w", op, ports.ErrForbidden)
 	}
 	if l.Status != requiredStatus {
-		return fmt.Errorf("%s: launch must be in %s status, current: %s", op, requiredStatus, l.Status)
+		return fmt.Errorf("%s: launch must be in %s status, current: %s: %w", op, requiredStatus, l.Status, ports.ErrConflict)
 	}
 	if err := s.urlValidator(genesisURL); err != nil {
 		return fmt.Errorf("%s: invalid url: %w: %w", op, err, ports.ErrBadRequest)
@@ -348,15 +348,44 @@ func (s *LaunchService) UploadAllocationFileRef(
 	return nil
 }
 
-// mapAllocationDomainErr maps the launch aggregate's allocation sentinels to a
-// client-facing bad-request so the HTTP layer renders 400 rather than 500.
+// mapAllocationDomainErr maps the launch aggregate's allocation sentinels to the
+// matching client-facing sentinel so the HTTP layer renders a 4xx rather than 500
+// (per the mapping documented on the sentinels in domain/launch/allocation.go):
+//   - locked set / stale hash → 409 (state conflict),
+//   - no file of that type    → 404,
+//   - bad type / empty hash   → 400 (malformed input).
 func mapAllocationDomainErr(op string, err error) error {
-	if errors.Is(err, launch.ErrAllocationLocked) ||
-		errors.Is(err, launch.ErrUnknownAllocationType) ||
-		errors.Is(err, launch.ErrAllocationEmptyHash) {
+	switch {
+	case errors.Is(err, launch.ErrAllocationLocked), errors.Is(err, launch.ErrAllocationStaleHash):
+		return fmt.Errorf("%s: %w: %w", op, err, ports.ErrConflict)
+	case errors.Is(err, launch.ErrAllocationNotFound):
+		return fmt.Errorf("%s: %w: %w", op, err, ports.ErrNotFound)
+	case errors.Is(err, launch.ErrUnknownAllocationType), errors.Is(err, launch.ErrAllocationEmptyHash):
 		return fmt.Errorf("%s: %w: %w", op, err, ports.ErrBadRequest)
+	default:
+		return fmt.Errorf("%s: %w", op, err)
 	}
-	return fmt.Errorf("%s: %w", op, err)
+}
+
+// mapLaunchDomainErr maps the launch aggregate's state-machine and committee sentinels to the
+// matching client-facing sentinel (see domain/launch/launch.go). Status transitions, an already-
+// present member, and the window-close preconditions are state conflicts (409); a required hash,
+// an absent member, and an invalid committee change are malformed input (400). Used at the
+// proposal apply boundary, where executed-proposal side effects touch the launch aggregate.
+func mapLaunchDomainErr(op string, err error) error {
+	switch {
+	case errors.Is(err, launch.ErrInvalidStatusTransition),
+		errors.Is(err, launch.ErrCommitteeMemberExists),
+		errors.Is(err, launch.ErrInsufficientValidators),
+		errors.Is(err, launch.ErrDominantVotingPower):
+		return fmt.Errorf("%s: %w: %w", op, err, ports.ErrConflict)
+	case errors.Is(err, launch.ErrGenesisHashRequired),
+		errors.Is(err, launch.ErrCommitteeMemberNotFound),
+		errors.Is(err, launch.ErrInvalidCommitteeChange):
+		return fmt.Errorf("%s: %w: %w", op, err, ports.ErrBadRequest)
+	default:
+		return fmt.Errorf("%s: %w", op, err)
+	}
 }
 
 // sha256HexLen is the number of hex characters in a SHA-256 digest.
@@ -565,10 +594,11 @@ func (s *LaunchService) SetCommittee(ctx context.Context, launchID uuid.UUID, co
 		return fmt.Errorf("set committee: only the lead coordinator may replace the committee: %w", ports.ErrForbidden)
 	}
 	if committee.ThresholdM < 1 || committee.ThresholdM > committee.TotalN {
-		return fmt.Errorf("set committee: threshold %d out of range [1, %d]", committee.ThresholdM, committee.TotalN)
+		return fmt.Errorf("set committee: threshold %d out of range [1, %d]: %w", committee.ThresholdM, committee.TotalN, ports.ErrBadRequest)
 	}
 	if len(committee.Members) != committee.TotalN {
-		return fmt.Errorf("set committee: %d members provided but total_n is %d", len(committee.Members), committee.TotalN)
+		return fmt.Errorf("set committee: %d members provided but total_n is %d: %w",
+			len(committee.Members), committee.TotalN, ports.ErrBadRequest)
 	}
 	l.Committee = committee
 	if err := s.launches.Save(ctx, l); err != nil {

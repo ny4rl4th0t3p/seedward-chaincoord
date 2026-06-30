@@ -81,7 +81,7 @@ func TestProposal_CannotSignTwice(t *testing.T) {
 	p := newProposal(proposal.ActionApproveValidator, validApprovePayload())
 	// proposer already signed on creation
 	err := p.Sign(newAddr(testAddr1), proposal.DecisionSign, newSig(), thresholdM, time.Now())
-	assert.Error(t, err, "expected error for duplicate signature from same coordinator")
+	assert.ErrorIs(t, err, proposal.ErrCoordinatorAlreadySigned, "duplicate signature from same coordinator")
 }
 
 func TestProposal_CannotSignExecuted(t *testing.T) {
@@ -90,7 +90,7 @@ func TestProposal_CannotSignExecuted(t *testing.T) {
 	// now EXECUTED
 
 	err := p.Sign(newAddr(testAddr3), proposal.DecisionSign, newSig(), thresholdM, time.Now())
-	assert.Error(t, err, "cannot sign an EXECUTED proposal")
+	assert.ErrorIs(t, err, proposal.ErrProposalNotPending, "cannot sign an EXECUTED proposal")
 }
 
 func TestProposal_TTLExpiry(t *testing.T) {
@@ -100,8 +100,10 @@ func TestProposal_TTLExpiry(t *testing.T) {
 	assert.True(t, expired, "expected proposal to be expired")
 	assert.Equal(t, proposal.StatusExpired, p.Status)
 
+	// The proposal was already moved to EXPIRED by ExpireIfStale, so the status guard
+	// fires before the TTL guard.
 	err := p.Sign(newAddr(testAddr2), proposal.DecisionSign, newSig(), thresholdM, time.Now().Add(49*time.Hour))
-	assert.Error(t, err, "cannot sign expired proposal")
+	assert.ErrorIs(t, err, proposal.ErrProposalNotPending, "cannot sign an already-EXPIRED proposal")
 }
 
 func TestProposal_NotExpiredYet(t *testing.T) {
@@ -156,7 +158,7 @@ func TestNew_NilPayload(t *testing.T) {
 	_, err := proposal.New(uuid.New(), uuid.New(),
 		proposal.ActionApproveValidator, nil,
 		newAddr(testAddr1), newSig(), 48*time.Hour, time.Now())
-	assert.Error(t, err, "expected error for nil payload")
+	assert.ErrorIs(t, err, proposal.ErrProposalPayloadRequired, "expected error for nil payload")
 }
 
 // ---- ValidatePayload: valid payloads for all action types -------------------
@@ -347,15 +349,24 @@ func TestProposal_CannotSignVetoed(t *testing.T) {
 	p := newProposal(proposal.ActionApproveValidator, validApprovePayload())
 	_ = p.Sign(newAddr(testAddr2), proposal.DecisionVeto, newSig(), thresholdM, time.Now())
 	err := p.Sign(newAddr(testAddr3), proposal.DecisionSign, newSig(), thresholdM, time.Now())
-	assert.Error(t, err, "cannot sign VETOED proposal")
+	assert.ErrorIs(t, err, proposal.ErrProposalNotPending, "cannot sign VETOED proposal")
 }
 
 func TestProposal_CannotSignExpired(t *testing.T) {
 	p := newProposal(proposal.ActionApproveValidator, validApprovePayload())
 	future := time.Now().Add(49 * time.Hour)
 	_ = p.ExpireIfStale(future)
+	// Already moved to EXPIRED, so the status guard fires before the TTL guard.
 	err := p.Sign(newAddr(testAddr2), proposal.DecisionSign, newSig(), thresholdM, future)
-	assert.Error(t, err, "cannot sign EXPIRED proposal")
+	assert.ErrorIs(t, err, proposal.ErrProposalNotPending, "cannot sign an already-EXPIRED proposal")
+}
+
+func TestProposal_TTLGuardOnStillPending(t *testing.T) {
+	// A still-PENDING proposal signed past its TTL (without ExpireIfStale having run)
+	// hits the TTL guard specifically.
+	p := newProposal(proposal.ActionApproveValidator, validApprovePayload())
+	err := p.Sign(newAddr(testAddr2), proposal.DecisionSign, newSig(), thresholdM, time.Now().Add(49*time.Hour))
+	assert.ErrorIs(t, err, proposal.ErrProposalTTLExpired, "signing past the TTL is blocked by the TTL guard")
 }
 
 // ---- ExpireIfStale: terminal states are not re-expired ----------------------

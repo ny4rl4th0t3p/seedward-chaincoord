@@ -79,7 +79,8 @@ func (s *ReadinessService) Confirm(ctx context.Context, launchID uuid.UUID, inpu
 		return nil, fmt.Errorf("confirm readiness: signature encoding: %w", err)
 	}
 	if err := s.verifier.Verify(input.OperatorAddress, input.PubKeyB64, message, sigBytes); err != nil {
-		return nil, fmt.Errorf("confirm readiness: signature invalid: %w", err)
+		// Invalid signature is an auth failure (401); the verifier returns a bare error.
+		return nil, fmt.Errorf("confirm readiness: signature invalid: %w: %w", err, ports.ErrUnauthorized)
 	}
 
 	l, err := s.launches.FindByID(ctx, launchID)
@@ -87,7 +88,7 @@ func (s *ReadinessService) Confirm(ctx context.Context, launchID uuid.UUID, inpu
 		return nil, fmt.Errorf("confirm readiness: launch: %w", err)
 	}
 	if l.Status != launch.StatusGenesisReady {
-		return nil, fmt.Errorf("confirm readiness: launch is not in GENESIS_READY status (current: %s)", l.Status)
+		return nil, fmt.Errorf("confirm readiness: %w (current: %s)", ports.ErrLaunchNotGenesisReady, l.Status)
 	}
 
 	// Validator must have an approved join request.
@@ -96,20 +97,20 @@ func (s *ReadinessService) Confirm(ctx context.Context, launchID uuid.UUID, inpu
 		return nil, fmt.Errorf("confirm readiness: no approved join request for operator: %w", ports.ErrForbidden)
 	}
 	if jr.Status != joinrequest.StatusApproved {
-		return nil, fmt.Errorf("confirm readiness: join request is not approved (status: %s)", jr.Status)
+		return nil, fmt.Errorf("confirm readiness: %w (status: %s)", ports.ErrJoinRequestNotApproved, jr.Status)
 	}
 
 	// The genesis hash the validator reports must match the published final genesis hash.
 	if input.GenesisHashConfirmed != l.FinalGenesisSHA256 {
-		return nil, fmt.Errorf("confirm readiness: genesis_hash_confirmed %q does not match published genesis hash %q",
-			input.GenesisHashConfirmed, l.FinalGenesisSHA256)
+		return nil, fmt.Errorf("confirm readiness: genesis_hash_confirmed %q does not match published genesis hash %q: %w",
+			input.GenesisHashConfirmed, l.FinalGenesisSHA256, ports.ErrBadRequest)
 	}
 
 	// The binary hash must match the chain record, but only when the coordinator
 	// published a reference hash. If BinarySHA256 is empty the check is skipped.
 	if l.Record.BinarySHA256 != "" && input.BinaryHashConfirmed != l.Record.BinarySHA256 {
-		return nil, fmt.Errorf("confirm readiness: binary_hash_confirmed %q does not match expected binary hash %q",
-			input.BinaryHashConfirmed, l.Record.BinarySHA256)
+		return nil, fmt.Errorf("confirm readiness: binary_hash_confirmed %q does not match expected binary hash %q: %w",
+			input.BinaryHashConfirmed, l.Record.BinarySHA256, ports.ErrBadRequest)
 	}
 
 	operatorAddr, err := launch.NewOperatorAddress(input.OperatorAddress)
@@ -128,7 +129,7 @@ func (s *ReadinessService) Confirm(ctx context.Context, launchID uuid.UUID, inpu
 		return nil, fmt.Errorf("confirm readiness: check existing: %w", err)
 	}
 	if err == nil && existing.IsValid() {
-		return nil, fmt.Errorf("confirm readiness: a valid readiness confirmation already exists for this operator and genesis version")
+		return nil, fmt.Errorf("confirm readiness: %w", ports.ErrReadinessAlreadyConfirmed)
 	}
 
 	rc := &launch.ReadinessConfirmation{

@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -68,7 +69,7 @@ func TestProposalService_Raise_NonceConflict(t *testing.T) {
 	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), nonces, &fakeVerifier{})
 
 	_, err := svc.Raise(context.Background(), l.ID, validRaiseInput(l))
-	require.Error(t, err, "expected error for nonce conflict")
+	require.ErrorIs(t, err, ports.ErrConflict, "a rejected nonce must surface as a conflict")
 }
 
 func TestProposalService_Raise_BadTimestamp(t *testing.T) {
@@ -78,7 +79,7 @@ func TestProposalService_Raise_BadTimestamp(t *testing.T) {
 	input := validRaiseInput(l)
 	input.Timestamp = expiredTS()
 	_, err := svc.Raise(context.Background(), l.ID, input)
-	require.Error(t, err, "expected error for expired timestamp")
+	require.ErrorIs(t, err, ports.ErrUnauthorized, "an expired timestamp is an auth failure")
 }
 
 func TestProposalService_Raise_LaunchNotFound(t *testing.T) {
@@ -116,11 +117,33 @@ func TestProposalService_Raise_NotCommitteeMember(t *testing.T) {
 
 func TestProposalService_Raise_SigFails(t *testing.T) {
 	l := testLaunch()
-	verifier := &fakeVerifier{err: ports.ErrUnauthorized}
+	// A BARE verifier error (as the real crypto verifiers return) must still map to 401 —
+	// the service is responsible for attaching the sentinel.
+	verifier := &fakeVerifier{err: errors.New("signature verification failed")}
 	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), verifier)
 
 	_, err := svc.Raise(context.Background(), l.ID, validRaiseInput(l))
-	require.Error(t, err, "expected error when signature verification fails")
+	require.ErrorIs(t, err, ports.ErrUnauthorized, "a failed signature must map to 401")
+}
+
+func TestProposalService_Raise_BadCoordinatorAddress(t *testing.T) {
+	l := testLaunch()
+	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
+
+	input := validRaiseInput(l)
+	input.CoordinatorAddr = "not-a-bech32-address"
+	_, err := svc.Raise(context.Background(), l.ID, input)
+	require.ErrorIs(t, err, ports.ErrBadRequest, "an unparseable coordinator address is a 400")
+}
+
+func TestProposalService_Raise_InvalidAction(t *testing.T) {
+	l := testLaunch()
+	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
+
+	input := validRaiseInput(l)
+	input.ActionType = "BOGUS_ACTION" // rejected by proposal.New's payload/action validation
+	_, err := svc.Raise(context.Background(), l.ID, input)
+	require.ErrorIs(t, err, ports.ErrBadRequest, "an invalid action is a 400")
 }
 
 func TestProposalService_Raise_StaysPending(t *testing.T) {
@@ -177,7 +200,24 @@ func TestProposalService_Sign_NonceConflict(t *testing.T) {
 		Timestamp:       nowTS(),
 		Signature:       testSig,
 	})
-	require.Error(t, err, "expected error for nonce conflict")
+	require.ErrorIs(t, err, ports.ErrConflict, "a rejected nonce must surface as a conflict")
+}
+
+func TestProposalService_Sign_SigFails(t *testing.T) {
+	l := testLaunch()
+	p := testProposal(l.ID)
+	// Bare verifier error (as the real verifiers return) must still map to 401.
+	verifier := &fakeVerifier{err: errors.New("signature verification failed")}
+	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(p), newFakeReadinessRepo(), newFakeNonceStore(), verifier)
+
+	_, err := svc.Sign(context.Background(), l.ID, p.ID, SignInput{
+		CoordinatorAddr: testAddr1,
+		Decision:        proposal.DecisionSign,
+		Nonce:           uuid.New().String(),
+		Timestamp:       nowTS(),
+		Signature:       testSig,
+	})
+	require.ErrorIs(t, err, ports.ErrUnauthorized, "a failed signature must map to 401")
 }
 
 func TestProposalService_Sign_NotCommitteeMember(t *testing.T) {
@@ -210,6 +250,48 @@ func TestProposalService_Sign_WrongLaunch(t *testing.T) {
 		Signature:       testSig,
 	})
 	require.ErrorIs(t, err, ports.ErrNotFound)
+}
+
+func TestProposalService_Sign_AlreadySigned(t *testing.T) {
+	// 3-of-3 committee: Raise adds testAddr1's signature (stays PENDING). Signing again
+	// as testAddr1 must be a state conflict (409), not a 500.
+	l, _ := launch.New(uuid.New(), testChainRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee(3, 3))
+	propRepo := newFakeProposalRepo()
+	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), propRepo, newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
+
+	p, err := svc.Raise(context.Background(), l.ID, validRaiseInput(l))
+	require.NoError(t, err)
+	require.Equal(t, proposal.StatusPendingSignatures, p.Status)
+
+	_, err = svc.Sign(context.Background(), l.ID, p.ID, SignInput{
+		CoordinatorAddr: testAddr1, // already signed as proposer
+		Decision:        proposal.DecisionSign,
+		Nonce:           uuid.New().String(),
+		Timestamp:       nowTS(),
+		Signature:       testSig,
+	})
+	require.ErrorIs(t, err, ports.ErrConflict, "a double-sign must map to 409")
+	assert.ErrorIs(t, err, proposal.ErrCoordinatorAlreadySigned, "and preserves the domain sentinel")
+}
+
+func TestProposalService_Sign_TTLExpired(t *testing.T) {
+	// A proposal whose TTL has elapsed but is still PENDING (the expiry job has not yet run):
+	// signing it must surface a state conflict (409), not a 500.
+	l := testLaunch() // 2-of-3
+	p, _ := proposal.New(uuid.New(), l.ID, proposal.ActionCloseApplicationWindow, []byte(`{}`),
+		mustAddr(testAddr1), mustSig(), 1*time.Millisecond, time.Now().Add(-1*time.Hour))
+	propRepo := newFakeProposalRepo(p)
+	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), propRepo, newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
+
+	_, err := svc.Sign(context.Background(), l.ID, p.ID, SignInput{
+		CoordinatorAddr: testAddr2, // a member who has not yet signed
+		Decision:        proposal.DecisionSign,
+		Nonce:           uuid.New().String(),
+		Timestamp:       nowTS(),
+		Signature:       testSig,
+	})
+	require.ErrorIs(t, err, ports.ErrConflict, "signing a TTL-elapsed proposal must map to 409")
+	assert.ErrorIs(t, err, proposal.ErrProposalTTLExpired, "and preserves the domain sentinel")
 }
 
 func TestProposalService_Sign_AddsSignature(t *testing.T) {
@@ -352,7 +434,25 @@ func TestProposalService_applyApproveValidator_JoinRequestNotFound(t *testing.T)
 		JoinRequestID:   uuid.New(),
 		OperatorAddress: testAddr2,
 	})
-	require.Error(t, err, "expected error when join request not found")
+	require.ErrorIs(t, err, ports.ErrNotFound, "a missing join request is a 404")
+}
+
+func TestProposalService_applyApproveValidator_AlreadyApproved(t *testing.T) {
+	// Approving a join request that is already APPROVED hits the aggregate's status
+	// guard; it must surface as a 409, not a 500.
+	l := test1of1Launch()
+	l.Status = launch.StatusWindowOpen
+	jr := makeJoinRequest(t, l.ID, testAddr2)
+	require.NoError(t, jr.Approve(uuid.New())) // pre-approve
+	jrRepo := newFakeJoinRequestRepo(jr)
+	svc := newProposalSvc(newFakeLaunchRepo(l), jrRepo, newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
+
+	_, err := raiseWith(t, svc, l.ID, proposal.ActionApproveValidator, proposal.ApproveValidatorPayload{
+		JoinRequestID:   jr.ID,
+		OperatorAddress: testAddr2,
+	})
+	require.ErrorIs(t, err, ports.ErrConflict, "re-approving an APPROVED request is a 409")
+	assert.ErrorIs(t, err, joinrequest.ErrInvalidJoinRequestStatus, "and preserves the domain sentinel")
 }
 
 func TestProposalService_applyRejectValidator_Success(t *testing.T) {
@@ -401,7 +501,77 @@ func TestProposalService_applyRemoveValidator_WrongStatus(t *testing.T) {
 		OperatorAddress: testAddr2,
 		Reason:          "should be blocked",
 	})
-	require.Error(t, err, "REMOVE_APPROVED_VALIDATOR not allowed at GENESIS_READY")
+	require.ErrorIs(t, err, ports.ErrBadRequest, "REMOVE_APPROVED_VALIDATOR not allowed at GENESIS_READY")
+}
+
+func TestProposalService_applyRemoveValidator_NotApproved(t *testing.T) {
+	// Revoking a join request that is still PENDING (never approved) hits the aggregate's
+	// status guard; it must surface as a 409, not a 500.
+	l := test1of1Launch()
+	l.Status = launch.StatusWindowOpen
+	jr := makeJoinRequest(t, l.ID, testAddr2) // PENDING
+	jrRepo := newFakeJoinRequestRepo(jr)
+	svc := newProposalSvc(newFakeLaunchRepo(l), jrRepo, newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
+
+	_, err := raiseWith(t, svc, l.ID, proposal.ActionRemoveApprovedValidator, proposal.RemoveApprovedValidatorPayload{
+		JoinRequestID:   jr.ID,
+		OperatorAddress: testAddr2,
+		Reason:          "not approved yet",
+	})
+	require.ErrorIs(t, err, ports.ErrConflict, "revoking a PENDING request is a 409")
+	assert.ErrorIs(t, err, joinrequest.ErrInvalidJoinRequestStatus, "and preserves the domain sentinel")
+}
+
+func TestProposalService_applyRejectValidator_JoinRequestNotFound(t *testing.T) {
+	l := test1of1Launch()
+	l.Status = launch.StatusWindowOpen
+	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
+
+	_, err := raiseWith(t, svc, l.ID, proposal.ActionRejectValidator, proposal.RejectValidatorPayload{
+		JoinRequestID:   uuid.New(),
+		OperatorAddress: testAddr2,
+		Reason:          "no such request",
+	})
+	require.ErrorIs(t, err, ports.ErrNotFound, "a missing join request is a 404")
+}
+
+func TestProposalService_applyCloseWindow_InsufficientValidators(t *testing.T) {
+	// 1-of-1 launch with MinValidatorCount=1 and no approved validators: CloseWindow
+	// hits the domain precondition and must surface as a 409, not a 500.
+	l := test1of1Launch()
+	l.Status = launch.StatusWindowOpen
+	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
+
+	_, err := raiseWith(t, svc, l.ID, proposal.ActionCloseApplicationWindow, proposal.CloseApplicationWindowPayload{})
+	require.ErrorIs(t, err, ports.ErrConflict, "closing with too few validators is a state conflict")
+	assert.ErrorIs(t, err, launch.ErrInsufficientValidators, "and preserves the domain sentinel")
+}
+
+func TestProposalService_applyPublishGenesis_WrongStatus(t *testing.T) {
+	// PublishGenesis requires WINDOW_CLOSED; from DRAFT it must be a 409.
+	l := test1of1Launch() // DRAFT
+	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
+
+	_, err := raiseWith(t, svc, l.ID, proposal.ActionPublishGenesis, proposal.PublishGenesisPayload{
+		GenesisHash: "deadbeef1234567890abcdef",
+	})
+	require.ErrorIs(t, err, ports.ErrConflict, "publishing genesis from the wrong status is a state conflict")
+	assert.ErrorIs(t, err, launch.ErrInvalidStatusTransition, "and preserves the domain sentinel")
+}
+
+func TestProposalService_applyProposal_SaveLaunchFails(t *testing.T) {
+	// A persistence failure in saveLaunchAndProposal must propagate (not be swallowed).
+	l := test1of1Launch()
+	l.Status = launch.StatusWindowClosed
+	lRepo := newFakeLaunchRepo(l)
+	lRepo.saveErr = errors.New("db down")
+	svc := newProposalSvc(lRepo, newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
+
+	_, err := raiseWith(t, svc, l.ID, proposal.ActionPublishGenesis, proposal.PublishGenesisPayload{
+		GenesisHash: "deadbeef1234567890abcdef",
+	})
+	require.Error(t, err, "a launch save failure must surface")
+	assert.ErrorContains(t, err, "save launch")
 }
 
 func TestProposalService_applyPublishGenesis_Success(t *testing.T) {
@@ -438,7 +608,7 @@ func TestProposalService_applyPublishChainRecord_HashMismatch(t *testing.T) {
 	_, err := raiseWith(t, svc, l.ID, proposal.ActionPublishChainRecord, proposal.PublishChainRecordPayload{
 		InitialGenesisHash: "wronghash",
 	})
-	require.Error(t, err, "attested hash does not match uploaded hash")
+	require.ErrorIs(t, err, ports.ErrBadRequest, "a mismatched attested hash is a 400")
 }
 
 func TestProposalService_applyPublishChainRecord_NoGenesisUploaded(t *testing.T) {
@@ -448,7 +618,7 @@ func TestProposalService_applyPublishChainRecord_NoGenesisUploaded(t *testing.T)
 	_, err := raiseWith(t, svc, l.ID, proposal.ActionPublishChainRecord, proposal.PublishChainRecordPayload{
 		InitialGenesisHash: "somehash",
 	})
-	require.Error(t, err, "genesis not uploaded")
+	require.ErrorIs(t, err, ports.ErrConflict, "publishing before genesis upload is a state conflict")
 }
 
 func TestProposalService_applyUpdateGenesisTime_Success(t *testing.T) {
@@ -495,7 +665,7 @@ func TestProposalService_applyUpdateGenesisTime_AfterLaunched(t *testing.T) {
 	_, err := raiseWith(t, svc, l.ID, proposal.ActionUpdateGenesisTime, proposal.UpdateGenesisTimePayload{
 		NewGenesisTime: time.Now().Add(48 * time.Hour).UTC(),
 	})
-	require.Error(t, err, "UPDATE_GENESIS_TIME not allowed at LAUNCHED")
+	require.ErrorIs(t, err, ports.ErrBadRequest, "UPDATE_GENESIS_TIME not allowed at LAUNCHED")
 }
 
 // ---- ApproveAllocationFile -------------------------------------------------
@@ -534,7 +704,8 @@ func TestProposalService_applyApproveAllocationFile_StaleHash(t *testing.T) {
 		Type: string(launch.AllocationClaims),
 		Hash: allocHashB,
 	})
-	require.Error(t, err, "expected stale-hash error approving a hash that no longer matches")
+	require.ErrorIs(t, err, ports.ErrConflict, "a stale allocation hash is a 409")
+	assert.ErrorIs(t, err, launch.ErrAllocationStaleHash, "and preserves the domain sentinel")
 }
 
 func TestProposalService_applyApproveAllocationFile_NotFound(t *testing.T) {
@@ -546,7 +717,8 @@ func TestProposalService_applyApproveAllocationFile_NotFound(t *testing.T) {
 		Type: string(launch.AllocationAccounts),
 		Hash: allocHashA,
 	})
-	require.Error(t, err, "expected error approving a type with no uploaded file")
+	require.ErrorIs(t, err, ports.ErrNotFound, "approving a type with no uploaded file is a 404")
+	assert.ErrorIs(t, err, launch.ErrAllocationNotFound, "and preserves the domain sentinel")
 }
 
 func TestProposalService_applyAllocationVeto_RejectsFile(t *testing.T) {
@@ -643,7 +815,8 @@ func TestProposalService_ApplyReplaceCommitteeMember_OldNotFound(t *testing.T) {
 		NewMoniker: "new",
 		NewPubKey:  "AAEC",
 	})
-	require.Error(t, err, "old address not in committee")
+	require.ErrorIs(t, err, ports.ErrBadRequest, "an unknown old_address is a 400")
+	assert.ErrorIs(t, err, launch.ErrCommitteeMemberNotFound, "and preserves the domain sentinel")
 }
 
 func TestProposalService_applyReviseGenesis_Success(t *testing.T) {
@@ -686,7 +859,8 @@ func TestProposalService_applyReviseGenesis_WrongStatus(t *testing.T) {
 	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
 
 	_, err := raiseWith(t, svc, l.ID, proposal.ActionReviseGenesis, proposal.ReviseGenesisPayload{})
-	require.Error(t, err, "expected error when launch is not in GENESIS_READY")
+	require.ErrorIs(t, err, ports.ErrConflict, "reopening from the wrong status is a state conflict")
+	assert.ErrorIs(t, err, launch.ErrInvalidStatusTransition, "and preserves the domain sentinel")
 }
 
 func TestProposalService_ApplyReplaceCommitteeMember_LeadReplaced(t *testing.T) {
@@ -785,7 +959,8 @@ func TestProposalService_ApplyExpandCommittee_DuplicateMember(t *testing.T) {
 			PubKeyB64: "AAAA",
 		},
 	})
-	require.Error(t, err, "duplicate member address")
+	require.ErrorIs(t, err, ports.ErrConflict, "a duplicate committee member is a 409")
+	assert.ErrorIs(t, err, launch.ErrCommitteeMemberExists, "and preserves the domain sentinel")
 }
 
 // ---- ShrinkCommittee --------------------------------------------------------
@@ -876,5 +1051,6 @@ func TestProposalService_ApplyShrinkCommittee_MemberNotFound(t *testing.T) {
 	_, err := raiseWith(t, svc, l.ID, proposal.ActionShrinkCommittee, proposal.ShrinkCommitteePayload{
 		RemoveAddress: unknownAddr,
 	})
-	require.Error(t, err, "remove_address not in committee")
+	require.ErrorIs(t, err, ports.ErrBadRequest, "an unknown remove_address is a 400")
+	assert.ErrorIs(t, err, launch.ErrCommitteeMemberNotFound, "and preserves the domain sentinel")
 }

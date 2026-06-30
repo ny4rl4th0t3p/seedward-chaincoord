@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/ports"
 )
@@ -20,9 +22,7 @@ func openFileDB(t *testing.T) *sql.DB {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "test.db")
 	db, err := Open(path)
-	if err != nil {
-		t.Fatalf("openFileDB: %v", err)
-	}
+	require.NoError(t, err, "openFileDB")
 	t.Cleanup(func() { _ = db.Close() })
 	return db
 }
@@ -38,18 +38,13 @@ func TestIntegration_Open(t *testing.T) {
 			name: "sets WAL journal mode on file database",
 			check: func(t *testing.T, db *sql.DB) {
 				var mode string
-				if err := db.QueryRow(`PRAGMA journal_mode`).Scan(&mode); err != nil {
-					t.Fatalf("journal_mode: %v", err)
-				}
-				if mode != "wal" {
-					t.Errorf("expected WAL journal mode on file DB, got %q", mode)
-				}
+				require.NoError(t, db.QueryRow(`PRAGMA journal_mode`).Scan(&mode), "journal_mode")
+				assert.Equal(t, "wal", mode, "expected WAL journal mode on file DB")
 			},
 		},
 	}
 
 	for _, tc := range tests {
-
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			tc.check(t, openFileDB(t))
@@ -89,13 +84,10 @@ func TestIntegration_ForeignKeyEnforced(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			_, err := openFileDB(t).ExecContext(context.Background(), tc.stmt, tc.args...)
-			if err == nil {
-				t.Error("expected FK violation, got nil")
-			}
+			assert.Error(t, err, "expected FK violation")
 		})
 	}
 }
@@ -114,36 +106,26 @@ func TestIntegration_OptimisticLock_Conflict(t *testing.T) {
 				ctx := context.Background()
 
 				l := testLaunch(t)
-				if err := lRepo.Save(ctx, l); err != nil {
-					t.Fatalf("initial save: %v", err)
-				}
+				require.NoError(t, lRepo.Save(ctx, l), "initial save")
 
 				// Simulate two concurrent readers loading the same version.
 				snapshot1, err := lRepo.FindByID(ctx, l.ID)
-				if err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, err)
 				snapshot2, err := lRepo.FindByID(ctx, l.ID)
-				if err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, err)
 
 				snapshot1.Record.ChainName = "updated-by-1"
-				if err := lRepo.Save(ctx, snapshot1); err != nil {
-					t.Fatalf("first update: %v", err)
-				}
+				require.NoError(t, lRepo.Save(ctx, snapshot1), "first update")
 
 				// Second writer must fail — its version is now stale.
 				snapshot2.Record.ChainName = "updated-by-2"
-				if err := lRepo.Save(ctx, snapshot2); !errors.Is(err, ports.ErrConflict) {
-					t.Errorf("expected ErrConflict on stale update, got %v", err)
-				}
+				err = lRepo.Save(ctx, snapshot2)
+				assert.ErrorIs(t, err, ports.ErrConflict, "expected ErrConflict on stale update")
 			},
 		},
 	}
 
 	for _, tc := range tests {
-
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			tc.run(t, openFileDB(t))
@@ -185,21 +167,16 @@ func TestIntegration_NonceStore_ConcurrentReplay(t *testing.T) {
 					case errors.Is(err, ports.ErrConflict):
 						conflicts++
 					default:
-						t.Errorf("unexpected error: %v", err)
+						assert.Fail(t, "unexpected error", "%v", err)
 					}
 				}
-				if successes != 1 {
-					t.Errorf("expected exactly 1 success, got %d", successes)
-				}
-				if conflicts != goroutines-1 {
-					t.Errorf("expected %d conflicts, got %d", goroutines-1, conflicts)
-				}
+				assert.Equal(t, 1, successes, "expected exactly 1 success")
+				assert.Equal(t, goroutines-1, conflicts, "expected the rest to conflict")
 			},
 		},
 	}
 
 	for _, tc := range tests {
-
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			tc.run(t, openFileDB(t))

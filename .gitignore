@@ -33,3 +33,4 @@ audit.jsonl
 /tmp/
 /docker/secrets/audit_key
 /docker/secrets/jwt_key
+/coverage-func.txt

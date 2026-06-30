@@ -3,6 +3,7 @@ package joinrequest
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -10,6 +11,11 @@ import (
 
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/launch"
 )
+
+// ErrInvalidJoinRequestStatus is returned by the lifecycle transitions (Approve/Reject/
+// Expire/Revoke) when the request is not in the status the transition requires. Callers
+// (the proposal service, tests) match it with errors.Is; the service maps it to HTTP 409.
+var ErrInvalidJoinRequestStatus = errors.New("invalid join request status for this transition")
 
 // Status is the join request lifecycle state.
 type Status string
@@ -82,7 +88,7 @@ func New(
 // Approve marks the request as approved and records the approving proposal ID.
 func (jr *JoinRequest) Approve(proposalID uuid.UUID) error {
 	if jr.Status != StatusPending {
-		return fmt.Errorf("join request: can only approve PENDING requests, current status: %s", jr.Status)
+		return fmt.Errorf("join request: can only approve PENDING requests, current status: %s: %w", jr.Status, ErrInvalidJoinRequestStatus)
 	}
 	jr.Status = StatusApproved
 	jr.ApprovedByProposal = &proposalID
@@ -92,7 +98,7 @@ func (jr *JoinRequest) Approve(proposalID uuid.UUID) error {
 // Reject marks the request as rejected with a reason.
 func (jr *JoinRequest) Reject(reason string) error {
 	if jr.Status != StatusPending {
-		return fmt.Errorf("join request: can only reject PENDING requests, current status: %s", jr.Status)
+		return fmt.Errorf("join request: can only reject PENDING requests, current status: %s: %w", jr.Status, ErrInvalidJoinRequestStatus)
 	}
 	jr.Status = StatusRejected
 	jr.RejectionReason = reason
@@ -102,7 +108,7 @@ func (jr *JoinRequest) Reject(reason string) error {
 // Expire marks the request as expired (window closed with no decision).
 func (jr *JoinRequest) Expire() error {
 	if jr.Status != StatusPending {
-		return fmt.Errorf("join request: can only expire PENDING requests, current status: %s", jr.Status)
+		return fmt.Errorf("join request: can only expire PENDING requests, current status: %s: %w", jr.Status, ErrInvalidJoinRequestStatus)
 	}
 	jr.Status = StatusExpired
 	return nil
@@ -112,7 +118,7 @@ func (jr *JoinRequest) Expire() error {
 // Used by the REMOVE_APPROVED_VALIDATOR proposal flow.
 func (jr *JoinRequest) Revoke(reason string) error {
 	if jr.Status != StatusApproved {
-		return fmt.Errorf("join request: can only revoke APPROVED requests, current status: %s", jr.Status)
+		return fmt.Errorf("join request: can only revoke APPROVED requests, current status: %s: %w", jr.Status, ErrInvalidJoinRequestStatus)
 	}
 	jr.Status = StatusRejected
 	jr.RejectionReason = reason

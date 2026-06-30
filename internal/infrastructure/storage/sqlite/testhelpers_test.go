@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/joinrequest"
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/launch"
@@ -19,9 +20,7 @@ import (
 func openTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 	db, err := Open(":memory:")
-	if err != nil {
-		t.Fatalf("openTestDB: %v", err)
-	}
+	require.NoError(t, err, "openTestDB")
 	t.Cleanup(func() { _ = db.Close() })
 	return db
 }
@@ -82,17 +81,13 @@ func testChainRecord() launch.ChainRecord {
 func testLaunch(t *testing.T) *launch.Launch {
 	t.Helper()
 	cr, err := launch.NewCommissionRate("0.05")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	rec := testChainRecord()
 	rec.MaxCommissionRate = cr
 	rec.MaxCommissionChangeRate = cr
 
 	l, err := launch.New(uuid.New(), rec, launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee())
-	if err != nil {
-		t.Fatalf("testLaunch: %v", err)
-	}
+	require.NoError(t, err, "testLaunch")
 	return l
 }
 
@@ -147,8 +142,6 @@ func testProposal(t *testing.T, launchID uuid.UUID) *proposal.Proposal {
 		mustAddr(addr1), mustSig(),
 		48*time.Hour, time.Now().UTC(),
 	)
-	if err != nil {
-		t.Fatalf("testProposal: %v", err)
-	}
+	require.NoError(t, err, "testProposal")
 	return p
 }

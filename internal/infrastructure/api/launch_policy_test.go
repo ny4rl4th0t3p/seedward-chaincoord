@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/config"
 )
 
@@ -41,18 +43,14 @@ func TestHandleLaunchCreate_OpenPolicy(t *testing.T) {
 		// Service will reject due to missing data, but we get past the policy
 		// gate and into service layer (not a 403).
 		w := h.doAuthJSON(http.MethodPost, "/launch", jsonBody(minimalLaunchBody), "tok-"+testAddr1)
-		if w.Code == http.StatusForbidden {
-			t.Errorf("open policy: got 403, want any non-403 status")
-		}
+		assert.NotEqual(t, http.StatusForbidden, w.Code, "open policy: got 403, want any non-403 status")
 	})
 
 	t.Run("caller not on allowlist still passes open policy", func(t *testing.T) {
 		h := newHarnessWithPolicy(t, config.LaunchPolicyOpen)
 		h.seedSession(testAddr2) // testAddr2 is NOT on allowlist
 		w := h.doAuthJSON(http.MethodPost, "/launch", jsonBody(minimalLaunchBody), "tok-"+testAddr2)
-		if w.Code == http.StatusForbidden {
-			t.Errorf("open policy: non-allowlisted caller got 403")
-		}
+		assert.NotEqual(t, http.StatusForbidden, w.Code, "open policy: non-allowlisted caller got 403")
 	})
 }
 
@@ -71,9 +69,7 @@ func TestHandleLaunchCreate_RestrictedPolicy(t *testing.T) {
 		_ = h.allowlist.Add(context.Background(), testAddr1, "admin")
 		w := h.doAuthJSON(http.MethodPost, "/launch", jsonBody(minimalLaunchBody), "tok-"+testAddr1)
 		// Policy gate passes; service may return an error, but not 403.
-		if w.Code == http.StatusForbidden {
-			t.Errorf("restricted policy: allowlisted caller got 403")
-		}
+		assert.NotEqual(t, http.StatusForbidden, w.Code, "restricted policy: allowlisted caller got 403")
 	})
 
 	t.Run("unauthenticated request → 401 (auth check before policy)", func(t *testing.T) {

@@ -2,7 +2,6 @@ package sqlite
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -30,28 +29,14 @@ func TestLaunchRepository_Save(t *testing.T) {
 			run: func(t *testing.T, repo *LaunchRepository) {
 				ctx := context.Background()
 				l := testLaunch(t)
-				if err := repo.Save(ctx, l); err != nil {
-					t.Fatalf("Save: %v", err)
-				}
+				require.NoError(t, repo.Save(ctx, l), "Save")
 				got, err := repo.FindByID(ctx, l.ID)
-				if err != nil {
-					t.Fatalf("FindByID: %v", err)
-				}
-				if got.ID != l.ID {
-					t.Errorf("ID mismatch: got %v, want %v", got.ID, l.ID)
-				}
-				if got.Record.ChainID != l.Record.ChainID {
-					t.Errorf("ChainID mismatch: got %q, want %q", got.Record.ChainID, l.Record.ChainID)
-				}
-				if got.Status != l.Status {
-					t.Errorf("Status mismatch: got %q, want %q", got.Status, l.Status)
-				}
-				if got.Committee.ThresholdM != l.Committee.ThresholdM {
-					t.Errorf("Committee.ThresholdM mismatch: got %d, want %d", got.Committee.ThresholdM, l.Committee.ThresholdM)
-				}
-				if len(got.Committee.Members) != 3 {
-					t.Errorf("expected 3 committee members, got %d", len(got.Committee.Members))
-				}
+				require.NoError(t, err, "FindByID")
+				assert.Equal(t, l.ID, got.ID, "ID mismatch")
+				assert.Equal(t, l.Record.ChainID, got.Record.ChainID, "ChainID mismatch")
+				assert.Equal(t, l.Status, got.Status, "Status mismatch")
+				assert.Equal(t, l.Committee.ThresholdM, got.Committee.ThresholdM, "Committee.ThresholdM mismatch")
+				assert.Len(t, got.Committee.Members, 3)
 			},
 		},
 		{
@@ -59,22 +44,12 @@ func TestLaunchRepository_Save(t *testing.T) {
 			run: func(t *testing.T, repo *LaunchRepository) {
 				ctx := context.Background()
 				l := testLaunch(t)
-				if err := repo.Save(ctx, l); err != nil {
-					t.Fatalf("initial Save: %v", err)
-				}
-				if err := l.Publish("deadbeef"); err != nil {
-					t.Fatalf("Publish: %v", err)
-				}
-				if err := repo.Save(ctx, l); err != nil {
-					t.Fatalf("update Save: %v", err)
-				}
+				require.NoError(t, repo.Save(ctx, l), "initial Save")
+				require.NoError(t, l.Publish("deadbeef"), "Publish")
+				require.NoError(t, repo.Save(ctx, l), "update Save")
 				got, err := repo.FindByID(ctx, l.ID)
-				if err != nil {
-					t.Fatalf("FindByID: %v", err)
-				}
-				if got.Status != launch.StatusPublished {
-					t.Errorf("expected PUBLISHED, got %q", got.Status)
-				}
+				require.NoError(t, err, "FindByID")
+				assert.Equal(t, launch.StatusPublished, got.Status)
 			},
 		},
 		{
@@ -140,9 +115,7 @@ func TestLaunchRepository_FindByID(t *testing.T) {
 			name: "returns launch for existing ID",
 			seed: func(t *testing.T, repo *LaunchRepository) uuid.UUID {
 				l := testLaunch(t)
-				if err := repo.Save(context.Background(), l); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, repo.Save(context.Background(), l))
 				return l.ID
 			},
 		},
@@ -161,8 +134,10 @@ func TestLaunchRepository_FindByID(t *testing.T) {
 			repo := NewLaunchRepository(openTestDB(t))
 			id := tc.seed(t, repo)
 			_, err := repo.FindByID(context.Background(), id)
-			if !errors.Is(err, tc.wantErr) {
-				t.Fatalf("FindByID() error = %v, want %v", err, tc.wantErr)
+			if tc.wantErr != nil {
+				require.ErrorIs(t, err, tc.wantErr)
+			} else {
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -180,16 +155,10 @@ func TestLaunchRepository_FindByChainID(t *testing.T) {
 			run: func(t *testing.T, repo *LaunchRepository) {
 				ctx := context.Background()
 				l := testLaunch(t)
-				if err := repo.Save(ctx, l); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, repo.Save(ctx, l))
 				got, err := repo.FindByChainID(ctx, l.Record.ChainID)
-				if err != nil {
-					t.Fatalf("FindByChainID: %v", err)
-				}
-				if got.ID != l.ID {
-					t.Errorf("ID mismatch")
-				}
+				require.NoError(t, err, "FindByChainID")
+				assert.Equal(t, l.ID, got.ID, "ID mismatch")
 			},
 		},
 	}
@@ -215,27 +184,18 @@ func TestLaunchRepository_FindAll(t *testing.T) {
 				ctx := context.Background()
 
 				pub := testLaunch(t)
-				if err := repo.Save(ctx, pub); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, repo.Save(ctx, pub))
 
 				restricted := testLaunch(t)
 				restricted.Record.ChainID = "restricted-chain-1"
 				restricted.Visibility = launch.VisibilityAllowlist
-				if err := repo.Save(ctx, restricted); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, repo.Save(ctx, restricted))
 
 				launches, total, err := repo.FindAll(ctx, "", 1, 10)
-				if err != nil {
-					t.Fatalf("FindAll: %v", err)
-				}
-				if total != 1 || len(launches) != 1 {
-					t.Errorf("expected 1 public launch, got total=%d len=%d", total, len(launches))
-				}
-				if launches[0].ID != pub.ID {
-					t.Error("returned wrong launch")
-				}
+				require.NoError(t, err, "FindAll")
+				require.Equal(t, 1, total, "expected 1 public launch")
+				require.Len(t, launches, 1)
+				assert.Equal(t, pub.ID, launches[0].ID, "returned wrong launch")
 			},
 		},
 	}
@@ -260,9 +220,7 @@ func TestLaunchRepository_FindByStatus(t *testing.T) {
 			name: "returns draft launches",
 			setup: func(t *testing.T, repo *LaunchRepository) uuid.UUID {
 				l := testLaunch(t)
-				if err := repo.Save(context.Background(), l); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, repo.Save(context.Background(), l))
 				return l.ID
 			},
 			status: launch.StatusDraft,
@@ -272,15 +230,9 @@ func TestLaunchRepository_FindByStatus(t *testing.T) {
 			setup: func(t *testing.T, repo *LaunchRepository) uuid.UUID {
 				ctx := context.Background()
 				l := testLaunch(t)
-				if err := repo.Save(ctx, l); err != nil {
-					t.Fatal(err)
-				}
-				if err := l.Publish("abc123"); err != nil {
-					t.Fatal(err)
-				}
-				if err := repo.Save(ctx, l); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, repo.Save(ctx, l))
+				require.NoError(t, l.Publish("abc123"))
+				require.NoError(t, repo.Save(ctx, l))
 				return l.ID
 			},
 			status: launch.StatusPublished,
@@ -293,12 +245,9 @@ func TestLaunchRepository_FindByStatus(t *testing.T) {
 			repo := NewLaunchRepository(openTestDB(t))
 			id := tc.setup(t, repo)
 			got, err := repo.FindByStatus(context.Background(), tc.status)
-			if err != nil {
-				t.Fatalf("FindByStatus(%q): %v", tc.status, err)
-			}
-			if len(got) != 1 || got[0].ID != id {
-				t.Errorf("expected 1 launch with ID %v, got %d launches", id, len(got))
-			}
+			require.NoError(t, err, "FindByStatus(%q)", tc.status)
+			require.Len(t, got, 1)
+			assert.Equal(t, id, got[0].ID)
 		})
 	}
 }
@@ -316,28 +265,16 @@ func TestLaunchRepository_VotingPowerHydrated(t *testing.T) {
 				ctx := context.Background()
 
 				l := testLaunch(t)
-				if err := lRepo.Save(ctx, l); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, lRepo.Save(ctx, l))
 
 				jr := testJoinRequest(t, l.ID)
-				if err := jrRepo.Save(ctx, jr); err != nil {
-					t.Fatal(err)
-				}
-				if err := jr.Approve(uuid.New()); err != nil {
-					t.Fatal(err)
-				}
-				if err := jrRepo.Save(ctx, jr); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, jrRepo.Save(ctx, jr))
+				require.NoError(t, jr.Approve(uuid.New()))
+				require.NoError(t, jrRepo.Save(ctx, jr))
 
 				got, err := lRepo.FindByID(ctx, l.ID)
-				if err != nil {
-					t.Fatalf("FindByID: %v", err)
-				}
-				if got.ApprovedVotingPowerOf(mustAddr(addr1)) == 0 {
-					t.Error("expected non-zero voting power after hydration")
-				}
+				require.NoError(t, err, "FindByID")
+				assert.NotZero(t, got.ApprovedVotingPowerOf(mustAddr(addr1)), "expected non-zero voting power after hydration")
 			},
 		},
 	}
@@ -365,24 +302,14 @@ func TestJoinRequestRepository_Save(t *testing.T) {
 			run: func(t *testing.T, lRepo *LaunchRepository, jrRepo *JoinRequestRepository) {
 				ctx := context.Background()
 				l := testLaunch(t)
-				if err := lRepo.Save(ctx, l); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, lRepo.Save(ctx, l))
 
 				jr := testJoinRequest(t, l.ID)
-				if err := jrRepo.Save(ctx, jr); err != nil {
-					t.Fatalf("Save: %v", err)
-				}
+				require.NoError(t, jrRepo.Save(ctx, jr), "Save")
 				got, err := jrRepo.FindByID(ctx, jr.ID)
-				if err != nil {
-					t.Fatalf("FindByID: %v", err)
-				}
-				if got.ID != jr.ID {
-					t.Errorf("ID mismatch")
-				}
-				if got.Status != joinrequest.StatusPending {
-					t.Errorf("expected PENDING, got %q", got.Status)
-				}
+				require.NoError(t, err, "FindByID")
+				assert.Equal(t, jr.ID, got.ID, "ID mismatch")
+				assert.Equal(t, joinrequest.StatusPending, got.Status)
 			},
 		},
 		{
@@ -390,28 +317,17 @@ func TestJoinRequestRepository_Save(t *testing.T) {
 			run: func(t *testing.T, lRepo *LaunchRepository, jrRepo *JoinRequestRepository) {
 				ctx := context.Background()
 				l := testLaunch(t)
-				if err := lRepo.Save(ctx, l); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, lRepo.Save(ctx, l))
 				jr := testJoinRequest(t, l.ID)
-				if err := jrRepo.Save(ctx, jr); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, jrRepo.Save(ctx, jr))
 
 				propID := uuid.New()
-				if err := jr.Approve(propID); err != nil {
-					t.Fatal(err)
-				}
-				if err := jrRepo.Save(ctx, jr); err != nil {
-					t.Fatalf("Save after Approve: %v", err)
-				}
+				require.NoError(t, jr.Approve(propID))
+				require.NoError(t, jrRepo.Save(ctx, jr), "Save after Approve")
 				got, _ := jrRepo.FindByID(ctx, jr.ID)
-				if got.Status != joinrequest.StatusApproved {
-					t.Errorf("expected APPROVED, got %q", got.Status)
-				}
-				if got.ApprovedByProposal == nil || *got.ApprovedByProposal != propID {
-					t.Error("ApprovedByProposal not persisted correctly")
-				}
+				assert.Equal(t, joinrequest.StatusApproved, got.Status)
+				require.NotNil(t, got.ApprovedByProposal, "ApprovedByProposal not persisted")
+				assert.Equal(t, propID, *got.ApprovedByProposal, "ApprovedByProposal not persisted correctly")
 			},
 		},
 		{
@@ -419,25 +335,15 @@ func TestJoinRequestRepository_Save(t *testing.T) {
 			run: func(t *testing.T, lRepo *LaunchRepository, jrRepo *JoinRequestRepository) {
 				ctx := context.Background()
 				l := testLaunch(t)
-				if err := lRepo.Save(ctx, l); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, lRepo.Save(ctx, l))
 				jr := testJoinRequest(t, l.ID)
 				jr.OperatorAddress = mustAddr(addr1)  // validator (operator)
 				jr.SubmitterAddress = mustAddr(addr2) // distinct signer
-				if err := jrRepo.Save(ctx, jr); err != nil {
-					t.Fatalf("Save: %v", err)
-				}
+				require.NoError(t, jrRepo.Save(ctx, jr), "Save")
 				got, err := jrRepo.FindByID(ctx, jr.ID)
-				if err != nil {
-					t.Fatalf("FindByID: %v", err)
-				}
-				if got.OperatorAddress.String() != addr1 {
-					t.Errorf("OperatorAddress = %q, want %q", got.OperatorAddress, addr1)
-				}
-				if got.SubmitterAddress.String() != addr2 {
-					t.Errorf("SubmitterAddress = %q, want %q", got.SubmitterAddress, addr2)
-				}
+				require.NoError(t, err, "FindByID")
+				assert.Equal(t, addr1, got.OperatorAddress.String(), "OperatorAddress")
+				assert.Equal(t, addr2, got.SubmitterAddress.String(), "SubmitterAddress")
 			},
 		},
 	}
@@ -463,20 +369,12 @@ func TestJoinRequestRepository_CountBySubmitter(t *testing.T) {
 			run: func(t *testing.T, lRepo *LaunchRepository, jrRepo *JoinRequestRepository) {
 				ctx := context.Background()
 				l := testLaunch(t)
-				if err := lRepo.Save(ctx, l); err != nil {
-					t.Fatal(err)
-				}
-				if err := jrRepo.Save(ctx, testJoinRequest(t, l.ID)); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, lRepo.Save(ctx, l))
+				require.NoError(t, jrRepo.Save(ctx, testJoinRequest(t, l.ID)))
 
 				n, err := jrRepo.CountBySubmitter(ctx, l.ID, addr1)
-				if err != nil {
-					t.Fatalf("CountBySubmitter: %v", err)
-				}
-				if n != 1 {
-					t.Errorf("expected 1, got %d", n)
-				}
+				require.NoError(t, err, "CountBySubmitter")
+				assert.Equal(t, 1, n)
 			},
 		},
 		{
@@ -488,32 +386,20 @@ func TestJoinRequestRepository_CountBySubmitter(t *testing.T) {
 			run: func(t *testing.T, lRepo *LaunchRepository, jrRepo *JoinRequestRepository) {
 				ctx := context.Background()
 				l := testLaunch(t)
-				if err := lRepo.Save(ctx, l); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, lRepo.Save(ctx, l))
 
 				pending := testJoinRequest(t, l.ID)
 				rejected := testJoinRequest(t, l.ID)
-				if err := rejected.Reject("bad commission"); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, rejected.Reject("bad commission"))
 				expired := testJoinRequest(t, l.ID)
-				if err := expired.Expire(); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, expired.Expire())
 				for _, jr := range []*joinrequest.JoinRequest{pending, rejected, expired} {
-					if err := jrRepo.Save(ctx, jr); err != nil {
-						t.Fatal(err)
-					}
+					require.NoError(t, jrRepo.Save(ctx, jr))
 				}
 
 				n, err := jrRepo.CountBySubmitter(ctx, l.ID, addr1)
-				if err != nil {
-					t.Fatalf("CountBySubmitter: %v", err)
-				}
-				if n != 3 {
-					t.Errorf("expected all 3 statuses counted, got %d", n)
-				}
+				require.NoError(t, err, "CountBySubmitter")
+				assert.Equal(t, 3, n, "expected all 3 statuses counted")
 			},
 		},
 	}
@@ -543,9 +429,7 @@ func TestJoinRequestRepository_FindByLaunch(t *testing.T) {
 			setup: func(t *testing.T, lRepo *LaunchRepository, jrRepo *JoinRequestRepository) uuid.UUID {
 				ctx := context.Background()
 				l := testLaunch(t)
-				if err := lRepo.Save(ctx, l); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, lRepo.Save(ctx, l))
 
 				jr1 := testJoinRequest(t, l.ID)
 				jr2 := testJoinRequest(t, l.ID)
@@ -554,12 +438,8 @@ func TestJoinRequestRepository_FindByLaunch(t *testing.T) {
 				jr2.PeerAddress = peer
 				jr2.RPCEndpoint = rpc
 				jr2.OperatorAddress = mustAddr(addr2)
-				if err := jrRepo.Save(ctx, jr1); err != nil {
-					t.Fatal(err)
-				}
-				if err := jrRepo.Save(ctx, jr2); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, jrRepo.Save(ctx, jr1))
+				require.NoError(t, jrRepo.Save(ctx, jr2))
 				return l.ID
 			},
 			wantTotal: 2,
@@ -569,19 +449,11 @@ func TestJoinRequestRepository_FindByLaunch(t *testing.T) {
 			setup: func(t *testing.T, lRepo *LaunchRepository, jrRepo *JoinRequestRepository) uuid.UUID {
 				ctx := context.Background()
 				l := testLaunch(t)
-				if err := lRepo.Save(ctx, l); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, lRepo.Save(ctx, l))
 				jr := testJoinRequest(t, l.ID)
-				if err := jrRepo.Save(ctx, jr); err != nil {
-					t.Fatal(err)
-				}
-				if err := jr.Approve(uuid.New()); err != nil {
-					t.Fatal(err)
-				}
-				if err := jrRepo.Save(ctx, jr); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, jrRepo.Save(ctx, jr))
+				require.NoError(t, jr.Approve(uuid.New()))
+				require.NoError(t, jrRepo.Save(ctx, jr))
 				return l.ID
 			},
 			statusFilter: &approvedStatus,
@@ -597,13 +469,9 @@ func TestJoinRequestRepository_FindByLaunch(t *testing.T) {
 			jrRepo := NewJoinRequestRepository(db)
 			launchID := tc.setup(t, lRepo, jrRepo)
 			got, total, err := jrRepo.FindByLaunch(context.Background(), launchID, tc.statusFilter, 1, 10)
-			if err != nil {
-				t.Fatalf("FindByLaunch: %v", err)
-			}
-			if total != tc.wantTotal || len(got) != tc.wantTotal {
-				t.Errorf("expected total=%d len=%d, got total=%d len=%d",
-					tc.wantTotal, tc.wantTotal, total, len(got))
-			}
+			require.NoError(t, err, "FindByLaunch")
+			assert.Equal(t, tc.wantTotal, total, "total")
+			assert.Len(t, got, tc.wantTotal)
 		})
 	}
 }
@@ -635,18 +503,16 @@ func TestJoinRequestRepository_FindByOperator(t *testing.T) {
 			ctx := context.Background()
 
 			l := testLaunch(t)
-			if err := lRepo.Save(ctx, l); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, lRepo.Save(ctx, l))
 			if tc.seed {
-				if err := jrRepo.Save(ctx, testJoinRequest(t, l.ID)); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, jrRepo.Save(ctx, testJoinRequest(t, l.ID)))
 			}
 
 			_, err := jrRepo.FindByOperator(ctx, l.ID, addr1)
-			if !errors.Is(err, tc.wantErr) {
-				t.Fatalf("FindByOperator() error = %v, want %v", err, tc.wantErr)
+			if tc.wantErr != nil {
+				require.ErrorIs(t, err, tc.wantErr)
+			} else {
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -664,27 +530,16 @@ func TestJoinRequestRepository_FindApprovedByLaunch(t *testing.T) {
 			run: func(t *testing.T, lRepo *LaunchRepository, jrRepo *JoinRequestRepository) {
 				ctx := context.Background()
 				l := testLaunch(t)
-				if err := lRepo.Save(ctx, l); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, lRepo.Save(ctx, l))
 				jr := testJoinRequest(t, l.ID)
-				if err := jrRepo.Save(ctx, jr); err != nil {
-					t.Fatal(err)
-				}
-				if err := jr.Approve(uuid.New()); err != nil {
-					t.Fatal(err)
-				}
-				if err := jrRepo.Save(ctx, jr); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, jrRepo.Save(ctx, jr))
+				require.NoError(t, jr.Approve(uuid.New()))
+				require.NoError(t, jrRepo.Save(ctx, jr))
 
 				approved, err := jrRepo.FindApprovedByLaunch(ctx, l.ID)
-				if err != nil {
-					t.Fatalf("FindApprovedByLaunch: %v", err)
-				}
-				if len(approved) != 1 || approved[0].ID != jr.ID {
-					t.Errorf("expected 1 approved join request, got %d", len(approved))
-				}
+				require.NoError(t, err, "FindApprovedByLaunch")
+				require.Len(t, approved, 1)
+				assert.Equal(t, jr.ID, approved[0].ID)
 			},
 		},
 	}
@@ -710,29 +565,17 @@ func TestJoinRequestRepository_FindActiveByValidator(t *testing.T) {
 			run: func(t *testing.T, lRepo *LaunchRepository, jrRepo *JoinRequestRepository) {
 				ctx := context.Background()
 				l := testLaunch(t)
-				if err := lRepo.Save(ctx, l); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, lRepo.Save(ctx, l))
 				// A terminal (rejected) and an active (pending) request for the same validator (addr1).
 				rejected := testJoinRequest(t, l.ID)
-				if err := rejected.Reject("bad commission"); err != nil {
-					t.Fatal(err)
-				}
-				if err := jrRepo.Save(ctx, rejected); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, rejected.Reject("bad commission"))
+				require.NoError(t, jrRepo.Save(ctx, rejected))
 				pending := testJoinRequest(t, l.ID)
-				if err := jrRepo.Save(ctx, pending); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, jrRepo.Save(ctx, pending))
 
 				got, err := jrRepo.FindActiveByValidator(ctx, l.ID, addr1)
-				if err != nil {
-					t.Fatalf("FindActiveByValidator: %v", err)
-				}
-				if got.ID != pending.ID {
-					t.Errorf("got %s, want the active request %s", got.ID, pending.ID)
-				}
+				require.NoError(t, err, "FindActiveByValidator")
+				assert.Equal(t, pending.ID, got.ID, "want the active request")
 			},
 		},
 		{
@@ -740,20 +583,13 @@ func TestJoinRequestRepository_FindActiveByValidator(t *testing.T) {
 			run: func(t *testing.T, lRepo *LaunchRepository, jrRepo *JoinRequestRepository) {
 				ctx := context.Background()
 				l := testLaunch(t)
-				if err := lRepo.Save(ctx, l); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, lRepo.Save(ctx, l))
 				rejected := testJoinRequest(t, l.ID)
-				if err := rejected.Reject("bad commission"); err != nil {
-					t.Fatal(err)
-				}
-				if err := jrRepo.Save(ctx, rejected); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, rejected.Reject("bad commission"))
+				require.NoError(t, jrRepo.Save(ctx, rejected))
 
-				if _, err := jrRepo.FindActiveByValidator(ctx, l.ID, addr1); !errors.Is(err, ports.ErrNotFound) {
-					t.Fatalf("want ErrNotFound, got %v", err)
-				}
+				_, err := jrRepo.FindActiveByValidator(ctx, l.ID, addr1)
+				require.ErrorIs(t, err, ports.ErrNotFound)
 			},
 		},
 		{
@@ -761,16 +597,11 @@ func TestJoinRequestRepository_FindActiveByValidator(t *testing.T) {
 			run: func(t *testing.T, lRepo *LaunchRepository, jrRepo *JoinRequestRepository) {
 				ctx := context.Background()
 				l := testLaunch(t)
-				if err := lRepo.Save(ctx, l); err != nil {
-					t.Fatal(err)
-				}
-				if err := jrRepo.Save(ctx, testJoinRequest(t, l.ID)); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, lRepo.Save(ctx, l))
+				require.NoError(t, jrRepo.Save(ctx, testJoinRequest(t, l.ID)))
 				// A second PENDING request for the same validator (addr1) must violate idx_jr_active_validator.
-				if err := jrRepo.Save(ctx, testJoinRequest(t, l.ID)); err == nil {
-					t.Fatal("expected a unique-index violation for a second active request, got nil")
-				}
+				err := jrRepo.Save(ctx, testJoinRequest(t, l.ID))
+				require.Error(t, err, "expected a unique-index violation for a second active request")
 			},
 		},
 	}
@@ -798,26 +629,14 @@ func TestProposalRepository_Save(t *testing.T) {
 			run: func(t *testing.T, lRepo *LaunchRepository, pRepo *ProposalRepository) {
 				ctx := context.Background()
 				l := testLaunch(t)
-				if err := lRepo.Save(ctx, l); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, lRepo.Save(ctx, l))
 				p := testProposal(t, l.ID)
-				if err := pRepo.Save(ctx, p); err != nil {
-					t.Fatalf("Save: %v", err)
-				}
+				require.NoError(t, pRepo.Save(ctx, p), "Save")
 				got, err := pRepo.FindByID(ctx, p.ID)
-				if err != nil {
-					t.Fatalf("FindByID: %v", err)
-				}
-				if got.ID != p.ID {
-					t.Error("ID mismatch")
-				}
-				if got.ActionType != proposal.ActionCloseApplicationWindow {
-					t.Errorf("ActionType mismatch: %q", got.ActionType)
-				}
-				if len(got.Signatures) != 1 {
-					t.Errorf("expected 1 signature, got %d", len(got.Signatures))
-				}
+				require.NoError(t, err, "FindByID")
+				assert.Equal(t, p.ID, got.ID, "ID mismatch")
+				assert.Equal(t, proposal.ActionCloseApplicationWindow, got.ActionType, "ActionType mismatch")
+				assert.Len(t, got.Signatures, 1)
 			},
 		},
 		{
@@ -825,24 +644,14 @@ func TestProposalRepository_Save(t *testing.T) {
 			run: func(t *testing.T, lRepo *LaunchRepository, pRepo *ProposalRepository) {
 				ctx := context.Background()
 				l := testLaunch(t)
-				if err := lRepo.Save(ctx, l); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, lRepo.Save(ctx, l))
 				p := testProposal(t, l.ID)
-				if err := pRepo.Save(ctx, p); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, pRepo.Save(ctx, p))
 
-				if err := p.Sign(mustAddr(addr2), proposal.DecisionSign, mustSig(), 2, time.Now()); err != nil {
-					t.Fatal(err)
-				}
-				if err := pRepo.Save(ctx, p); err != nil {
-					t.Fatalf("Save after Sign: %v", err)
-				}
+				require.NoError(t, p.Sign(mustAddr(addr2), proposal.DecisionSign, mustSig(), 2, time.Now()))
+				require.NoError(t, pRepo.Save(ctx, p), "Save after Sign")
 				got, _ := pRepo.FindByID(ctx, p.ID)
-				if len(got.Signatures) != 2 {
-					t.Errorf("expected 2 signatures, got %d", len(got.Signatures))
-				}
+				assert.Len(t, got.Signatures, 2)
 			},
 		},
 	}
@@ -868,23 +677,13 @@ func TestProposalRepository_FindPending(t *testing.T) {
 			run: func(t *testing.T, lRepo *LaunchRepository, pRepo *ProposalRepository) {
 				ctx := context.Background()
 				l := testLaunch(t)
-				if err := lRepo.Save(ctx, l); err != nil {
-					t.Fatal(err)
-				}
-				if err := pRepo.Save(ctx, testProposal(t, l.ID)); err != nil {
-					t.Fatal(err)
-				}
-				if err := pRepo.Save(ctx, testProposal(t, l.ID)); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, lRepo.Save(ctx, l))
+				require.NoError(t, pRepo.Save(ctx, testProposal(t, l.ID)))
+				require.NoError(t, pRepo.Save(ctx, testProposal(t, l.ID)))
 
 				pending, err := pRepo.FindPending(ctx)
-				if err != nil {
-					t.Fatalf("FindPending: %v", err)
-				}
-				if len(pending) != 2 {
-					t.Errorf("expected 2 pending proposals, got %d", len(pending))
-				}
+				require.NoError(t, err, "FindPending")
+				assert.Len(t, pending, 2)
 			},
 		},
 	}
@@ -911,32 +710,19 @@ func TestProposalRepository_FindByLaunch(t *testing.T) {
 				ctx := context.Background()
 
 				l := testLaunch(t)
-				if err := lRepo.Save(ctx, l); err != nil {
-					t.Fatal(err)
-				}
-				if err := pRepo.Save(ctx, testProposal(t, l.ID)); err != nil {
-					t.Fatal(err)
-				}
-				if err := pRepo.Save(ctx, testProposal(t, l.ID)); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, lRepo.Save(ctx, l))
+				require.NoError(t, pRepo.Save(ctx, testProposal(t, l.ID)))
+				require.NoError(t, pRepo.Save(ctx, testProposal(t, l.ID)))
 
 				other := testLaunch(t)
 				other.Record.ChainID = "other-2"
-				if err := lRepo.Save(ctx, other); err != nil {
-					t.Fatal(err)
-				}
-				if err := pRepo.Save(ctx, testProposal(t, other.ID)); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, lRepo.Save(ctx, other))
+				require.NoError(t, pRepo.Save(ctx, testProposal(t, other.ID)))
 
 				got, total, err := pRepo.FindByLaunch(ctx, l.ID, 1, 10)
-				if err != nil {
-					t.Fatalf("FindByLaunch: %v", err)
-				}
-				if total != 2 || len(got) != 2 {
-					t.Errorf("expected 2 proposals for launch, got total=%d len=%d", total, len(got))
-				}
+				require.NoError(t, err, "FindByLaunch")
+				assert.Equal(t, 2, total, "expected 2 proposals for launch")
+				assert.Len(t, got, 2)
 			},
 		},
 	}
@@ -962,36 +748,20 @@ func TestProposalRepository_ExpireAllPending(t *testing.T) {
 			run: func(t *testing.T, lRepo *LaunchRepository, pRepo *ProposalRepository) {
 				ctx := context.Background()
 				l := testLaunch(t)
-				if err := lRepo.Save(ctx, l); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, lRepo.Save(ctx, l))
 				p1 := testProposal(t, l.ID)
 				p2 := testProposal(t, l.ID)
-				if err := pRepo.Save(ctx, p1); err != nil {
-					t.Fatal(err)
-				}
-				if err := pRepo.Save(ctx, p2); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, pRepo.Save(ctx, p1))
+				require.NoError(t, pRepo.Save(ctx, p2))
 
-				if err := pRepo.ExpireAllPending(ctx, l.ID); err != nil {
-					t.Fatalf("ExpireAllPending: %v", err)
-				}
+				require.NoError(t, pRepo.ExpireAllPending(ctx, l.ID), "ExpireAllPending")
 
 				got1, err := pRepo.FindByID(ctx, p1.ID)
-				if err != nil {
-					t.Fatalf("FindByID p1: %v", err)
-				}
+				require.NoError(t, err, "FindByID p1")
 				got2, err := pRepo.FindByID(ctx, p2.ID)
-				if err != nil {
-					t.Fatalf("FindByID p2: %v", err)
-				}
-				if got1.Status != proposal.StatusExpired {
-					t.Errorf("p1: want EXPIRED, got %s", got1.Status)
-				}
-				if got2.Status != proposal.StatusExpired {
-					t.Errorf("p2: want EXPIRED, got %s", got2.Status)
-				}
+				require.NoError(t, err, "FindByID p2")
+				assert.Equal(t, proposal.StatusExpired, got1.Status, "p1")
+				assert.Equal(t, proposal.StatusExpired, got2.Status, "p2")
 			},
 		},
 		{
@@ -999,31 +769,19 @@ func TestProposalRepository_ExpireAllPending(t *testing.T) {
 			run: func(t *testing.T, lRepo *LaunchRepository, pRepo *ProposalRepository) {
 				ctx := context.Background()
 				l := testLaunch(t)
-				if err := lRepo.Save(ctx, l); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, lRepo.Save(ctx, l))
 				other := testLaunch(t)
 				other.Record.ChainID = "other-chain"
-				if err := lRepo.Save(ctx, other); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, lRepo.Save(ctx, other))
 
 				pOther := testProposal(t, other.ID)
-				if err := pRepo.Save(ctx, pOther); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, pRepo.Save(ctx, pOther))
 
-				if err := pRepo.ExpireAllPending(ctx, l.ID); err != nil {
-					t.Fatalf("ExpireAllPending: %v", err)
-				}
+				require.NoError(t, pRepo.ExpireAllPending(ctx, l.ID), "ExpireAllPending")
 
 				got, err := pRepo.FindByID(ctx, pOther.ID)
-				if err != nil {
-					t.Fatalf("FindByID: %v", err)
-				}
-				if got.Status != proposal.StatusPendingSignatures {
-					t.Errorf("other launch proposal: want PENDING_SIGNATURES, got %s", got.Status)
-				}
+				require.NoError(t, err, "FindByID")
+				assert.Equal(t, proposal.StatusPendingSignatures, got.Status, "other launch proposal")
 			},
 		},
 		{
@@ -1031,26 +789,16 @@ func TestProposalRepository_ExpireAllPending(t *testing.T) {
 			run: func(t *testing.T, lRepo *LaunchRepository, pRepo *ProposalRepository) {
 				ctx := context.Background()
 				l := testLaunch(t)
-				if err := lRepo.Save(ctx, l); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, lRepo.Save(ctx, l))
 				p := testProposal(t, l.ID)
 				p.Status = proposal.StatusExecuted
-				if err := pRepo.Save(ctx, p); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, pRepo.Save(ctx, p))
 
-				if err := pRepo.ExpireAllPending(ctx, l.ID); err != nil {
-					t.Fatalf("ExpireAllPending: %v", err)
-				}
+				require.NoError(t, pRepo.ExpireAllPending(ctx, l.ID), "ExpireAllPending")
 
 				got, err := pRepo.FindByID(ctx, p.ID)
-				if err != nil {
-					t.Fatalf("FindByID: %v", err)
-				}
-				if got.Status != proposal.StatusExecuted {
-					t.Errorf("executed proposal: want EXECUTED, got %s", got.Status)
-				}
+				require.NoError(t, err, "FindByID")
+				assert.Equal(t, proposal.StatusExecuted, got.Status, "executed proposal")
 			},
 		},
 	}
@@ -1078,13 +826,9 @@ func TestReadinessRepository_Save(t *testing.T) {
 			run: func(t *testing.T, lRepo *LaunchRepository, jrRepo *JoinRequestRepository, rRepo *ReadinessRepository) {
 				ctx := context.Background()
 				l := testLaunch(t)
-				if err := lRepo.Save(ctx, l); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, lRepo.Save(ctx, l))
 				jr := testJoinRequest(t, l.ID)
-				if err := jrRepo.Save(ctx, jr); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, jrRepo.Save(ctx, jr))
 
 				rc := &launch.ReadinessConfirmation{
 					ID:                   uuid.New(),
@@ -1096,19 +840,11 @@ func TestReadinessRepository_Save(t *testing.T) {
 					ConfirmedAt:          time.Now().UTC(),
 					OperatorSignature:    mustSig(),
 				}
-				if err := rRepo.Save(ctx, rc); err != nil {
-					t.Fatalf("Save: %v", err)
-				}
+				require.NoError(t, rRepo.Save(ctx, rc), "Save")
 				got, err := rRepo.FindByOperator(ctx, l.ID, addr1)
-				if err != nil {
-					t.Fatalf("FindByOperator: %v", err)
-				}
-				if got.ID != rc.ID {
-					t.Error("ID mismatch")
-				}
-				if !got.IsValid() {
-					t.Error("confirmation should be valid")
-				}
+				require.NoError(t, err, "FindByOperator")
+				assert.Equal(t, rc.ID, got.ID, "ID mismatch")
+				assert.True(t, got.IsValid(), "confirmation should be valid")
 			},
 		},
 	}
@@ -1134,13 +870,9 @@ func TestReadinessRepository_InvalidateByLaunch(t *testing.T) {
 			run: func(t *testing.T, lRepo *LaunchRepository, jrRepo *JoinRequestRepository, rRepo *ReadinessRepository) {
 				ctx := context.Background()
 				l := testLaunch(t)
-				if err := lRepo.Save(ctx, l); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, lRepo.Save(ctx, l))
 				jr := testJoinRequest(t, l.ID)
-				if err := jrRepo.Save(ctx, jr); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, jrRepo.Save(ctx, jr))
 
 				rc := &launch.ReadinessConfirmation{
 					ID:                   uuid.New(),
@@ -1152,17 +884,11 @@ func TestReadinessRepository_InvalidateByLaunch(t *testing.T) {
 					ConfirmedAt:          time.Now().UTC(),
 					OperatorSignature:    mustSig(),
 				}
-				if err := rRepo.Save(ctx, rc); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, rRepo.Save(ctx, rc))
 
-				if err := rRepo.InvalidateByLaunch(ctx, l.ID); err != nil {
-					t.Fatalf("InvalidateByLaunch: %v", err)
-				}
+				require.NoError(t, rRepo.InvalidateByLaunch(ctx, l.ID), "InvalidateByLaunch")
 				got, _ := rRepo.FindByOperator(ctx, l.ID, addr1)
-				if got.IsValid() {
-					t.Error("confirmation should be invalidated")
-				}
+				assert.False(t, got.IsValid(), "confirmation should be invalidated")
 			},
 		},
 	}
@@ -1205,15 +931,11 @@ func TestReadinessRepository_FindByLaunch(t *testing.T) {
 			ctx := context.Background()
 
 			l := testLaunch(t)
-			if err := lRepo.Save(ctx, l); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, lRepo.Save(ctx, l))
 
 			if tc.seed {
 				jr := testJoinRequest(t, l.ID)
-				if err := jrRepo.Save(ctx, jr); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, jrRepo.Save(ctx, jr))
 				rc := &launch.ReadinessConfirmation{
 					ID:                   uuid.New(),
 					LaunchID:             l.ID,
@@ -1224,18 +946,12 @@ func TestReadinessRepository_FindByLaunch(t *testing.T) {
 					ConfirmedAt:          time.Now().UTC(),
 					OperatorSignature:    mustSig(),
 				}
-				if err := rRepo.Save(ctx, rc); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, rRepo.Save(ctx, rc))
 			}
 
 			got, err := rRepo.FindByLaunch(ctx, l.ID)
-			if err != nil {
-				t.Fatalf("FindByLaunch: %v", err)
-			}
-			if len(got) != tc.wantLen {
-				t.Errorf("expected %d confirmations, got %d", tc.wantLen, len(got))
-			}
+			require.NoError(t, err, "FindByLaunch")
+			assert.Len(t, got, tc.wantLen)
 		})
 	}
 }
@@ -1253,12 +969,8 @@ func TestChallengeStore_Issue(t *testing.T) {
 			name: "first issue returns a non-empty challenge",
 			run: func(t *testing.T, store *ChallengeStore) {
 				ch, err := store.Issue(context.Background(), addr1)
-				if err != nil {
-					t.Fatalf("Issue: %v", err)
-				}
-				if ch == "" {
-					t.Error("expected non-empty challenge")
-				}
+				require.NoError(t, err, "Issue")
+				assert.NotEmpty(t, ch, "expected non-empty challenge")
 			},
 		},
 		{
@@ -1266,16 +978,10 @@ func TestChallengeStore_Issue(t *testing.T) {
 			run: func(t *testing.T, store *ChallengeStore) {
 				ctx := context.Background()
 				first, err := store.Issue(ctx, addr1)
-				if err != nil {
-					t.Fatalf("first Issue: %v", err)
-				}
+				require.NoError(t, err, "first Issue")
 				second, err := store.Issue(ctx, addr1)
-				if err != nil {
-					t.Fatalf("second Issue: %v", err)
-				}
-				if first != second {
-					t.Errorf("expected idempotent challenge %q, got %q", first, second)
-				}
+				require.NoError(t, err, "second Issue")
+				assert.Equal(t, first, second, "expected idempotent challenge")
 			},
 		},
 		{
@@ -1284,9 +990,7 @@ func TestChallengeStore_Issue(t *testing.T) {
 				ctx := context.Background()
 				ch1, _ := store.Issue(ctx, addr1)
 				ch2, _ := store.Issue(ctx, addr2)
-				if ch1 == ch2 {
-					t.Error("expected distinct challenges for different addresses")
-				}
+				assert.NotEqual(t, ch1, ch2, "expected distinct challenges for different addresses")
 			},
 		},
 	}
@@ -1311,9 +1015,7 @@ func TestChallengeStore_Consume(t *testing.T) {
 			name: "returns the issued challenge",
 			setup: func(t *testing.T, store *ChallengeStore) string {
 				c, err := store.Issue(context.Background(), addr1)
-				if err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, err)
 				return c
 			},
 		},
@@ -1321,12 +1023,10 @@ func TestChallengeStore_Consume(t *testing.T) {
 			name: "second consume returns ErrNotFound",
 			setup: func(t *testing.T, store *ChallengeStore) string {
 				ctx := context.Background()
-				if _, err := store.Issue(ctx, addr1); err != nil {
-					t.Fatal(err)
-				}
-				if _, err := store.Consume(ctx, addr1); err != nil {
-					t.Fatal(err)
-				}
+				_, err := store.Issue(ctx, addr1)
+				require.NoError(t, err)
+				_, err = store.Consume(ctx, addr1)
+				require.NoError(t, err)
 				return ""
 			},
 			wantErr: ports.ErrNotFound,
@@ -1346,12 +1046,12 @@ func TestChallengeStore_Consume(t *testing.T) {
 			store := NewChallengeStore(openTestDB(t))
 			want := tc.setup(t, store)
 			got, err := store.Consume(context.Background(), addr1)
-			if !errors.Is(err, tc.wantErr) {
-				t.Fatalf("Consume() error = %v, want %v", err, tc.wantErr)
+			if tc.wantErr != nil {
+				require.ErrorIs(t, err, tc.wantErr)
+				return
 			}
-			if tc.wantErr == nil && got != want {
-				t.Errorf("got %q, want %q", got, want)
-			}
+			require.NoError(t, err)
+			assert.Equal(t, want, got)
 		})
 	}
 }
@@ -1376,9 +1076,7 @@ func TestNonceStore_Consume(t *testing.T) {
 		{
 			name: "replay of the same nonce returns ErrConflict",
 			setup: func(t *testing.T, store *NonceStore) {
-				if err := store.Consume(context.Background(), addr1, "nonce-abc"); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, store.Consume(context.Background(), addr1, "nonce-abc"))
 			},
 			operator: addr1,
 			nonce:    "nonce-abc",
@@ -1387,9 +1085,7 @@ func TestNonceStore_Consume(t *testing.T) {
 		{
 			name: "same nonce is allowed for different operators",
 			setup: func(t *testing.T, store *NonceStore) {
-				if err := store.Consume(context.Background(), addr1, "shared-nonce"); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, store.Consume(context.Background(), addr1, "shared-nonce"))
 			},
 			operator: addr2,
 			nonce:    "shared-nonce",
@@ -1404,8 +1100,10 @@ func TestNonceStore_Consume(t *testing.T) {
 				tc.setup(t, store)
 			}
 			err := store.Consume(context.Background(), tc.operator, tc.nonce)
-			if !errors.Is(err, tc.wantErr) {
-				t.Fatalf("Consume() error = %v, want %v", err, tc.wantErr)
+			if tc.wantErr != nil {
+				require.ErrorIs(t, err, tc.wantErr)
+			} else {
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -1422,18 +1120,14 @@ func TestCoordinatorAllowlistRepo(t *testing.T) {
 		repo := NewCoordinatorAllowlistRepo(openTestDB(t))
 
 		ok, err := repo.Contains(ctx, addr1)
-		if err != nil || ok {
-			t.Fatalf("Contains before Add: got (%v, %v), want (false, nil)", ok, err)
-		}
+		require.NoError(t, err, "Contains before Add")
+		assert.False(t, ok, "should not contain addr1 before Add")
 
-		if err := repo.Add(ctx, addr1, addr2); err != nil {
-			t.Fatalf("Add: %v", err)
-		}
+		require.NoError(t, repo.Add(ctx, addr1, addr2), "Add")
 
 		ok, err = repo.Contains(ctx, addr1)
-		if err != nil || !ok {
-			t.Fatalf("Contains after Add: got (%v, %v), want (true, nil)", ok, err)
-		}
+		require.NoError(t, err, "Contains after Add")
+		assert.True(t, ok, "should contain addr1 after Add")
 	})
 
 	t.Run("Add is idempotent", func(t *testing.T) {
@@ -1441,12 +1135,8 @@ func TestCoordinatorAllowlistRepo(t *testing.T) {
 		ctx := context.Background()
 		repo := NewCoordinatorAllowlistRepo(openTestDB(t))
 
-		if err := repo.Add(ctx, addr1, addr2); err != nil {
-			t.Fatalf("first Add: %v", err)
-		}
-		if err := repo.Add(ctx, addr1, addr3); err != nil {
-			t.Fatalf("second Add (duplicate): %v", err)
-		}
+		require.NoError(t, repo.Add(ctx, addr1, addr2), "first Add")
+		require.NoError(t, repo.Add(ctx, addr1, addr3), "second Add (duplicate)")
 	})
 
 	t.Run("Remove existing entry", func(t *testing.T) {
@@ -1454,16 +1144,11 @@ func TestCoordinatorAllowlistRepo(t *testing.T) {
 		ctx := context.Background()
 		repo := NewCoordinatorAllowlistRepo(openTestDB(t))
 
-		if err := repo.Add(ctx, addr1, addr2); err != nil {
-			t.Fatalf("Add: %v", err)
-		}
-		if err := repo.Remove(ctx, addr1); err != nil {
-			t.Fatalf("Remove: %v", err)
-		}
+		require.NoError(t, repo.Add(ctx, addr1, addr2), "Add")
+		require.NoError(t, repo.Remove(ctx, addr1), "Remove")
 		ok, err := repo.Contains(ctx, addr1)
-		if err != nil || ok {
-			t.Fatalf("Contains after Remove: got (%v, %v), want (false, nil)", ok, err)
-		}
+		require.NoError(t, err, "Contains after Remove")
+		assert.False(t, ok, "should not contain addr1 after Remove")
 	})
 
 	t.Run("Remove missing entry returns ErrNotFound", func(t *testing.T) {
@@ -1472,9 +1157,7 @@ func TestCoordinatorAllowlistRepo(t *testing.T) {
 		repo := NewCoordinatorAllowlistRepo(openTestDB(t))
 
 		err := repo.Remove(ctx, addr1)
-		if !errors.Is(err, ports.ErrNotFound) {
-			t.Fatalf("Remove missing: got %v, want ErrNotFound", err)
-		}
+		require.ErrorIs(t, err, ports.ErrNotFound, "Remove missing")
 	})
 
 	t.Run("List pagination", func(t *testing.T) {
@@ -1484,29 +1167,17 @@ func TestCoordinatorAllowlistRepo(t *testing.T) {
 
 		addrs := []string{addr1, addr2, addr3}
 		for _, a := range addrs {
-			if err := repo.Add(ctx, a, "admin"); err != nil {
-				t.Fatalf("Add %s: %v", a, err)
-			}
+			require.NoError(t, repo.Add(ctx, a, "admin"), "Add %s", a)
 		}
 
 		entries, total, err := repo.List(ctx, 1, 2)
-		if err != nil {
-			t.Fatalf("List: %v", err)
-		}
-		if total != 3 {
-			t.Errorf("total: got %d, want 3", total)
-		}
-		if len(entries) != 2 {
-			t.Errorf("page 1 entries: got %d, want 2", len(entries))
-		}
+		require.NoError(t, err, "List")
+		assert.Equal(t, 3, total, "total")
+		assert.Len(t, entries, 2, "page 1 entries")
 
 		entries2, _, err := repo.List(ctx, 2, 2)
-		if err != nil {
-			t.Fatalf("List page 2: %v", err)
-		}
-		if len(entries2) != 1 {
-			t.Errorf("page 2 entries: got %d, want 1", len(entries2))
-		}
+		require.NoError(t, err, "List page 2")
+		assert.Len(t, entries2, 1, "page 2 entries")
 	})
 }
 
@@ -1520,9 +1191,7 @@ func TestChallengeRateLimiterStore_Allow(t *testing.T) {
 		store := NewChallengeRateLimiterStore(openTestDB(t))
 		ctx := context.Background()
 		for i := range challengeRateMaxReqs {
-			if err := store.Allow(ctx, addr1); err != nil {
-				t.Fatalf("Allow %d: unexpected error: %v", i+1, err)
-			}
+			require.NoError(t, store.Allow(ctx, addr1), "Allow %d: unexpected error", i+1)
 		}
 	})
 
@@ -1533,9 +1202,8 @@ func TestChallengeRateLimiterStore_Allow(t *testing.T) {
 		for range challengeRateMaxReqs {
 			_ = store.Allow(ctx, addr1)
 		}
-		if err := store.Allow(ctx, addr1); !errors.Is(err, ports.ErrTooManyRequests) {
-			t.Fatalf("want ErrTooManyRequests, got %v", err)
-		}
+		err := store.Allow(ctx, addr1)
+		require.ErrorIs(t, err, ports.ErrTooManyRequests)
 	})
 
 	t.Run("rate limit is per-operator: a different address is not affected", func(t *testing.T) {
@@ -1545,8 +1213,6 @@ func TestChallengeRateLimiterStore_Allow(t *testing.T) {
 		for range challengeRateMaxReqs {
 			_ = store.Allow(ctx, addr1)
 		}
-		if err := store.Allow(ctx, addr2); err != nil {
-			t.Fatalf("Allow for addr2 after addr1 exhausted limit: %v", err)
-		}
+		require.NoError(t, store.Allow(ctx, addr2), "Allow for addr2 after addr1 exhausted limit")
 	})
 }

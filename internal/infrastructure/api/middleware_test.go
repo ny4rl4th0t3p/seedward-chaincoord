@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/ports"
 )
 
@@ -111,9 +113,7 @@ func TestRequireAdmin(t *testing.T) {
 			}
 			w := httptest.NewRecorder()
 			srv.requireAdmin(ok)(w, r)
-			if w.Code != tc.wantStatus {
-				t.Errorf("status: got %d, want %d (body: %s)", w.Code, tc.wantStatus, w.Body.String())
-			}
+			assert.Equal(t, tc.wantStatus, w.Code, "body: %s", w.Body.String())
 		})
 	}
 }

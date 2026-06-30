@@ -55,6 +55,12 @@ test-integration: ## Run integration tests (build tag: integration)
 test-e2e: ## Run end-to-end tests (build tag: e2e)
 	$(GO) test -tags e2e -count=1 ./internal/e2e/...
 
+.PHONY: cover
+cover: ## Run the full suite with cross-package coverage; write coverage.out + coverage-func.txt
+	$(GO) test -count=1 -covermode=atomic -coverprofile=coverage.out -coverpkg=./... -tags 'integration e2e' ./...
+	$(GO) tool cover -func=coverage.out | tee coverage-func.txt
+	@echo "HTML report: $(GO) tool cover -html=coverage.out"
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Code quality
 # ──────────────────────────────────────────────────────────────────────────────

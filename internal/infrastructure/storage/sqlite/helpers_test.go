@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestStrToTime(t *testing.T) {
@@ -41,17 +43,13 @@ func TestStrToTime(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			got, err := strToTime(tc.input)
-			if (err != nil) != tc.wantErr {
-				t.Fatalf("strToTime(%q) error = %v, wantErr %v", tc.input, err, tc.wantErr)
+			if tc.wantErr {
+				require.Error(t, err, "strToTime(%q)", tc.input)
+				return
 			}
-			if !tc.wantErr {
-				if got.Location() != time.UTC {
-					t.Errorf("expected UTC location, got %v", got.Location())
-				}
-				if !got.Equal(tc.want) {
-					t.Errorf("got %v, want %v", got, tc.want)
-				}
-			}
+			require.NoError(t, err, "strToTime(%q)", tc.input)
+			assert.Equal(t, time.UTC, got.Location(), "expected UTC location")
+			assert.True(t, got.Equal(tc.want), "got %v, want %v", got, tc.want)
 		})
 	}
 }
@@ -82,22 +80,13 @@ func TestNullTimeToStr(t *testing.T) {
 			t.Parallel()
 			result := nullTimeToStr(tc.input)
 			if tc.wantNil {
-				if result != nil {
-					t.Errorf("expected nil, got %q", *result)
-				}
+				assert.Nil(t, result)
 				return
 			}
-			if result == nil {
-				t.Fatal("expected non-nil result")
-				return // unreachable; satisfies static analysis
-			}
+			require.NotNil(t, result, "expected non-nil result")
 			decoded, err := strToTime(*result)
-			if err != nil {
-				t.Fatalf("strToTime: %v", err)
-			}
-			if !decoded.Equal(tc.input.Truncate(time.Nanosecond)) {
-				t.Errorf("roundtrip mismatch: got %v, want %v", decoded, *tc.input)
-			}
+			require.NoError(t, err, "strToTime")
+			assert.True(t, decoded.Equal(tc.input.Truncate(time.Nanosecond)), "roundtrip mismatch: got %v, want %v", decoded, *tc.input)
 		})
 	}
 }
@@ -122,11 +111,13 @@ func TestNullStrToTime(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			result, err := nullStrToTime(tc.input)
-			if (err != nil) != tc.wantErr {
-				t.Fatalf("nullStrToTime() error = %v, wantErr %v", err, tc.wantErr)
+			if tc.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
 			}
-			if tc.wantNil && result != nil {
-				t.Errorf("expected nil result, got %v", result)
+			if tc.wantNil {
+				assert.Nil(t, result, "expected nil result")
 			}
 		})
 	}
@@ -159,12 +150,12 @@ func TestStrToUUID(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			got, err := strToUUID(tc.input)
-			if (err != nil) != tc.wantErr {
-				t.Fatalf("strToUUID(%q) error = %v, wantErr %v", tc.input, err, tc.wantErr)
+			if tc.wantErr {
+				require.Error(t, err, "strToUUID(%q)", tc.input)
+				return
 			}
-			if !tc.wantErr && got != tc.want {
-				t.Errorf("got %v, want %v", got, tc.want)
-			}
+			require.NoError(t, err, "strToUUID(%q)", tc.input)
+			assert.Equal(t, tc.want, got)
 		})
 	}
 }
@@ -195,21 +186,14 @@ func TestNullUUIDToStr(t *testing.T) {
 			t.Parallel()
 			result := nullUUIDToStr(tc.input)
 			if tc.wantNil {
-				if result != nil {
-					t.Errorf("expected nil, got %q", *result)
-				}
+				assert.Nil(t, result)
 				return
 			}
-			if result == nil {
-				t.Fatal("expected non-nil result")
-			}
+			require.NotNil(t, result, "expected non-nil result")
 			decoded, err := nullStrToUUID(result)
-			if err != nil {
-				t.Fatalf("nullStrToUUID: %v", err)
-			}
-			if decoded == nil || *decoded != *tc.input {
-				t.Errorf("roundtrip mismatch: got %v, want %v", decoded, *tc.input)
-			}
+			require.NoError(t, err, "nullStrToUUID")
+			require.NotNil(t, decoded, "roundtrip returned nil")
+			assert.Equal(t, *tc.input, *decoded, "roundtrip mismatch")
 		})
 	}
 }
@@ -234,11 +218,13 @@ func TestNullStrToUUID(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			result, err := nullStrToUUID(tc.input)
-			if (err != nil) != tc.wantErr {
-				t.Fatalf("nullStrToUUID() error = %v, wantErr %v", err, tc.wantErr)
+			if tc.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
 			}
-			if tc.wantNil && result != nil {
-				t.Errorf("expected nil result, got %v", result)
+			if tc.wantNil {
+				assert.Nil(t, result, "expected nil result")
 			}
 		})
 	}
@@ -263,13 +249,12 @@ func TestVersionFromFilename(t *testing.T) {
 		t.Run(tc.input, func(t *testing.T) {
 			t.Parallel()
 			got, err := versionFromFilename(tc.input)
-			if (err != nil) != tc.wantErr {
-				t.Errorf("wantErr=%v, got err=%v", tc.wantErr, err)
+			if tc.wantErr {
+				assert.Error(t, err)
 				return
 			}
-			if !tc.wantErr && got != tc.want {
-				t.Errorf("got %d, want %d", got, tc.want)
-			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
 		})
 	}
 }

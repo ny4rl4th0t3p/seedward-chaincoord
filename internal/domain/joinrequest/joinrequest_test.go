@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/joinrequest"
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/launch"
@@ -96,12 +98,8 @@ func newJR(selfDelegation int64) *joinrequest.JoinRequest {
 
 func TestNew_HappyPath(t *testing.T) {
 	jr := newJR(1000000)
-	if jr.Status != joinrequest.StatusPending {
-		t.Errorf("expected PENDING, got %s", jr.Status)
-	}
-	if jr.ConsensusPubKey != osmosisPubKey {
-		t.Errorf("ConsensusPubKey not set from argument: %q", jr.ConsensusPubKey)
-	}
+	assert.Equal(t, joinrequest.StatusPending, jr.Status)
+	assert.Equal(t, osmosisPubKey, jr.ConsensusPubKey, "ConsensusPubKey not set from argument")
 }
 
 // --- lifecycle ---
@@ -109,81 +107,54 @@ func TestNew_HappyPath(t *testing.T) {
 func TestApprove(t *testing.T) {
 	jr := newJR(1000000)
 	propID := uuid.New()
-	if err := jr.Approve(propID); err != nil {
-		t.Fatalf("Approve: %v", err)
-	}
-	if jr.Status != joinrequest.StatusApproved {
-		t.Errorf("expected APPROVED, got %s", jr.Status)
-	}
-	if jr.ApprovedByProposal == nil || *jr.ApprovedByProposal != propID {
-		t.Error("ApprovedByProposal not set correctly")
-	}
+	require.NoError(t, jr.Approve(propID))
+	assert.Equal(t, joinrequest.StatusApproved, jr.Status)
+	require.NotNil(t, jr.ApprovedByProposal)
+	assert.Equal(t, propID, *jr.ApprovedByProposal)
 }
 
 func TestReject(t *testing.T) {
 	jr := newJR(1000000)
-	if err := jr.Reject("bad actor"); err != nil {
-		t.Fatalf("Reject: %v", err)
-	}
-	if jr.Status != joinrequest.StatusRejected {
-		t.Errorf("expected REJECTED, got %s", jr.Status)
-	}
-	if jr.RejectionReason != "bad actor" {
-		t.Errorf("unexpected rejection reason: %s", jr.RejectionReason)
-	}
+	require.NoError(t, jr.Reject("bad actor"))
+	assert.Equal(t, joinrequest.StatusRejected, jr.Status)
+	assert.Equal(t, "bad actor", jr.RejectionReason)
 }
 
 func TestExpire(t *testing.T) {
 	jr := newJR(1000000)
-	if err := jr.Expire(); err != nil {
-		t.Fatalf("Expire: %v", err)
-	}
-	if jr.Status != joinrequest.StatusExpired {
-		t.Errorf("expected EXPIRED, got %s", jr.Status)
-	}
+	require.NoError(t, jr.Expire())
+	assert.Equal(t, joinrequest.StatusExpired, jr.Status)
 }
 
 func TestRevoke_FromApproved(t *testing.T) {
 	jr := newJR(1000000)
-	_ = jr.Approve(uuid.New())
-	if err := jr.Revoke("discovered bad gentx"); err != nil {
-		t.Fatalf("Revoke: %v", err)
-	}
-	if jr.Status != joinrequest.StatusRejected {
-		t.Errorf("expected REJECTED after revoke, got %s", jr.Status)
-	}
-	if jr.ApprovedByProposal != nil {
-		t.Error("ApprovedByProposal should be cleared on revoke")
-	}
+	require.NoError(t, jr.Approve(uuid.New()))
+	require.NoError(t, jr.Revoke("discovered bad gentx"))
+	assert.Equal(t, joinrequest.StatusRejected, jr.Status)
+	assert.Nil(t, jr.ApprovedByProposal, "ApprovedByProposal should be cleared on revoke")
 }
 
 func TestRevoke_CannotRevokePending(t *testing.T) {
 	jr := newJR(1000000)
-	if err := jr.Revoke("reason"); err == nil {
-		t.Error("expected error: cannot revoke a PENDING request")
-	}
+	require.ErrorIs(t, jr.Revoke("reason"), joinrequest.ErrInvalidJoinRequestStatus,
+		"cannot revoke a PENDING request")
 }
 
 func TestApprove_CannotApproveTwice(t *testing.T) {
 	jr := newJR(1000000)
-	_ = jr.Approve(uuid.New())
-	if err := jr.Approve(uuid.New()); err == nil {
-		t.Error("expected error: cannot approve an already-APPROVED request")
-	}
+	require.NoError(t, jr.Approve(uuid.New()))
+	require.ErrorIs(t, jr.Approve(uuid.New()), joinrequest.ErrInvalidJoinRequestStatus,
+		"cannot approve an already-APPROVED request")
 }
 
 // --- accessors ---
 
 func TestSelfDelegationAmount(t *testing.T) {
 	jr := newJR(5000000)
-	if got := jr.SelfDelegationAmount(); got != 5000000 {
-		t.Errorf("SelfDelegationAmount: got %d, want 5000000", got)
-	}
+	assert.Equal(t, int64(5000000), jr.SelfDelegationAmount())
 }
 
 func TestMoniker(t *testing.T) {
 	jr := newJR(1000000)
-	if got := jr.Moniker(); got != "test-validator" {
-		t.Errorf("Moniker: got %q, want %q", got, "test-validator")
-	}
+	assert.Equal(t, "test-validator", jr.Moniker())
 }

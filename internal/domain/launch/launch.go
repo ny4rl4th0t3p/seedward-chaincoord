@@ -2,6 +2,7 @@
 package launch
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 	"time"
@@ -37,6 +38,26 @@ const (
 const (
 	bftSafetyThreshold = 100.0 / 3.0
 	pctScaleFactor     = 100.0 // multiplier to express a ratio as a percentage
+)
+
+// Sentinel errors for the launch state-machine and committee operations. Callers
+// (the proposal/launch services and tests) match these with errors.Is to distinguish
+// failure kinds and map them to an HTTP status (see the services' mapLaunchDomainErr):
+//   - ErrInvalidStatusTransition / ErrCommitteeMemberExists / ErrInsufficientValidators /
+//     ErrDominantVotingPower → 409 (state conflict / precondition),
+//   - ErrGenesisHashRequired / ErrCommitteeMemberNotFound / ErrInvalidCommitteeChange → 400.
+var (
+	ErrInvalidStatusTransition = errors.New("operation not allowed from the current launch status")
+	ErrGenesisHashRequired     = errors.New("genesis hash must be set")
+	ErrInsufficientValidators  = errors.New("not enough approved validators to close the window")
+	ErrDominantVotingPower     = errors.New("a single operator holds an unsafe share of voting power")
+	ErrCommitteeMemberNotFound = errors.New("committee member not found")
+	ErrCommitteeMemberExists   = errors.New("address is already a committee member")
+	ErrInvalidCommitteeChange  = errors.New("invalid committee change")
+	// CanValidatorApply guards (the JoinRequestService maps both to 403 — the allowlist
+	// gate — so these exist for domain-test precision, not a distinct HTTP status).
+	ErrWindowNotOpen           = errors.New("application window is not open")
+	ErrValidatorNotAllowlisted = errors.New("validator address not on the allowlist")
 )
 
 // Visibility controls who can discover the launch.
@@ -165,10 +186,10 @@ func New(id uuid.UUID, record ChainRecord, lt LaunchType, vis Visibility, commit
 // SHA256 to have been set.
 func (l *Launch) Publish(initialGenesisSHA256 string) error {
 	if l.Status != StatusDraft {
-		return fmt.Errorf("launch: can only publish from DRAFT, current status: %s", l.Status)
+		return fmt.Errorf("launch: can only publish from DRAFT, current status: %s: %w", l.Status, ErrInvalidStatusTransition)
 	}
 	if initialGenesisSHA256 == "" {
-		return fmt.Errorf("launch: initial genesis hash must be set before publishing")
+		return fmt.Errorf("launch: initial genesis hash must be set before publishing: %w", ErrGenesisHashRequired)
 	}
 	l.InitialGenesisSHA256 = initialGenesisSHA256
 	l.Status = StatusPublished
@@ -179,7 +200,7 @@ func (l *Launch) Publish(initialGenesisSHA256 string) error {
 // OpenWindow transitions a PUBLISHED launch to WINDOW_OPEN.
 func (l *Launch) OpenWindow() error {
 	if l.Status != StatusPublished {
-		return fmt.Errorf("launch: can only open window from PUBLISHED, current status: %s", l.Status)
+		return fmt.Errorf("launch: can only open window from PUBLISHED, current status: %s: %w", l.Status, ErrInvalidStatusTransition)
 	}
 	l.Status = StatusWindowOpen
 	l.touch()
@@ -190,17 +211,17 @@ func (l *Launch) OpenWindow() error {
 // Enforces min_validator_count precondition.
 func (l *Launch) CloseWindow(approvedCount int) error {
 	if l.Status != StatusWindowOpen {
-		return fmt.Errorf("launch: can only close window from WINDOW_OPEN, current status: %s", l.Status)
+		return fmt.Errorf("launch: can only close window from WINDOW_OPEN, current status: %s: %w", l.Status, ErrInvalidStatusTransition)
 	}
 	if approvedCount < l.Record.MinValidatorCount {
-		return fmt.Errorf("launch: need at least %d approved validators to close the window, have %d",
-			l.Record.MinValidatorCount, approvedCount)
+		return fmt.Errorf("launch: need at least %d approved validators to close the window, have %d: %w",
+			l.Record.MinValidatorCount, approvedCount, ErrInsufficientValidators)
 	}
 	// Enforce no single entity holds ≥33% voting power (precondition check only;
 	// the running warning is checked on each approval — this is a final gate).
 	if dominant, pct := l.dominantVotingPowerPct(); pct >= bftSafetyThreshold {
-		return fmt.Errorf("launch: operator %s holds %.1f%% of committed voting power (≥1/3 not allowed at window close)",
-			dominant, pct)
+		return fmt.Errorf("launch: operator %s holds %.1f%% of committed voting power (≥1/3 not allowed at window close): %w",
+			dominant, pct, ErrDominantVotingPower)
 	}
 	l.Status = StatusWindowClosed
 	l.touch()
@@ -210,10 +231,10 @@ func (l *Launch) CloseWindow(approvedCount int) error {
 // PublishGenesis transitions a WINDOW_CLOSED launch to GENESIS_READY.
 func (l *Launch) PublishGenesis(finalGenesisSHA256 string) error {
 	if l.Status != StatusWindowClosed {
-		return fmt.Errorf("launch: can only publish genesis from WINDOW_CLOSED, current status: %s", l.Status)
+		return fmt.Errorf("launch: can only publish genesis from WINDOW_CLOSED, current status: %s: %w", l.Status, ErrInvalidStatusTransition)
 	}
 	if finalGenesisSHA256 == "" {
-		return fmt.Errorf("launch: final genesis hash must not be empty")
+		return fmt.Errorf("launch: final genesis hash must not be empty: %w", ErrGenesisHashRequired)
 	}
 	l.FinalGenesisSHA256 = finalGenesisSHA256
 	l.Status = StatusGenesisReady
@@ -225,10 +246,10 @@ func (l *Launch) PublishGenesis(finalGenesisSHA256 string) error {
 // Returns an error if the launch is already CANCELED or LAUNCHED.
 func (l *Launch) Cancel() error {
 	if l.Status == StatusCancelled {
-		return fmt.Errorf("launch: already canceled")
+		return fmt.Errorf("launch: already canceled: %w", ErrInvalidStatusTransition)
 	}
 	if l.Status == StatusLaunched {
-		return fmt.Errorf("launch: cannot cancel a launched chain")
+		return fmt.Errorf("launch: cannot cancel a launched chain: %w", ErrInvalidStatusTransition)
 	}
 	l.Status = StatusCancelled
 	l.touch()
@@ -240,7 +261,7 @@ func (l *Launch) Cancel() error {
 // Returns an error if the current status is not GENESIS_READY.
 func (l *Launch) ReopenForRevision() error {
 	if l.Status != StatusGenesisReady {
-		return fmt.Errorf("launch: can only reopen for revision from GENESIS_READY, current status: %s", l.Status)
+		return fmt.Errorf("launch: can only reopen for revision from GENESIS_READY, current status: %s: %w", l.Status, ErrInvalidStatusTransition)
 	}
 	l.FinalGenesisSHA256 = ""
 	l.Status = StatusWindowClosed
@@ -251,7 +272,7 @@ func (l *Launch) ReopenForRevision() error {
 // MarkLaunched transitions a GENESIS_READY launch to LAUNCHED.
 func (l *Launch) MarkLaunched() error {
 	if l.Status != StatusGenesisReady {
-		return fmt.Errorf("launch: can only mark launched from GENESIS_READY, current status: %s", l.Status)
+		return fmt.Errorf("launch: can only mark launched from GENESIS_READY, current status: %s: %w", l.Status, ErrInvalidStatusTransition)
 	}
 	l.Status = StatusLaunched
 	l.touch()
@@ -264,10 +285,10 @@ func (l *Launch) MarkLaunched() error {
 // (not the request submitter) — the allowlist gates the validator SET (D3).
 func (l *Launch) CanValidatorApply(addr OperatorAddress) error {
 	if l.Status != StatusWindowOpen {
-		return fmt.Errorf("application window is not open (status: %s)", l.Status)
+		return fmt.Errorf("application window is not open (status: %s): %w", l.Status, ErrWindowNotOpen)
 	}
 	if l.Visibility == VisibilityAllowlist && !l.Allowlist.Contains(addr) {
-		return fmt.Errorf("validator address not on allowlist")
+		return fmt.Errorf("validator address not on allowlist: %w", ErrValidatorNotAllowlisted)
 	}
 	return nil
 }
@@ -302,7 +323,7 @@ func (l *Launch) ReplaceCommitteeMember(oldAddr OperatorAddress, newMember Commi
 			return nil
 		}
 	}
-	return fmt.Errorf("launch: committee member %s not found", oldAddr)
+	return fmt.Errorf("launch: committee member %s not found: %w", oldAddr, ErrCommitteeMemberNotFound)
 }
 
 // ExpandCommittee appends newMember to the committee and sets the new threshold.
@@ -312,15 +333,16 @@ func (l *Launch) ReplaceCommitteeMember(oldAddr OperatorAddress, newMember Commi
 func (l *Launch) ExpandCommittee(newMember CommitteeMember, newThresholdM int) error {
 	for _, m := range l.Committee.Members {
 		if m.Address.Equal(newMember.Address) {
-			return fmt.Errorf("launch: committee member %s is already in the committee", newMember.Address)
+			return fmt.Errorf("launch: committee member %s is already in the committee: %w", newMember.Address, ErrCommitteeMemberExists)
 		}
 	}
 	newN := len(l.Committee.Members) + 1
 	if newThresholdM < 1 {
-		return fmt.Errorf("launch: threshold must be at least 1")
+		return fmt.Errorf("launch: threshold must be at least 1: %w", ErrInvalidCommitteeChange)
 	}
 	if newThresholdM >= newN {
-		return fmt.Errorf("launch: threshold %d must be less than new committee size %d (liveness guard: M < N required)", newThresholdM, newN)
+		return fmt.Errorf("launch: threshold %d must be less than new committee size %d (liveness guard: M < N required): %w",
+			newThresholdM, newN, ErrInvalidCommitteeChange)
 	}
 	l.Committee.Members = append(l.Committee.Members, newMember)
 	l.Committee.TotalN = newN
@@ -343,17 +365,18 @@ func (l *Launch) ShrinkCommittee(removeAddr OperatorAddress, newThresholdM int) 
 		}
 	}
 	if idx == -1 {
-		return fmt.Errorf("launch: committee member %s not found", removeAddr)
+		return fmt.Errorf("launch: committee member %s not found: %w", removeAddr, ErrCommitteeMemberNotFound)
 	}
 	newN := len(l.Committee.Members) - 1
 	if newN < 1 {
-		return fmt.Errorf("launch: cannot shrink a committee below 1 member")
+		return fmt.Errorf("launch: cannot shrink a committee below 1 member: %w", ErrInvalidCommitteeChange)
 	}
 	if newThresholdM < 1 {
-		return fmt.Errorf("launch: threshold must be at least 1")
+		return fmt.Errorf("launch: threshold must be at least 1: %w", ErrInvalidCommitteeChange)
 	}
 	if newThresholdM >= newN {
-		return fmt.Errorf("launch: threshold %d must be less than new committee size %d (liveness guard: M < N required)", newThresholdM, newN)
+		return fmt.Errorf("launch: threshold %d must be less than new committee size %d (liveness guard: M < N required): %w",
+			newThresholdM, newN, ErrInvalidCommitteeChange)
 	}
 	l.Committee.Members = append(l.Committee.Members[:idx], l.Committee.Members[idx+1:]...)
 	l.Committee.TotalN = newN

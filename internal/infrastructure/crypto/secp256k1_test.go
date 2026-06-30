@@ -10,6 +10,7 @@ import (
 	"github.com/cosmos/btcutil/bech32"
 	secp "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4/ecdsa"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/infrastructure/crypto"
 )
@@ -44,9 +45,7 @@ func signMsg(privKey *secp.PrivateKey, addr string, msg []byte) []byte {
 
 func TestSecp256k1Verifier_ValidSignature(t *testing.T) {
 	privKey, err := secp.GeneratePrivateKey()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	pubKeyBytes := privKey.PubKey().SerializeCompressed()
 	pubKeyB64 := base64.StdEncoding.EncodeToString(pubKeyBytes)
 	addr := deriveSecp256k1Address(pubKeyBytes)
@@ -55,9 +54,7 @@ func TestSecp256k1Verifier_ValidSignature(t *testing.T) {
 	sig := signMsg(privKey, addr, msg)
 
 	v := crypto.NewSecp256k1Verifier()
-	if err := v.Verify(addr, pubKeyB64, msg, sig); err != nil {
-		t.Fatalf("expected nil, got %v", err)
-	}
+	require.NoError(t, v.Verify(addr, pubKeyB64, msg, sig))
 }
 
 func TestSecp256k1Verifier_WrongPublicKey(t *testing.T) {
@@ -76,9 +73,7 @@ func TestSecp256k1Verifier_WrongPublicKey(t *testing.T) {
 	pub1B64 := base64.StdEncoding.EncodeToString(pub1Bytes)
 
 	v := crypto.NewSecp256k1Verifier()
-	if err := v.Verify(addr2, pub1B64, msg, sig); err == nil {
-		t.Fatal("expected error: pubkey does not correspond to claimed address")
-	}
+	require.Error(t, v.Verify(addr2, pub1B64, msg, sig), "expected error: pubkey does not correspond to claimed address")
 }
 
 func TestSecp256k1Verifier_TamperedMessage(t *testing.T) {
@@ -91,9 +86,7 @@ func TestSecp256k1Verifier_TamperedMessage(t *testing.T) {
 	sig := signMsg(privKey, addr, msg)
 
 	v := crypto.NewSecp256k1Verifier()
-	if err := v.Verify(addr, pubKeyB64, []byte("tampered message"), sig); err == nil {
-		t.Fatal("expected error for tampered message")
-	}
+	require.Error(t, v.Verify(addr, pubKeyB64, []byte("tampered message"), sig), "expected error for tampered message")
 }
 
 func TestSecp256k1Verifier_AddressMismatch(t *testing.T) {
@@ -112,9 +105,7 @@ func TestSecp256k1Verifier_AddressMismatch(t *testing.T) {
 	addr2 := deriveSecp256k1Address(pub2Bytes)
 
 	v := crypto.NewSecp256k1Verifier()
-	if err := v.Verify(addr2, pub1B64, msg, sig); err == nil {
-		t.Fatal("expected error: pubkey does not derive to claimed address")
-	}
+	require.Error(t, v.Verify(addr2, pub1B64, msg, sig), "expected error: pubkey does not derive to claimed address")
 }
 
 func TestSecp256k1Verifier_BadSignatureLength(t *testing.T) {
@@ -126,9 +117,7 @@ func TestSecp256k1Verifier_BadSignatureLength(t *testing.T) {
 	msg := []byte("test message")
 
 	v := crypto.NewSecp256k1Verifier()
-	if err := v.Verify(addr, pubKeyB64, msg, []byte("tooshort")); err == nil {
-		t.Fatal("expected error for bad signature length")
-	}
+	require.Error(t, v.Verify(addr, pubKeyB64, msg, []byte("tooshort")), "expected error for bad signature length")
 }
 
 func TestSecp256k1Verifier_EmptyOperatorAddr(t *testing.T) {
@@ -140,9 +129,7 @@ func TestSecp256k1Verifier_EmptyOperatorAddr(t *testing.T) {
 	sig := signMsg(privKey, addr, msg)
 
 	v := crypto.NewSecp256k1Verifier()
-	if err := v.Verify("", pubKeyB64, msg, sig); err == nil {
-		t.Fatal("expected error for empty operator address")
-	}
+	require.Error(t, v.Verify("", pubKeyB64, msg, sig), "expected error for empty operator address")
 }
 
 func TestSecp256k1Verifier_EmptyPublicKey(t *testing.T) {
@@ -153,9 +140,7 @@ func TestSecp256k1Verifier_EmptyPublicKey(t *testing.T) {
 	sig := signMsg(privKey, addr, msg)
 
 	v := crypto.NewSecp256k1Verifier()
-	if err := v.Verify(addr, "", msg, sig); err == nil {
-		t.Fatal("expected error for empty public key")
-	}
+	require.Error(t, v.Verify(addr, "", msg, sig), "expected error for empty public key")
 }
 
 func TestSecp256k1Verifier_BadBase64PublicKey(t *testing.T) {
@@ -166,9 +151,7 @@ func TestSecp256k1Verifier_BadBase64PublicKey(t *testing.T) {
 	sig := signMsg(privKey, addr, msg)
 
 	v := crypto.NewSecp256k1Verifier()
-	if err := v.Verify(addr, "not-valid-base64!!!", msg, sig); err == nil {
-		t.Fatal("expected error for bad base64 public key")
-	}
+	require.Error(t, v.Verify(addr, "not-valid-base64!!!", msg, sig), "expected error for bad base64 public key")
 }
 
 func TestSecp256k1Verifier_WrongSizePublicKey(t *testing.T) {
@@ -181,9 +164,7 @@ func TestSecp256k1Verifier_WrongSizePublicKey(t *testing.T) {
 	// 32 bytes instead of the required 33.
 	shortB64 := base64.StdEncoding.EncodeToString(pubKeyBytes[:32])
 	v := crypto.NewSecp256k1Verifier()
-	if err := v.Verify(addr, shortB64, msg, sig); err == nil {
-		t.Fatal("expected error for wrong-size public key")
-	}
+	require.Error(t, v.Verify(addr, shortB64, msg, sig), "expected error for wrong-size public key")
 }
 
 func TestSecp256k1Verifier_InvalidPublicKeyPoint(t *testing.T) {
@@ -200,9 +181,7 @@ func TestSecp256k1Verifier_InvalidPublicKeyPoint(t *testing.T) {
 	badB64 := base64.StdEncoding.EncodeToString(bad)
 
 	v := crypto.NewSecp256k1Verifier()
-	if err := v.Verify(addr, badB64, msg, sig); err == nil {
-		t.Fatal("expected error for invalid secp256k1 point")
-	}
+	require.Error(t, v.Verify(addr, badB64, msg, sig), "expected error for invalid secp256k1 point")
 }
 
 func TestSecp256k1Verifier_InvalidOperatorAddress(t *testing.T) {
@@ -214,7 +193,5 @@ func TestSecp256k1Verifier_InvalidOperatorAddress(t *testing.T) {
 	sig := signMsg(privKey, addr, msg)
 
 	v := crypto.NewSecp256k1Verifier()
-	if err := v.Verify("not-a-valid-bech32-address", pubKeyB64, msg, sig); err == nil {
-		t.Fatal("expected error for invalid operator address")
-	}
+	require.Error(t, v.Verify("not-a-valid-bech32-address", pubKeyB64, msg, sig), "expected error for invalid operator address")
 }

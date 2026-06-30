@@ -3,11 +3,12 @@ package services
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ny4rl4th0t3p/seedward-libs/gentxvalidate"
 
@@ -91,11 +92,8 @@ func TestJoinRequestService_Submit_NonceConflict(t *testing.T) {
 	nonces.consumeErr = ports.ErrConflict
 	svc := NewJoinRequestService(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), nonces, &fakeVerifier{}, &fakeGentxValidator{})
 
-	input := validSubmitInput(l)
-	_, err := svc.Submit(context.Background(), l.ID, input)
-	if err == nil {
-		t.Fatal("expected error for conflicting nonce")
-	}
+	_, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
+	require.ErrorIs(t, err, ports.ErrConflict, "a rejected nonce must surface as a conflict")
 }
 
 func TestJoinRequestService_Submit_BadTimestamp(t *testing.T) {
@@ -106,9 +104,7 @@ func TestJoinRequestService_Submit_BadTimestamp(t *testing.T) {
 	input := validSubmitInput(l)
 	input.Timestamp = expiredTS()
 	_, err := svc.Submit(context.Background(), l.ID, input)
-	if err == nil {
-		t.Fatal("expected error for expired timestamp")
-	}
+	require.ErrorIs(t, err, ports.ErrUnauthorized, "an expired timestamp is an auth failure")
 }
 
 func TestJoinRequestService_Submit_SigFails(t *testing.T) {
@@ -118,9 +114,7 @@ func TestJoinRequestService_Submit_SigFails(t *testing.T) {
 	svc := NewJoinRequestService(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeNonceStore(), verifier, &fakeGentxValidator{})
 
 	_, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
-	if err == nil {
-		t.Fatal("expected error when signature verification fails")
-	}
+	require.ErrorIs(t, err, ports.ErrUnauthorized, "a failed signature must map to 401")
 }
 
 func TestJoinRequestService_Submit_LaunchNotFound(t *testing.T) {
@@ -131,9 +125,28 @@ func TestJoinRequestService_Submit_LaunchNotFound(t *testing.T) {
 		Nonce:           uuid.New().String(),
 		Signature:       testSig,
 	})
-	if !errors.Is(err, ports.ErrNotFound) {
-		t.Fatalf("want ErrNotFound, got %v", err)
-	}
+	require.ErrorIs(t, err, ports.ErrNotFound)
+}
+
+func TestJoinRequestService_Submit_InvalidSubmitterAddress(t *testing.T) {
+	l := testLaunch()
+	l.Status = launch.StatusWindowOpen
+	svc := newJoinReqSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo())
+
+	input := validSubmitInput(l)
+	input.OperatorAddress = "not-a-bech32-address"
+	_, err := svc.Submit(context.Background(), l.ID, input)
+	require.Error(t, err, "an unparseable submitter address must be rejected")
+}
+
+func TestJoinRequestService_Submit_InvalidValidatorAddressFromGentx(t *testing.T) {
+	l := testLaunch()
+	l.Status = launch.StatusWindowOpen
+	v := &fakeGentxValidator{validatorAddr: "not-a-bech32-address"}
+	svc := NewJoinRequestService(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeNonceStore(), &fakeVerifier{}, v)
+
+	_, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
+	require.Error(t, err, "an unparseable validator address from the gentx must be rejected")
 }
 
 func TestJoinRequestService_Submit_WindowNotOpen(t *testing.T) {
@@ -141,8 +154,28 @@ func TestJoinRequestService_Submit_WindowNotOpen(t *testing.T) {
 	svc := newJoinReqSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo())
 
 	_, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
-	if err == nil {
-		t.Fatal("expected error: window not open")
+	require.ErrorIs(t, err, ports.ErrForbidden, "CanValidatorApply gates a closed window as forbidden")
+}
+
+func TestJoinRequestService_Submit_InvalidConnectionFields(t *testing.T) {
+	cases := []struct {
+		name   string
+		mutate func(*SubmitInput)
+	}{
+		{"bad peer address", func(in *SubmitInput) { in.PeerAddress = "not-a-peer" }},
+		{"bad rpc endpoint", func(in *SubmitInput) { in.RPCEndpoint = "://bad-url" }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			l := testLaunch()
+			l.Status = launch.StatusWindowOpen
+			svc := newJoinReqSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo())
+			in := validSubmitInput(l)
+			tc.mutate(&in)
+
+			_, err := svc.Submit(context.Background(), l.ID, in)
+			require.ErrorIs(t, err, ports.ErrBadRequest)
+		})
 	}
 }
 
@@ -154,9 +187,9 @@ func TestJoinRequestService_Submit_RateLimitExceeded(t *testing.T) {
 	svc := newJoinReqSvc(newFakeLaunchRepo(l), jrRepo)
 
 	_, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
-	if err == nil {
-		t.Fatal("expected error: rate limit exceeded")
-	}
+	// Must unwrap to ErrTooManyRequests so the API maps it to 429, not 500.
+	require.ErrorIs(t, err, ports.ErrTooManyRequests)
+	assert.ErrorIs(t, err, ports.ErrSubmissionCapReached, "want the specific cap sentinel")
 }
 
 func TestJoinRequestService_Submit_Success(t *testing.T) {
@@ -166,23 +199,15 @@ func TestJoinRequestService_Submit_Success(t *testing.T) {
 	svc := newJoinReqSvc(newFakeLaunchRepo(l), jrRepo)
 
 	jr, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if jr.ID == uuid.Nil {
-		t.Fatal("expected non-nil join request ID")
-	}
-	if _, ok := jrRepo.data[jr.ID]; !ok {
-		t.Fatal("join request not persisted")
-	}
+	require.NoError(t, err)
+	require.NotEqual(t, uuid.Nil, jr.ID, "expected non-nil join request ID")
+	_, ok := jrRepo.data[jr.ID]
+	require.True(t, ok, "join request not persisted")
+
 	// Identity split: OperatorAddress is the validator from the gentx (fake: testAddr2);
 	// SubmitterAddress is the request signer (validSubmitInput signs as testAddr1). They differ.
-	if jr.OperatorAddress.String() != testAddr2 {
-		t.Errorf("OperatorAddress = %q, want the gentx validator %q", jr.OperatorAddress, testAddr2)
-	}
-	if jr.SubmitterAddress.String() != testAddr1 {
-		t.Errorf("SubmitterAddress = %q, want the signer %q", jr.SubmitterAddress, testAddr1)
-	}
+	assert.Equal(t, testAddr2, jr.OperatorAddress.String(), "OperatorAddress should be the gentx validator")
+	assert.Equal(t, testAddr1, jr.SubmitterAddress.String(), "SubmitterAddress should be the signer")
 }
 
 // D3: a PUBLIC launch admits any validated validator without an allowlist (open
@@ -192,12 +217,10 @@ func TestJoinRequestService_Submit_Success(t *testing.T) {
 func TestJoinRequestService_Submit_PublicAdmitsAnyValidator(t *testing.T) {
 	l := testLaunch() // VisibilityPublic, empty allowlist
 	l.Status = launch.StatusWindowOpen
-
 	svc := newJoinReqSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo())
 
-	if _, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l)); err != nil {
-		t.Fatalf("PUBLIC launch should admit any validated validator: %v", err)
-	}
+	_, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
+	require.NoError(t, err, "PUBLIC launch should admit any validated validator")
 }
 
 // D3: on an ALLOWLIST launch the gate follows the gentx's validator address, not
@@ -208,12 +231,10 @@ func TestJoinRequestService_Submit_AllowlistGatesValidatorNotSubmitter(t *testin
 	l.Status = launch.StatusWindowOpen
 	l.Visibility = launch.VisibilityAllowlist
 	l.Allowlist = launch.NewAllowlist([]launch.OperatorAddress{mustAddr(testAddr2)}) // validator only
-
 	svc := newJoinReqSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo())
 
-	if _, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l)); err != nil {
-		t.Fatalf("validator is allowlisted; submission should succeed: %v", err)
-	}
+	_, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
+	require.NoError(t, err, "validator is allowlisted; submission should succeed")
 }
 
 // D3: conversely, an allowlisted submitter cannot get a non-allowlisted validator
@@ -224,13 +245,10 @@ func TestJoinRequestService_Submit_AllowlistRejectsNonAllowlistedValidator(t *te
 	l.Status = launch.StatusWindowOpen
 	l.Visibility = launch.VisibilityAllowlist
 	l.Allowlist = launch.NewAllowlist([]launch.OperatorAddress{mustAddr(testAddr1)}) // submitter only
-
 	svc := newJoinReqSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo())
 
 	_, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
-	if !errors.Is(err, ports.ErrForbidden) {
-		t.Fatalf("non-allowlisted validator: want ErrForbidden, got %v", err)
-	}
+	require.ErrorIs(t, err, ports.ErrForbidden, "non-allowlisted validator")
 }
 
 func TestJoinRequestService_Submit_GentxInvalid(t *testing.T) {
@@ -243,12 +261,8 @@ func TestJoinRequestService_Submit_GentxInvalid(t *testing.T) {
 
 	_, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
 	var gErr *ports.GentxInvalidError
-	if !errors.As(err, &gErr) {
-		t.Fatalf("want *ports.GentxInvalidError, got %v", err)
-	}
-	if !errors.Is(err, ports.ErrBadRequest) {
-		t.Error("GentxInvalidError should unwrap to ErrBadRequest")
-	}
+	require.ErrorAs(t, err, &gErr)
+	assert.ErrorIs(t, err, ports.ErrBadRequest, "GentxInvalidError should unwrap to ErrBadRequest")
 }
 
 func TestJoinRequestService_Submit_BuildsParamsFromLaunch(t *testing.T) {
@@ -258,18 +272,13 @@ func TestJoinRequestService_Submit_BuildsParamsFromLaunch(t *testing.T) {
 	lm.LaunchType = launch.LaunchTypeMainnet
 	vm := &fakeGentxValidator{}
 	svcM := NewJoinRequestService(newFakeLaunchRepo(lm), newFakeJoinRequestRepo(), newFakeNonceStore(), &fakeVerifier{}, vm)
-	if _, err := svcM.Submit(context.Background(), lm.ID, validSubmitInput(lm)); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if vm.gotParams.ChainID != lm.Record.ChainID ||
-		vm.gotParams.BondDenom != lm.Record.Denom ||
-		vm.gotParams.Bech32Prefix != lm.Record.Bech32Prefix {
-		t.Errorf("params not mapped from record: %+v", vm.gotParams)
-	}
-	if vm.gotParams.MinSelfDelegation != lm.Record.MinSelfDelegation {
-		t.Errorf("mainnet must carry the self-delegation floor, got %q want %q",
-			vm.gotParams.MinSelfDelegation, lm.Record.MinSelfDelegation)
-	}
+	_, err := svcM.Submit(context.Background(), lm.ID, validSubmitInput(lm))
+	require.NoError(t, err)
+	assert.Equal(t, lm.Record.ChainID, vm.gotParams.ChainID)
+	assert.Equal(t, lm.Record.Denom, vm.gotParams.BondDenom)
+	assert.Equal(t, lm.Record.Bech32Prefix, vm.gotParams.Bech32Prefix)
+	assert.Equal(t, lm.Record.MinSelfDelegation, vm.gotParams.MinSelfDelegation,
+		"mainnet must carry the self-delegation floor")
 
 	// Testnet does not carry the floor.
 	lt := testLaunch()
@@ -277,12 +286,9 @@ func TestJoinRequestService_Submit_BuildsParamsFromLaunch(t *testing.T) {
 	lt.LaunchType = launch.LaunchTypeTestnet
 	vt := &fakeGentxValidator{}
 	svcT := NewJoinRequestService(newFakeLaunchRepo(lt), newFakeJoinRequestRepo(), newFakeNonceStore(), &fakeVerifier{}, vt)
-	if _, err := svcT.Submit(context.Background(), lt.ID, validSubmitInput(lt)); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if vt.gotParams.MinSelfDelegation != "" {
-		t.Errorf("testnet must not carry a self-delegation floor, got %q", vt.gotParams.MinSelfDelegation)
-	}
+	_, err = svcT.Submit(context.Background(), lt.ID, validSubmitInput(lt))
+	require.NoError(t, err)
+	assert.Empty(t, vt.gotParams.MinSelfDelegation, "testnet must not carry a self-delegation floor")
 }
 
 func TestJoinRequestService_Submit_DeadlinePassed(t *testing.T) {
@@ -292,12 +298,8 @@ func TestJoinRequestService_Submit_DeadlinePassed(t *testing.T) {
 	svc := newJoinReqSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo())
 
 	_, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
-	if err == nil {
-		t.Fatal("expected error: gentx submission deadline passed")
-	}
-	if !errors.Is(err, ports.ErrBadRequest) {
-		t.Errorf("deadline-passed should be a bad request, got %v", err)
-	}
+	require.Error(t, err, "expected error: gentx submission deadline passed")
+	assert.ErrorIs(t, err, ports.ErrBadRequest, "deadline-passed should be a bad request")
 }
 
 // --- D4 dedup: validator identity + status ---
@@ -313,46 +315,44 @@ func TestJoinRequestService_Submit_SupersedesPendingFromSameValidator(t *testing
 	svc := newJoinReqSvc(newFakeLaunchRepo(l), jrRepo)
 
 	first, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
-	if err != nil {
-		t.Fatalf("first submit: %v", err)
-	}
+	require.NoError(t, err, "first submit")
 	second, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
-	if err != nil {
-		t.Fatalf("second submit should supersede, not fail: %v", err)
-	}
-	if second.ID == first.ID {
-		t.Fatal("expected a new request, got the same ID")
-	}
-	if second.Status != joinrequest.StatusPending {
-		t.Errorf("new request status = %q, want PENDING", second.Status)
-	}
-	if got := jrRepo.data[first.ID]; got.Status != joinrequest.StatusExpired {
-		t.Errorf("superseded request status = %q, want EXPIRED", got.Status)
-	}
+	require.NoError(t, err, "second submit should supersede, not fail")
+
+	assert.NotEqual(t, first.ID, second.ID, "expected a new request")
+	assert.Equal(t, joinrequest.StatusPending, second.Status)
+	assert.Equal(t, joinrequest.StatusExpired, jrRepo.data[first.ID].Status, "prior request should be superseded")
+
 	active, err := jrRepo.FindActiveByValidator(context.Background(), l.ID, testAddr2)
-	if err != nil {
-		t.Fatalf("FindActiveByValidator: %v", err)
-	}
-	if active.ID != second.ID {
-		t.Errorf("active request = %s, want the new one %s", active.ID, second.ID)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, second.ID, active.ID, "the new request should be the active one")
+}
+
+// If superseding the prior PENDING request fails to persist, Submit surfaces the error.
+func TestJoinRequestService_Submit_SupersedeSaveError(t *testing.T) {
+	l := testLaunch()
+	l.Status = launch.StatusWindowOpen
+	pending := makeJoinRequestSplit(t, l.ID, testAddr2, testAddr1) // active PENDING for the validator
+	jrRepo := newFakeJoinRequestRepo(pending)
+	jrRepo.saveErr = ports.ErrConflict // the supersede Save() fails
+	svc := newJoinReqSvc(newFakeLaunchRepo(l), jrRepo)
+
+	_, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
+	require.Error(t, err, "a failed supersede save must abort the submission")
 }
 
 // A validator with an APPROVED request is locked: a new submission is rejected with
-// ErrConflict (changing terms requires revoke → re-submit).
+// the specific ErrValidatorAlreadyApproved (which still maps to 409).
 func TestJoinRequestService_Submit_RejectsWhenValidatorHasApproved(t *testing.T) {
 	l := testLaunch()
 	l.Status = launch.StatusWindowOpen
 	approved := makeJoinRequestSplit(t, l.ID, testAddr2, testAddr1) // validator = fake's testAddr2
-	if err := approved.Approve(uuid.New()); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, approved.Approve(uuid.New()))
 	svc := newJoinReqSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(approved))
 
 	_, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
-	if !errors.Is(err, ports.ErrConflict) {
-		t.Fatalf("validator with an approved request is locked: want ErrConflict, got %v", err)
-	}
+	require.ErrorIs(t, err, ports.ErrValidatorAlreadyApproved, "locked validator")
+	assert.ErrorIs(t, err, ports.ErrConflict, "should still map to 409")
 }
 
 // A prior REJECTED/EXPIRED request for the validator never blocks a fresh submission,
@@ -370,20 +370,31 @@ func TestJoinRequestService_Submit_TerminalRequestDoesNotBlock(t *testing.T) {
 			l := testLaunch()
 			l.Status = launch.StatusWindowOpen
 			prior := makeJoinRequestSplit(t, l.ID, testAddr2, testAddr1)
-			if err := tc.transition(prior); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, tc.transition(prior))
 			svc := newJoinReqSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(prior))
 
 			fresh, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
-			if err != nil {
-				t.Fatalf("%s prior request should not block: %v", tc.name, err)
-			}
-			if fresh.Status != joinrequest.StatusPending {
-				t.Errorf("new request status = %q, want PENDING", fresh.Status)
-			}
+			require.NoError(t, err, "%s prior request should not block", tc.name)
+			assert.Equal(t, joinrequest.StatusPending, fresh.Status)
 		})
 	}
+}
+
+// A different validator already holding the gentx's consensus key blocks the
+// submission with the distinct ErrConsensusKeyAlreadyUsed (still a 409). This is
+// not the supersede path: the active holder is a *different* validator identity.
+func TestJoinRequestService_Submit_RejectsDuplicateConsensusKey(t *testing.T) {
+	l := testLaunch()
+	l.Status = launch.StatusWindowOpen
+	// Seed an active request for a DIFFERENT validator (testAddr3) carrying the same
+	// consensus key the fake validator will echo (osmosisPubKey).
+	other := makeJoinRequestSplit(t, l.ID, testAddr3, testAddr1)
+	svc := newJoinReqSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(other))
+
+	// Incoming submission is validator testAddr2 (distinct), same consensus key.
+	_, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
+	require.ErrorIs(t, err, ports.ErrConsensusKeyAlreadyUsed, "duplicate consensus key")
+	assert.ErrorIs(t, err, ports.ErrConflict, "should still map to 409")
 }
 
 // --- GetByID ---
@@ -397,9 +408,7 @@ func TestJoinRequestService_GetByID_ForbiddenForOtherValidator(t *testing.T) {
 
 	// Caller is testAddr2 (not the owner), not a coordinator.
 	_, err := svc.GetByID(context.Background(), jr.ID, testAddr2, false)
-	if !errors.Is(err, ports.ErrForbidden) {
-		t.Fatalf("want ErrForbidden, got %v", err)
-	}
+	require.ErrorIs(t, err, ports.ErrForbidden)
 }
 
 func TestJoinRequestService_GetByID_AllowedForOwner(t *testing.T) {
@@ -410,12 +419,8 @@ func TestJoinRequestService_GetByID_AllowedForOwner(t *testing.T) {
 	svc := newJoinReqSvc(newFakeLaunchRepo(l), jrRepo)
 
 	got, err := svc.GetByID(context.Background(), jr.ID, testAddr1, false)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got.ID != jr.ID {
-		t.Errorf("ID mismatch")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, jr.ID, got.ID)
 }
 
 func TestJoinRequestService_GetByID_AllowedForCoordinator(t *testing.T) {
@@ -427,12 +432,8 @@ func TestJoinRequestService_GetByID_AllowedForCoordinator(t *testing.T) {
 
 	// Coordinator (isCoordinator=true) can see anyone's request.
 	got, err := svc.GetByID(context.Background(), jr.ID, testAddr2, true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got.ID != jr.ID {
-		t.Errorf("ID mismatch")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, jr.ID, got.ID)
 }
 
 func TestJoinRequestService_GetByID_AllowedForSubmitter(t *testing.T) {
@@ -445,17 +446,12 @@ func TestJoinRequestService_GetByID_AllowedForSubmitter(t *testing.T) {
 
 	// The submitter (testAddr1), though not the validator, is a party to the request.
 	got, err := svc.GetByID(context.Background(), jr.ID, testAddr1, false)
-	if err != nil {
-		t.Fatalf("submitter should be allowed: %v", err)
-	}
-	if got.ID != jr.ID {
-		t.Errorf("ID mismatch")
-	}
+	require.NoError(t, err, "submitter should be allowed")
+	assert.Equal(t, jr.ID, got.ID)
 
 	// An address that is neither validator nor submitter is still forbidden.
-	if _, err := svc.GetByID(context.Background(), jr.ID, testAddr3, false); !errors.Is(err, ports.ErrForbidden) {
-		t.Fatalf("unrelated address: want ErrForbidden, got %v", err)
-	}
+	_, err = svc.GetByID(context.Background(), jr.ID, testAddr3, false)
+	require.ErrorIs(t, err, ports.ErrForbidden, "unrelated address")
 }
 
 // --- ListForLaunch ---
@@ -470,12 +466,9 @@ func TestJoinRequestService_ListForLaunch_ReturnsAll(t *testing.T) {
 	svc := newJoinReqSvc(newFakeLaunchRepo(l), jrRepo)
 
 	items, total, err := svc.ListForLaunch(context.Background(), l.ID, nil, 1, 20)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if total != 2 || len(items) != 2 {
-		t.Errorf("want 2 items, got %d (total=%d)", len(items), total)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, 2, total)
+	assert.Len(t, items, 2)
 }
 
 // --- helpers ---
@@ -511,7 +504,7 @@ func makeJoinRequestSplit(t *testing.T, launchID uuid.UUID, validatorAddr, submi
 	peer, _ := launch.NewPeerAddress("abcdef1234567890abcdef1234567890abcdef12@192.168.1.1:26656")
 	rpc, _ := launch.NewRPCEndpoint("https://192.168.1.1:26657")
 
-	jr := joinrequest.New(
+	return joinrequest.New(
 		uuid.New(), launchID,
 		mustAddr(validatorAddr), // operator (validator)
 		mustAddr(submitterAddr), // submitter
@@ -521,5 +514,4 @@ func makeJoinRequestSplit(t *testing.T, launchID uuid.UUID, validatorAddr, submi
 		osmosisPubKey,
 		time.Now().UTC(),
 	)
-	return jr
 }

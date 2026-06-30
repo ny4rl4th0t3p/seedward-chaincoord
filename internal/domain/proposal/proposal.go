@@ -3,6 +3,7 @@
 package proposal
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -10,6 +11,16 @@ import (
 
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain"
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/launch"
+)
+
+// Sentinel errors for proposal construction and signing. Callers (the proposal service,
+// tests) match these with errors.Is. The service maps ErrProposalPayloadRequired → 400 and
+// the signing-guard errors → 409.
+var (
+	ErrProposalPayloadRequired  = errors.New("proposal payload must not be nil")
+	ErrProposalNotPending       = errors.New("proposal is not pending signatures")
+	ErrProposalTTLExpired       = errors.New("proposal TTL has expired")
+	ErrCoordinatorAlreadySigned = errors.New("coordinator has already signed this proposal")
 )
 
 // Status is the proposal lifecycle state.
@@ -85,7 +96,7 @@ func New(
 	now time.Time,
 ) (*Proposal, error) {
 	if payload == nil {
-		return nil, fmt.Errorf("proposal: payload must not be nil")
+		return nil, fmt.Errorf("proposal: %w", ErrProposalPayloadRequired)
 	}
 	if err := ValidatePayload(actionType, payload); err != nil {
 		return nil, fmt.Errorf("proposal: invalid payload: %w", err)
@@ -122,14 +133,14 @@ func (p *Proposal) Sign(
 	now time.Time,
 ) error {
 	if p.Status != StatusPendingSignatures {
-		return fmt.Errorf("proposal: cannot sign a proposal in status %s", p.Status)
+		return fmt.Errorf("proposal: cannot sign a proposal in status %s: %w", p.Status, ErrProposalNotPending)
 	}
 	if p.TTLExpires.Before(now) {
-		return fmt.Errorf("proposal: TTL has expired")
+		return fmt.Errorf("proposal: TTL has expired: %w", ErrProposalTTLExpired)
 	}
 	for _, s := range p.Signatures {
 		if s.CoordinatorAddress.Equal(coordinatorAddr) {
-			return fmt.Errorf("proposal: coordinator %s has already signed", coordinatorAddr)
+			return fmt.Errorf("proposal: coordinator %s has already signed: %w", coordinatorAddr, ErrCoordinatorAlreadySigned)
 		}
 	}
 

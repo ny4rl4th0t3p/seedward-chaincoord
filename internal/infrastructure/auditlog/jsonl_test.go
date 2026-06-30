@@ -13,6 +13,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ny4rl4th0t3p/seedward-libs/canonicaljson"
 
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/ports"
@@ -22,9 +25,7 @@ func openTmp(t *testing.T) (w *JSONLWriter, path string) {
 	t.Helper()
 	path = filepath.Join(t.TempDir(), "audit.jsonl")
 	w, err := Open(path, nil)
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
+	require.NoError(t, err, "Open")
 	t.Cleanup(func() { _ = w.Close() })
 	return w, path
 }
@@ -41,33 +42,25 @@ func ev(name, launchID string) ports.AuditEvent {
 func TestOpen_CreatesFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "audit.jsonl")
 	w, err := Open(path, nil)
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
+	require.NoError(t, err, "Open")
 	defer w.Close()
-	if _, err := os.Stat(path); err != nil {
-		t.Errorf("file not created: %v", err)
-	}
+	_, err = os.Stat(path)
+	assert.NoError(t, err, "file not created")
 }
 
 func TestOpen_BadPath(t *testing.T) {
 	_, err := Open("/nonexistent/dir/audit.jsonl", nil)
-	if err == nil {
-		t.Fatal("expected error for bad path")
-	}
+	require.Error(t, err, "expected error for bad path")
+	assert.ErrorIs(t, err, os.ErrNotExist, "a missing parent dir must surface as a not-exist error")
 }
 
 func TestAppend_WritesValidJSONL(t *testing.T) {
 	w, path := openTmp(t)
-	if err := w.Append(context.Background(), ev("TestEvent", "launch-1")); err != nil {
-		t.Fatalf("Append: %v", err)
-	}
+	require.NoError(t, w.Append(context.Background(), ev("TestEvent", "launch-1")), "Append")
 	_ = w.Close()
 
 	f, err := os.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer f.Close()
 
 	scanner := bufio.NewScanner(f)
@@ -75,24 +68,16 @@ func TestAppend_WritesValidJSONL(t *testing.T) {
 	for scanner.Scan() {
 		lines = append(lines, scanner.Text())
 	}
-	if len(lines) != 1 {
-		t.Fatalf("expected 1 line, got %d", len(lines))
-	}
+	require.Len(t, lines, 1)
 	var m map[string]any
-	if err := json.Unmarshal([]byte(lines[0]), &m); err != nil {
-		t.Fatalf("line is not valid JSON: %v", err)
-	}
-	if m["event_name"] != "TestEvent" {
-		t.Errorf("event_name: got %v", m["event_name"])
-	}
+	require.NoError(t, json.Unmarshal([]byte(lines[0]), &m), "line is not valid JSON")
+	assert.Equal(t, "TestEvent", m["event_name"])
 }
 
 func TestAppend_MultipleEvents_OrderPreserved(t *testing.T) {
 	w, path := openTmp(t)
 	for _, name := range []string{"first", "second", "third"} {
-		if err := w.Append(context.Background(), ev(name, "launch-1")); err != nil {
-			t.Fatalf("Append %q: %v", name, err)
-		}
+		require.NoError(t, w.Append(context.Background(), ev(name, "launch-1")), "Append %q", name)
 	}
 	_ = w.Close()
 
@@ -105,12 +90,7 @@ func TestAppend_MultipleEvents_OrderPreserved(t *testing.T) {
 		_ = json.Unmarshal(scanner.Bytes(), &e)
 		names = append(names, e.EventName)
 	}
-	want := []string{"first", "second", "third"}
-	for i, n := range want {
-		if i >= len(names) || names[i] != n {
-			t.Errorf("line %d: got %q, want %q", i, names[i], n)
-		}
-	}
+	assert.Equal(t, []string{"first", "second", "third"}, names)
 }
 
 func TestAppend_Concurrent_NoInterleaving(t *testing.T) {
@@ -129,9 +109,7 @@ func TestAppend_Concurrent_NoInterleaving(t *testing.T) {
 	wg.Wait()
 
 	for i, err := range errs {
-		if err != nil {
-			t.Errorf("goroutine %d: %v", i, err)
-		}
+		require.NoError(t, err, "goroutine %d", i)
 	}
 
 	f, _ := os.Open(path)
@@ -140,13 +118,10 @@ func TestAppend_Concurrent_NoInterleaving(t *testing.T) {
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		count++
-		if err := json.Unmarshal(scanner.Bytes(), &map[string]any{}); err != nil {
-			t.Errorf("line %d is not valid JSON: %v", count, err)
-		}
+		var m map[string]any
+		require.NoError(t, json.Unmarshal(scanner.Bytes(), &m), "line %d is not valid JSON", count)
 	}
-	if count != n {
-		t.Errorf("expected %d lines, got %d", n, count)
-	}
+	assert.Equal(t, n, count)
 }
 
 func TestReadForLaunch_FiltersByLaunchID(t *testing.T) {
@@ -157,15 +132,10 @@ func TestReadForLaunch_FiltersByLaunchID(t *testing.T) {
 	_ = w.Append(ctx, ev("C", "launch-1"))
 
 	got, err := w.ReadForLaunch(ctx, "launch-1")
-	if err != nil {
-		t.Fatalf("ReadForLaunch: %v", err)
-	}
-	if len(got) != 2 {
-		t.Fatalf("expected 2 events, got %d", len(got))
-	}
-	if got[0].EventName != "A" || got[1].EventName != "C" {
-		t.Errorf("unexpected events: %v, %v", got[0].EventName, got[1].EventName)
-	}
+	require.NoError(t, err, "ReadForLaunch")
+	require.Len(t, got, 2)
+	assert.Equal(t, "A", got[0].EventName)
+	assert.Equal(t, "C", got[1].EventName)
 }
 
 func TestReadForLaunch_EmptyResult(t *testing.T) {
@@ -173,63 +143,44 @@ func TestReadForLaunch_EmptyResult(t *testing.T) {
 	_ = w.Append(context.Background(), ev("X", "launch-99"))
 
 	got, err := w.ReadForLaunch(context.Background(), "launch-nope")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(got) != 0 {
-		t.Errorf("expected 0 events, got %d", len(got))
-	}
+	require.NoError(t, err)
+	assert.Empty(t, got)
 }
 
 func TestReadForLaunch_SkipsMalformedLines(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "audit.jsonl")
 	// Write one malformed line then one valid line directly.
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	_, _ = f.WriteString("not json at all\n")
 	valid, _ := json.Marshal(ev("Good", "launch-1"))
 	_, _ = f.Write(append(valid, '\n'))
 	_ = f.Close()
 
 	w, err := Open(path, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer w.Close()
 
 	got, err := w.ReadForLaunch(context.Background(), "launch-1")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(got) != 1 || got[0].EventName != "Good" {
-		t.Errorf("expected 1 good event, got %v", got)
-	}
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, "Good", got[0].EventName)
 }
 
 func TestAppend_SignsEntryWhenKeyProvided(t *testing.T) {
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		t.Fatalf("generating key: %v", err)
-	}
+	require.NoError(t, err, "generating key")
 
 	path := filepath.Join(t.TempDir(), "audit.jsonl")
 	w, err := Open(path, priv)
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
+	require.NoError(t, err, "Open")
 	defer w.Close()
 
-	if err := w.Append(context.Background(), ev("TestEvent", "launch-1")); err != nil {
-		t.Fatalf("Append: %v", err)
-	}
+	require.NoError(t, w.Append(context.Background(), ev("TestEvent", "launch-1")), "Append")
 	_ = w.Close()
 
 	f, err := os.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer f.Close()
 
 	scanner := bufio.NewScanner(f)
@@ -237,34 +188,22 @@ func TestAppend_SignsEntryWhenKeyProvided(t *testing.T) {
 	line := scanner.Bytes()
 
 	var entry ports.AuditEvent
-	if err := json.Unmarshal(line, &entry); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
-	if entry.Signature == "" {
-		t.Fatal("expected Signature to be set")
-	}
+	require.NoError(t, json.Unmarshal(line, &entry), "unmarshal")
+	require.NotEmpty(t, entry.Signature, "expected Signature to be set")
 
 	sigBytes, err := base64.StdEncoding.DecodeString(entry.Signature)
-	if err != nil {
-		t.Fatalf("decoding signature: %v", err)
-	}
+	require.NoError(t, err, "decoding signature")
 
 	// Strip signature field and canonicalize to reproduce the signed bytes.
 	entry.Signature = ""
 	msg, err := canonicaljson.MarshalForSigning(entry)
-	if err != nil {
-		t.Fatalf("MarshalForSigning: %v", err)
-	}
-	if !ed25519.Verify(pub, msg, sigBytes) {
-		t.Error("signature verification failed")
-	}
+	require.NoError(t, err, "MarshalForSigning")
+	assert.True(t, ed25519.Verify(pub, msg, sigBytes), "signature verification failed")
 }
 
 func TestAppend_NoSignatureWhenNoKey(t *testing.T) {
 	w, path := openTmp(t)
-	if err := w.Append(context.Background(), ev("TestEvent", "launch-1")); err != nil {
-		t.Fatalf("Append: %v", err)
-	}
+	require.NoError(t, w.Append(context.Background(), ev("TestEvent", "launch-1")), "Append")
 	_ = w.Close()
 
 	f, _ := os.Open(path)
@@ -272,12 +211,8 @@ func TestAppend_NoSignatureWhenNoKey(t *testing.T) {
 	scanner := bufio.NewScanner(f)
 	scanner.Scan()
 	var entry ports.AuditEvent
-	if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
-	if entry.Signature != "" {
-		t.Errorf("expected empty signature without key, got %q", entry.Signature)
-	}
+	require.NoError(t, json.Unmarshal(scanner.Bytes(), &entry), "unmarshal")
+	assert.Empty(t, entry.Signature, "expected empty signature without key")
 }
 
 // mockChainStore is an in-memory ports.AuditChainStore for tests.
@@ -310,16 +245,12 @@ func TestAppend_ChainsPrevHash(t *testing.T) {
 			OccurredAt: base.Add(time.Duration(i) * time.Minute),
 			Payload:    []byte(`{}`),
 		}
-		if err := w.Append(ctx, e); err != nil {
-			t.Fatalf("Append %q: %v", name, err)
-		}
+		require.NoError(t, w.Append(ctx, e), "Append %q", name)
 	}
 	_ = w.Close()
 
 	f, err := os.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer f.Close()
 
 	var lines [][]byte
@@ -329,21 +260,13 @@ func TestAppend_ChainsPrevHash(t *testing.T) {
 		raw := append([]byte(nil), scanner.Bytes()...)
 		lines = append(lines, raw)
 		var e ports.AuditEvent
-		if err := json.Unmarshal(raw, &e); err != nil {
-			t.Fatalf("unmarshal line %d: %v", len(lines), err)
-		}
+		require.NoError(t, json.Unmarshal(raw, &e), "unmarshal line %d", len(lines))
 		entries = append(entries, e)
 	}
 
-	if entries[0].PrevHash != "" {
-		t.Errorf("entry 0: want empty prev_hash, got %q", entries[0].PrevHash)
-	}
-	if got, want := entries[1].PrevHash, sha256hex(lines[0]); got != want {
-		t.Errorf("entry 1: prev_hash = %q, want %q", got, want)
-	}
-	if got, want := entries[2].PrevHash, sha256hex(lines[1]); got != want {
-		t.Errorf("entry 2: prev_hash = %q, want %q", got, want)
-	}
+	assert.Empty(t, entries[0].PrevHash, "entry 0: want empty prev_hash")
+	assert.Equal(t, sha256hex(lines[0]), entries[1].PrevHash, "entry 1 prev_hash")
+	assert.Equal(t, sha256hex(lines[1]), entries[2].PrevHash, "entry 2 prev_hash")
 }
 
 func TestWithPrevHashStore_RestoresChain(t *testing.T) {
@@ -354,12 +277,8 @@ func TestWithPrevHashStore_RestoresChain(t *testing.T) {
 
 	// Session 1: write 2 entries.
 	w1, err := Open(path, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := w1.WithPrevHashStore(ctx, store); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+	require.NoError(t, w1.WithPrevHashStore(ctx, store))
 	for i, name := range []string{"first", "second"} {
 		_ = w1.Append(ctx, ports.AuditEvent{
 			LaunchID: "L1", EventName: name,
@@ -373,13 +292,9 @@ func TestWithPrevHashStore_RestoresChain(t *testing.T) {
 
 	// Session 2: new writer, same store — chain should continue.
 	w2, err := Open(path, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer w2.Close()
-	if err := w2.WithPrevHashStore(ctx, store); err != nil {
-		t.Fatalf("WithPrevHashStore on restart: %v", err)
-	}
+	require.NoError(t, w2.WithPrevHashStore(ctx, store), "WithPrevHashStore on restart")
 	_ = w2.Append(ctx, ports.AuditEvent{
 		LaunchID: "L1", EventName: "third",
 		OccurredAt: base.Add(2 * time.Minute),
@@ -398,9 +313,7 @@ func TestWithPrevHashStore_RestoresChain(t *testing.T) {
 		allEntries = append(allEntries, e)
 	}
 
-	if got := allEntries[2].PrevHash; got != storedHash {
-		t.Errorf("entry 2 prev_hash = %q, want stored hash %q", got, storedHash)
-	}
+	assert.Equal(t, storedHash, allEntries[2].PrevHash, "entry 2 must chain from the stored hash")
 }
 
 func TestWithPrevHashStore_DetectsTampering(t *testing.T) {
@@ -411,12 +324,8 @@ func TestWithPrevHashStore_DetectsTampering(t *testing.T) {
 
 	// Write 2 entries normally.
 	w1, err := Open(path, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := w1.WithPrevHashStore(ctx, store); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+	require.NoError(t, w1.WithPrevHashStore(ctx, store))
 	for i, name := range []string{"first", "second"} {
 		_ = w1.Append(ctx, ports.AuditEvent{
 			LaunchID: "L1", EventName: name,
@@ -441,37 +350,27 @@ func TestWithPrevHashStore_DetectsTampering(t *testing.T) {
 
 	// Open new writer with the original stored hash — must fail.
 	w2, err := Open(path, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer w2.Close()
-	if err := w2.WithPrevHashStore(ctx, &mockChainStore{hash: storedHash}); err == nil {
-		t.Fatal("expected tampering error, got nil")
-	}
+	err = w2.WithPrevHashStore(ctx, &mockChainStore{hash: storedHash})
+	assert.Error(t, err, "expected tampering error")
 }
 
 func TestWithPrevHashStore_EmptyFileStoredHash(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "audit.jsonl")
 	w, err := Open(path, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer w.Close()
 	// Store claims there was a previous entry but the file is empty.
-	if err := w.WithPrevHashStore(context.Background(), &mockChainStore{hash: "abc123"}); err == nil {
-		t.Fatal("expected error for stored hash with empty file, got nil")
-	}
+	err = w.WithPrevHashStore(context.Background(), &mockChainStore{hash: "abc123"})
+	assert.Error(t, err, "expected error for stored hash with empty file")
 }
 
 func TestClose_Idempotent(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "audit.jsonl")
 	w, err := Open(path, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := w.Close(); err != nil {
-		t.Fatalf("first Close: %v", err)
-	}
+	require.NoError(t, err)
+	require.NoError(t, w.Close(), "first Close")
 	// Second close returns an error (file already closed) — we just ensure it doesn't panic.
 	_ = w.Close()
 }

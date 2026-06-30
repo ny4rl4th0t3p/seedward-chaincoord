@@ -5,6 +5,9 @@ import (
 	"database/sql"
 	"errors"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTransactor_InTransaction(t *testing.T) {
@@ -22,16 +25,10 @@ func TestTransactor_InTransaction(t *testing.T) {
 						`INSERT INTO operator_revocations (operator_address, revoke_before) VALUES ('addr1','2099-01-01T00:00:00Z')`)
 					return err
 				})
-				if err != nil {
-					t.Fatalf("InTransaction: %v", err)
-				}
+				require.NoError(t, err, "InTransaction")
 				var count int
-				if err := db.QueryRowContext(t.Context(), `SELECT COUNT(*) FROM operator_revocations WHERE operator_address='addr1'`).Scan(&count); err != nil {
-					t.Fatalf("Scan: %v", err)
-				}
-				if count != 1 {
-					t.Errorf("expected row to be committed, got count=%d", count)
-				}
+				require.NoError(t, db.QueryRowContext(t.Context(), `SELECT COUNT(*) FROM operator_revocations WHERE operator_address='addr1'`).Scan(&count), "Scan")
+				assert.Equal(t, 1, count, "expected row to be committed")
 			},
 		},
 		{
@@ -39,22 +36,15 @@ func TestTransactor_InTransaction(t *testing.T) {
 			run: func(t *testing.T, db *sql.DB, txr *Transactor) {
 				sentinel := errors.New("intentional failure")
 				err := txr.InTransaction(context.Background(), func(ctx context.Context) error {
-					if _, xerr := conn(ctx, db).ExecContext(ctx,
-						`INSERT INTO operator_revocations (operator_address, revoke_before) VALUES ('addr2','2099-01-01T00:00:00Z')`); xerr != nil {
-						t.Fatalf("ExecContext: %v", xerr)
-					}
+					_, xerr := conn(ctx, db).ExecContext(ctx,
+						`INSERT INTO operator_revocations (operator_address, revoke_before) VALUES ('addr2','2099-01-01T00:00:00Z')`)
+					require.NoError(t, xerr, "ExecContext")
 					return sentinel
 				})
-				if !errors.Is(err, sentinel) {
-					t.Fatalf("expected sentinel error, got %v", err)
-				}
+				require.ErrorIs(t, err, sentinel, "expected sentinel error")
 				var count int
-				if err := db.QueryRowContext(t.Context(), `SELECT COUNT(*) FROM operator_revocations WHERE operator_address='addr2'`).Scan(&count); err != nil {
-					t.Fatalf("Scan: %v", err)
-				}
-				if count != 0 {
-					t.Errorf("expected row to be rolled back, got count=%d", count)
-				}
+				require.NoError(t, db.QueryRowContext(t.Context(), `SELECT COUNT(*) FROM operator_revocations WHERE operator_address='addr2'`).Scan(&count), "Scan")
+				assert.Zero(t, count, "expected row to be rolled back")
 			},
 		},
 		{
@@ -64,26 +54,20 @@ func TestTransactor_InTransaction(t *testing.T) {
 				// the outer rollback would not undo the inner insert.
 				outerErr := errors.New("outer failure")
 				_ = txr.InTransaction(context.Background(), func(outerCtx context.Context) error {
-					if _, xerr := conn(outerCtx, db).ExecContext(outerCtx,
-						`INSERT INTO operator_revocations (operator_address, revoke_before) VALUES ('addr3','2099-01-01T00:00:00Z')`); xerr != nil {
-						t.Fatalf("outer ExecContext: %v", xerr)
-					}
+					_, xerr := conn(outerCtx, db).ExecContext(outerCtx,
+						`INSERT INTO operator_revocations (operator_address, revoke_before) VALUES ('addr3','2099-01-01T00:00:00Z')`)
+					require.NoError(t, xerr, "outer ExecContext")
 					_ = txr.InTransaction(outerCtx, func(innerCtx context.Context) error {
-						if _, xerr := conn(innerCtx, db).ExecContext(innerCtx,
-							`INSERT INTO operator_revocations (operator_address, revoke_before) VALUES ('addr4','2099-01-01T00:00:00Z')`); xerr != nil {
-							t.Fatalf("inner ExecContext: %v", xerr)
-						}
+						_, ierr := conn(innerCtx, db).ExecContext(innerCtx,
+							`INSERT INTO operator_revocations (operator_address, revoke_before) VALUES ('addr4','2099-01-01T00:00:00Z')`)
+						require.NoError(t, ierr, "inner ExecContext")
 						return nil
 					})
 					return outerErr
 				})
 				var count int
-				if err := db.QueryRowContext(t.Context(), `SELECT COUNT(*) FROM operator_revocations WHERE operator_address IN ('addr3','addr4')`).Scan(&count); err != nil {
-					t.Fatalf("Scan: %v", err)
-				}
-				if count != 0 {
-					t.Errorf("expected both rows rolled back when outer tx fails, got count=%d", count)
-				}
+				require.NoError(t, db.QueryRowContext(t.Context(), `SELECT COUNT(*) FROM operator_revocations WHERE operator_address IN ('addr3','addr4')`).Scan(&count), "Scan")
+				assert.Zero(t, count, "expected both rows rolled back when outer tx fails")
 			},
 		},
 	}

@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -96,7 +97,7 @@ func (s *ProposalService) Raise(ctx context.Context, launchID uuid.UUID, input R
 
 	coordAddr, err := launch.NewOperatorAddress(input.CoordinatorAddr)
 	if err != nil {
-		return nil, fmt.Errorf("raise proposal: coordinator address: %w", err)
+		return nil, fmt.Errorf("raise proposal: coordinator address: %w: %w", err, ports.ErrBadRequest)
 	}
 	if !l.Committee.HasMember(coordAddr) {
 		return nil, fmt.Errorf("raise proposal: %s is not a committee member: %w", input.CoordinatorAddr, ports.ErrForbidden)
@@ -105,12 +106,13 @@ func (s *ProposalService) Raise(ctx context.Context, launchID uuid.UUID, input R
 	// Find the committee member's pubkey for verification.
 	pubKeyB64 := committeeMemberPubKey(l.Committee, coordAddr)
 	if err := s.verifier.Verify(input.CoordinatorAddr, pubKeyB64, message, sigBytes); err != nil {
-		return nil, fmt.Errorf("raise proposal: signature invalid: %w", err)
+		// Invalid signature is an auth failure (401); the verifier returns a bare error.
+		return nil, fmt.Errorf("raise proposal: signature invalid: %w: %w", err, ports.ErrUnauthorized)
 	}
 
 	sig, err := launch.NewSignature(input.Signature)
 	if err != nil {
-		return nil, fmt.Errorf("raise proposal: signature value: %w", err)
+		return nil, fmt.Errorf("raise proposal: signature value: %w: %w", err, ports.ErrBadRequest)
 	}
 
 	now := time.Now()
@@ -125,7 +127,7 @@ func (s *ProposalService) Raise(ctx context.Context, launchID uuid.UUID, input R
 		now,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("raise proposal: %w", err)
+		return nil, fmt.Errorf("raise proposal: %w: %w", err, ports.ErrBadRequest)
 	}
 
 	// If the proposer's single signature already meets the committee threshold
@@ -178,7 +180,7 @@ func (s *ProposalService) Sign(ctx context.Context, launchID, proposalID uuid.UU
 
 	coordAddr, err := launch.NewOperatorAddress(input.CoordinatorAddr)
 	if err != nil {
-		return nil, fmt.Errorf("sign proposal: coordinator address: %w", err)
+		return nil, fmt.Errorf("sign proposal: coordinator address: %w: %w", err, ports.ErrBadRequest)
 	}
 	if !l.Committee.HasMember(coordAddr) {
 		return nil, fmt.Errorf("sign proposal: %w", ports.ErrForbidden)
@@ -186,7 +188,8 @@ func (s *ProposalService) Sign(ctx context.Context, launchID, proposalID uuid.UU
 
 	pubKeyB64 := committeeMemberPubKey(l.Committee, coordAddr)
 	if err := s.verifier.Verify(input.CoordinatorAddr, pubKeyB64, message, sigBytes); err != nil {
-		return nil, fmt.Errorf("sign proposal: signature invalid: %w", err)
+		// Invalid signature is an auth failure (401); the verifier returns a bare error.
+		return nil, fmt.Errorf("sign proposal: signature invalid: %w: %w", err, ports.ErrUnauthorized)
 	}
 
 	p, err := s.proposals.FindByID(ctx, proposalID)
@@ -202,11 +205,11 @@ func (s *ProposalService) Sign(ctx context.Context, launchID, proposalID uuid.UU
 
 	sig, err := launch.NewSignature(input.Signature)
 	if err != nil {
-		return nil, fmt.Errorf("sign proposal: signature value: %w", err)
+		return nil, fmt.Errorf("sign proposal: signature value: %w: %w", err, ports.ErrBadRequest)
 	}
 
 	if err := p.Sign(coordAddr, input.Decision, sig, l.Committee.ThresholdM, time.Now()); err != nil {
-		return nil, fmt.Errorf("sign proposal: %w", err)
+		return nil, mapProposalDomainErr("sign proposal", err)
 	}
 
 	if p.Status == proposal.StatusExecuted {
@@ -312,6 +315,31 @@ func (s *ProposalService) applyProposal(ctx context.Context, l *launch.Launch, p
 	}
 }
 
+// mapJoinRequestDomainErr maps the joinrequest aggregate's lifecycle sentinel to the
+// matching client-facing sentinel so an executed proposal that hits an invalid
+// join-request transition (e.g. approving an already-approved request) renders a 409
+// rather than a 500. Used at the proposal apply boundary (jr.Approve/Reject/Revoke).
+func mapJoinRequestDomainErr(op string, err error) error {
+	if errors.Is(err, joinrequest.ErrInvalidJoinRequestStatus) {
+		return fmt.Errorf("%s: %w: %w", op, err, ports.ErrConflict)
+	}
+	return fmt.Errorf("%s: %w", op, err)
+}
+
+// mapProposalDomainErr maps the proposal aggregate's signing-guard sentinels to the
+// matching client-facing sentinel. A not-pending, TTL-expired, or already-signed
+// proposal is a state conflict (409). Used at the Sign boundary (p.Sign).
+func mapProposalDomainErr(op string, err error) error {
+	switch {
+	case errors.Is(err, proposal.ErrProposalNotPending),
+		errors.Is(err, proposal.ErrProposalTTLExpired),
+		errors.Is(err, proposal.ErrCoordinatorAlreadySigned):
+		return fmt.Errorf("%s: %w: %w", op, err, ports.ErrConflict)
+	default:
+		return fmt.Errorf("%s: %w", op, err)
+	}
+}
+
 func (s *ProposalService) applyApproveValidator(ctx context.Context, l *launch.Launch, p *proposal.Proposal) error {
 	var pl proposal.ApproveValidatorPayload
 	if err := json.Unmarshal(p.Payload, &pl); err != nil {
@@ -323,7 +351,7 @@ func (s *ProposalService) applyApproveValidator(ctx context.Context, l *launch.L
 		return fmt.Errorf("apply approve validator: join request: %w", err)
 	}
 	if err := jr.Approve(p.ID); err != nil {
-		return fmt.Errorf("apply approve validator: %w", err)
+		return mapJoinRequestDomainErr("apply approve validator", err)
 	}
 
 	// Record voting power and check 33% warning.
@@ -355,7 +383,7 @@ func (s *ProposalService) applyRejectValidator(ctx context.Context, p *proposal.
 		return fmt.Errorf("apply reject validator: join request: %w", err)
 	}
 	if err := jr.Reject(pl.Reason); err != nil {
-		return fmt.Errorf("apply reject validator: %w", err)
+		return mapJoinRequestDomainErr("apply reject validator", err)
 	}
 	if err := s.joinRequests.Save(ctx, jr); err != nil {
 		return fmt.Errorf("apply reject validator: save join request: %w", err)
@@ -380,7 +408,7 @@ func (s *ProposalService) applyRemoveValidator(ctx context.Context, l *launch.La
 		return fmt.Errorf("apply remove validator: join request: %w", err)
 	}
 	if err := jr.Revoke(pl.Reason); err != nil {
-		return fmt.Errorf("apply remove validator: %w", err)
+		return mapJoinRequestDomainErr("apply remove validator", err)
 	}
 
 	operatorAddr, err := launch.NewOperatorAddress(pl.OperatorAddress)
@@ -401,14 +429,14 @@ func (s *ProposalService) applyPublishChainRecord(ctx context.Context, l *launch
 		return fmt.Errorf("apply publish chain record: payload: %w", err)
 	}
 	if l.InitialGenesisSHA256 == "" {
-		return fmt.Errorf("apply publish chain record: initial genesis has not been uploaded")
+		return fmt.Errorf("apply publish chain record: initial genesis has not been uploaded: %w", ports.ErrConflict)
 	}
 	if pl.InitialGenesisHash != l.InitialGenesisSHA256 {
-		return fmt.Errorf("apply publish chain record: attested genesis hash %q does not match uploaded hash %q",
-			pl.InitialGenesisHash, l.InitialGenesisSHA256)
+		return fmt.Errorf("apply publish chain record: attested genesis hash %q does not match uploaded hash %q: %w",
+			pl.InitialGenesisHash, l.InitialGenesisSHA256, ports.ErrBadRequest)
 	}
 	if err := l.Publish(pl.InitialGenesisHash); err != nil {
-		return fmt.Errorf("apply publish chain record: %w", err)
+		return mapLaunchDomainErr("apply publish chain record", err)
 	}
 	return s.saveLaunchAndProposal(ctx, l, p)
 }
@@ -420,7 +448,7 @@ func (s *ProposalService) applyCloseWindow(ctx context.Context, l *launch.Launch
 		return fmt.Errorf("apply close window: count approved: %w", err)
 	}
 	if err := l.CloseWindow(len(approved)); err != nil {
-		return fmt.Errorf("apply close window: %w", err)
+		return mapLaunchDomainErr("apply close window", err)
 	}
 
 	// Expire all remaining PENDING join requests.
@@ -444,7 +472,7 @@ func (s *ProposalService) applyPublishGenesis(ctx context.Context, l *launch.Lau
 		return fmt.Errorf("apply publish genesis: payload: %w", err)
 	}
 	if err := l.PublishGenesis(pl.GenesisHash); err != nil {
-		return fmt.Errorf("apply publish genesis: %w", err)
+		return mapLaunchDomainErr("apply publish genesis", err)
 	}
 	return s.saveLaunchAndProposal(ctx, l, p)
 }
@@ -477,7 +505,7 @@ func (s *ProposalService) applyApproveAllocationFile(ctx context.Context, l *lau
 	// Binds approval to the file's current hash; a stale hash (file re-uploaded since the
 	// proposal was raised) or a missing file fails here, rolling back the transaction.
 	if err := l.ApproveAllocationFile(launch.AllocationType(pl.Type), pl.Hash, p.ID); err != nil {
-		return fmt.Errorf("apply approve allocation file: %w", err)
+		return mapAllocationDomainErr("apply approve allocation file", err)
 	}
 	// The AllocationFileApproved domain event is emitted by the proposal aggregate on
 	// execution and dispatched (publish + audit) by applyAndSave after commit.
@@ -541,14 +569,14 @@ func (s *ProposalService) applyReplaceCommitteeMember(ctx context.Context, l *la
 		PubKeyB64: pl.NewPubKey,
 	}
 	if err := l.ReplaceCommitteeMember(oldAddr, newMember); err != nil {
-		return fmt.Errorf("apply replace committee member: %w", err)
+		return mapLaunchDomainErr("apply replace committee member", err)
 	}
 	return s.saveLaunchAndProposal(ctx, l, p)
 }
 
 func (s *ProposalService) applyReviseGenesis(ctx context.Context, l *launch.Launch, p *proposal.Proposal) error {
 	if err := l.ReopenForRevision(); err != nil {
-		return fmt.Errorf("apply revise genesis: %w", err)
+		return mapLaunchDomainErr("apply revise genesis", err)
 	}
 	if err := s.readiness.InvalidateByLaunch(ctx, l.ID); err != nil {
 		return fmt.Errorf("apply revise genesis: invalidate readiness: %w", err)
@@ -575,7 +603,7 @@ func (s *ProposalService) applyExpandCommittee(ctx context.Context, l *launch.La
 		return fmt.Errorf("apply expand committee: expire pending proposals: %w", err)
 	}
 	if err := l.ExpandCommittee(newMember, effectiveM); err != nil {
-		return fmt.Errorf("apply expand committee: %w", err)
+		return mapLaunchDomainErr("apply expand committee", err)
 	}
 	return s.saveLaunchAndProposal(ctx, l, p)
 }
@@ -594,7 +622,7 @@ func (s *ProposalService) applyShrinkCommittee(ctx context.Context, l *launch.La
 		return fmt.Errorf("apply shrink committee: expire pending proposals: %w", err)
 	}
 	if err := l.ShrinkCommittee(removeAddr, effectiveM); err != nil {
-		return fmt.Errorf("apply shrink committee: %w", err)
+		return mapLaunchDomainErr("apply shrink committee", err)
 	}
 	return s.saveLaunchAndProposal(ctx, l, p)
 }

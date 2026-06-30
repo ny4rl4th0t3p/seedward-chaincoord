@@ -13,6 +13,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain"
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/launch"
@@ -135,7 +137,7 @@ func TestRunProposalExpiry_StopsOnContextCancel(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("RunProposalExpiry did not stop after context cancel")
+		require.Fail(t, "RunProposalExpiry did not stop after context cancel")
 	}
 }
 
@@ -154,7 +156,7 @@ func TestRunProposalExpiry_CallsExpireStaleOnTick(t *testing.T) {
 		}
 		select {
 		case <-deadline:
-			t.Fatalf("expected ≥2 ExpireStale calls, got %d", svc.callCount())
+			require.Failf(t, "too few ExpireStale calls", "expected ≥2, got %d", svc.callCount())
 		case <-time.After(5 * time.Millisecond):
 		}
 	}
@@ -198,7 +200,7 @@ func TestRunProposalExpiry_ContinuesAfterError(t *testing.T) {
 		}
 		select {
 		case <-deadline:
-			t.Fatalf("expected ≥3 calls despite error, got %d", svc.callCount())
+			require.Failf(t, "too few calls despite error", "expected ≥3, got %d", svc.callCount())
 		case <-time.After(5 * time.Millisecond):
 		}
 	}
@@ -221,7 +223,7 @@ func TestRunLaunchMonitor_StopsOnContextCancel(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("RunLaunchMonitor did not stop after context cancel")
+		require.Fail(t, "RunLaunchMonitor did not stop after context cancel")
 	}
 }
 
@@ -237,21 +239,16 @@ func TestRunLaunchMonitor_SkipsEmptyMonitorURL(t *testing.T) {
 	// Use a non-existent address to prove no HTTP call is made (it would error).
 	RunLaunchMonitor(ctx, repo, pub, zerolog.Nop(), 20*time.Millisecond, nil)
 
-	if repo.saveCount() != 0 {
-		t.Errorf("expected no saves for empty MonitorRPCURL, got %d", repo.saveCount())
-	}
-	if pub.eventCount() != 0 {
-		t.Errorf("expected no events for empty MonitorRPCURL, got %d", pub.eventCount())
-	}
+	assert.Zero(t, repo.saveCount(), "expected no saves for empty MonitorRPCURL")
+	assert.Zero(t, pub.eventCount(), "expected no events for empty MonitorRPCURL")
 }
 
 func TestRunLaunchMonitor_MarksLaunchedOnBlock1Detected(t *testing.T) {
 	// Fake CometBFT RPC that returns block 1 immediately.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		if _, err := w.Write(block1JSON()); err != nil {
-			t.Errorf("write block1: %v", err)
-		}
+		_, err := w.Write(block1JSON())
+		assert.NoError(t, err, "write block1")
 	}))
 	defer srv.Close()
 
@@ -269,27 +266,17 @@ func TestRunLaunchMonitor_MarksLaunchedOnBlock1Detected(t *testing.T) {
 	for repo.saveCount() < 1 {
 		select {
 		case <-deadline:
-			t.Fatal("launch was not saved within timeout")
+			require.Fail(t, "launch was not saved within timeout")
 		case <-time.After(5 * time.Millisecond):
 		}
 	}
 
-	if l.Status != launch.StatusLaunched {
-		t.Errorf("expected StatusLaunched, got %s", l.Status)
-	}
-	if pub.eventCount() == 0 {
-		t.Error("expected LaunchDetected event to be published")
-	}
+	assert.Equal(t, launch.StatusLaunched, l.Status)
+	require.NotZero(t, pub.eventCount(), "expected LaunchDetected event to be published")
 	ev, ok := pub.firstEvent().(domain.LaunchDetected)
-	if !ok {
-		t.Fatalf("expected LaunchDetected event, got %T", pub.firstEvent())
-	}
-	if ev.LaunchID != l.ID {
-		t.Errorf("event LaunchID mismatch: want %s, got %s", l.ID, ev.LaunchID)
-	}
-	if ev.SourceRPC != srv.URL {
-		t.Errorf("event SourceRPC mismatch: want %s, got %s", srv.URL, ev.SourceRPC)
-	}
+	require.True(t, ok, "expected LaunchDetected event, got %T", pub.firstEvent())
+	assert.Equal(t, l.ID, ev.LaunchID, "event LaunchID mismatch")
+	assert.Equal(t, srv.URL, ev.SourceRPC, "event SourceRPC mismatch")
 }
 
 func TestRunLaunchMonitor_SkipsNon200Response(t *testing.T) {
@@ -308,21 +295,16 @@ func TestRunLaunchMonitor_SkipsNon200Response(t *testing.T) {
 
 	RunLaunchMonitor(ctx, repo, pub, zerolog.Nop(), 20*time.Millisecond, nil)
 
-	if repo.saveCount() != 0 {
-		t.Errorf("expected no saves for non-200 response, got %d", repo.saveCount())
-	}
-	if pub.eventCount() != 0 {
-		t.Errorf("expected no events for non-200 response, got %d", pub.eventCount())
-	}
+	assert.Zero(t, repo.saveCount(), "expected no saves for non-200 response")
+	assert.Zero(t, pub.eventCount(), "expected no events for non-200 response")
 }
 
 func TestRunLaunchMonitor_ContinuesOnFindError(t *testing.T) {
 	var hitCount atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		hitCount.Add(1)
-		if _, err := w.Write(block1JSON()); err != nil {
-			t.Errorf("write block1: %v", err)
-		}
+		_, err := w.Write(block1JSON())
+		assert.NoError(t, err, "write block1")
 	}))
 	defer srv.Close()
 
@@ -356,7 +338,7 @@ func TestRunLaunchMonitor_ContinuesOnFindError(t *testing.T) {
 		}
 		select {
 		case <-deadline:
-			t.Fatalf("expected save after recoverable error, got %d saves", altRepo.saveCount())
+			require.Failf(t, "no save after recoverable error", "got %d saves", altRepo.saveCount())
 		case <-time.After(5 * time.Millisecond):
 		}
 	}
@@ -398,43 +380,32 @@ func (r *alternatingRepo) saveCount() int {
 
 func TestPollBlock1_Returns200WithBlock(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/block" || r.URL.RawQuery != "height=1" {
-			t.Errorf("unexpected request path/query: %s?%s", r.URL.Path, r.URL.RawQuery)
-		}
+		assert.Equal(t, "/block", r.URL.Path, "unexpected request path")
+		assert.Equal(t, "height=1", r.URL.RawQuery, "unexpected request query")
 		w.Header().Set("Content-Type", "application/json")
-		if _, err := w.Write(block1JSON()); err != nil {
-			t.Errorf("write block1: %v", err)
-		}
+		_, err := w.Write(block1JSON())
+		assert.NoError(t, err, "write block1")
 	}))
 	defer srv.Close()
 
 	client := &http.Client{Timeout: 2 * time.Second}
 	detected, err := pollBlock1(context.Background(), client, srv.URL)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !detected {
-		t.Error("expected block to be detected")
-	}
+	require.NoError(t, err)
+	assert.True(t, detected, "expected block to be detected")
 }
 
 func TestPollBlock1_Returns200NullBlock(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		if _, err := w.Write(nullBlockJSON()); err != nil {
-			t.Errorf("Write: %v", err)
-		}
+		_, err := w.Write(nullBlockJSON())
+		assert.NoError(t, err, "write null block")
 	}))
 	defer srv.Close()
 
 	client := &http.Client{Timeout: 2 * time.Second}
 	detected, err := pollBlock1(context.Background(), client, srv.URL)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if detected {
-		t.Error("null block should not be detected")
-	}
+	require.NoError(t, err)
+	assert.False(t, detected, "null block should not be detected")
 }
 
 func TestPollBlock1_Returns503(t *testing.T) {
@@ -445,36 +416,27 @@ func TestPollBlock1_Returns503(t *testing.T) {
 
 	client := &http.Client{Timeout: 2 * time.Second}
 	detected, err := pollBlock1(context.Background(), client, srv.URL)
-	if err != nil {
-		t.Fatalf("unexpected error for non-200: %v", err)
-	}
-	if detected {
-		t.Error("non-200 response should not be detected as block found")
-	}
+	require.NoError(t, err, "unexpected error for non-200")
+	assert.False(t, detected, "non-200 response should not be detected as block found")
 }
 
 func TestPollBlock1_InvalidJSON(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write([]byte("not json {{{")); err != nil {
-			t.Errorf("Write: %v", err)
-		}
+		_, err := w.Write([]byte("not json {{{"))
+		assert.NoError(t, err, "write invalid json")
 	}))
 	defer srv.Close()
 
 	client := &http.Client{Timeout: 2 * time.Second}
 	_, err := pollBlock1(context.Background(), client, srv.URL)
-	if err == nil {
-		t.Error("expected error for invalid JSON response")
-	}
+	assert.Error(t, err, "expected error for invalid JSON response")
 }
 
 func TestPollBlock1_BadURL(t *testing.T) {
 	client := &http.Client{Timeout: 100 * time.Millisecond}
 	_, err := pollBlock1(context.Background(), client, "http://127.0.0.1:1") // nothing listening
-	if err == nil {
-		t.Error("expected error for unreachable URL")
-	}
+	assert.Error(t, err, "expected error for unreachable URL")
 }
 
 // ---- markLaunched -----------------------------------------------------------
@@ -486,15 +448,9 @@ func TestMarkLaunched_SavesAndPublishes(t *testing.T) {
 
 	markLaunched(context.Background(), repo, pub, zerolog.Nop(), l, l.MonitorRPCURL)
 
-	if l.Status != launch.StatusLaunched {
-		t.Errorf("expected StatusLaunched, got %s", l.Status)
-	}
-	if repo.saveCount() != 1 {
-		t.Errorf("expected 1 save, got %d", repo.saveCount())
-	}
-	if pub.eventCount() != 1 {
-		t.Errorf("expected 1 event, got %d", pub.eventCount())
-	}
+	assert.Equal(t, launch.StatusLaunched, l.Status)
+	assert.Equal(t, 1, repo.saveCount(), "expected 1 save")
+	assert.Equal(t, 1, pub.eventCount(), "expected 1 event")
 }
 
 func TestMarkLaunched_WrongStatusNoSave(t *testing.T) {
@@ -508,12 +464,8 @@ func TestMarkLaunched_WrongStatusNoSave(t *testing.T) {
 
 	markLaunched(context.Background(), repo, pub, zerolog.Nop(), l, "http://rpc.example.com")
 
-	if repo.saveCount() != 0 {
-		t.Errorf("expected no save after MarkLaunched error, got %d", repo.saveCount())
-	}
-	if pub.eventCount() != 0 {
-		t.Errorf("expected no event after MarkLaunched error, got %d", pub.eventCount())
-	}
+	assert.Zero(t, repo.saveCount(), "expected no save after MarkLaunched error")
+	assert.Zero(t, pub.eventCount(), "expected no event after MarkLaunched error")
 }
 
 func TestMarkLaunched_SaveErrorNoPublish(t *testing.T) {
@@ -523,9 +475,7 @@ func TestMarkLaunched_SaveErrorNoPublish(t *testing.T) {
 
 	markLaunched(context.Background(), repo, pub, zerolog.Nop(), l, l.MonitorRPCURL)
 
-	if pub.eventCount() != 0 {
-		t.Errorf("expected no event when save fails, got %d", pub.eventCount())
-	}
+	assert.Zero(t, pub.eventCount(), "expected no event when save fails")
 }
 
 // ---- SSRF defense-in-depth guard --------------------------------------------
@@ -537,9 +487,8 @@ func TestRunMonitorTick_PrivateURLSkippedByValidator(t *testing.T) {
 	called := false
 	badSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		called = true
-		if _, err := w.Write(block1JSON()); err != nil {
-			t.Errorf("Write: %v", err)
-		}
+		_, err := w.Write(block1JSON())
+		assert.NoError(t, err, "write block1")
 	}))
 	defer badSrv.Close()
 
@@ -561,13 +510,7 @@ func TestRunMonitorTick_PrivateURLSkippedByValidator(t *testing.T) {
 	httpClient := &http.Client{Timeout: time.Second}
 	runMonitorTick(context.Background(), repo, pub, zerolog.Nop(), httpClient, validateFn)
 
-	if called {
-		t.Error("HTTP request was made to a URL that failed SSRF validation")
-	}
-	if repo.saveCount() != 0 {
-		t.Errorf("expected no saves for blocked URL, got %d", repo.saveCount())
-	}
-	if pub.eventCount() != 0 {
-		t.Errorf("expected no events for blocked URL, got %d", pub.eventCount())
-	}
+	assert.False(t, called, "HTTP request was made to a URL that failed SSRF validation")
+	assert.Zero(t, repo.saveCount(), "expected no saves for blocked URL")
+	assert.Zero(t, pub.eventCount(), "expected no events for blocked URL")
 }
