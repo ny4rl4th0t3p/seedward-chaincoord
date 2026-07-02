@@ -51,7 +51,9 @@ func mustSig() launch.Signature {
 	return s
 }
 
-// testLaunch returns a PUBLIC DRAFT launch with a 2-of-3 committee.
+// testLaunch returns a private DRAFT launch with a 2-of-3 committee. Membership (see + submit) is
+// keyed on the caller/submitter's address; committee members pass via IsVisibleTo, so the default
+// submitter (testAddr1, a committee member) can join without a separate members-list entry.
 func testLaunch() *launch.Launch {
 	maxComm, _ := launch.NewCommissionRate("0.20")
 	maxCommChange, _ := launch.NewCommissionRate("0.01")
@@ -83,7 +85,7 @@ func testLaunch() *launch.Launch {
 		CreationSignature: mustSig(),
 		CreatedAt:         time.Now().UTC(),
 	}
-	l, err := launch.New(uuid.New(), rec, launch.LaunchTypeTestnet, launch.VisibilityPublic, committee)
+	l, err := launch.New(uuid.New(), rec, launch.LaunchTypeTestnet, launch.VisibilityAllowlist, committee)
 	if err != nil {
 		panic(err)
 	}
@@ -360,6 +362,12 @@ func (h *harness) doAuthJSON(method, path string, body []byte, token string) *ht
 		"Content-Type":  "application/json",
 		"Authorization": "Bearer " + token,
 	})
+}
+
+// getAsMember issues a GET authenticated as testAddr1 — a committee member of testLaunch(), hence a
+// member who can see a private launch (launches are private-always). For success-path read tests.
+func (h *harness) getAsMember(path string) *httptest.ResponseRecorder {
+	return h.do("GET", path, nil, map[string]string{"Authorization": "Bearer " + h.seedSession(testAddr1)})
 }
 
 // seedSession creates a session token for the given address.

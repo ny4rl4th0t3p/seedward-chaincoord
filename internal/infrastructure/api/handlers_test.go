@@ -132,7 +132,7 @@ func validLaunchBody() []byte {
 			"application_window_open":"2026-04-01T00:00:00Z",
 			"min_validator_count":1
 		},
-		"launch_type":"TESTNET","visibility":"PUBLIC",
+		"launch_type":"TESTNET","visibility":"ALLOWLIST",
 		"committee":{
 			"members":[{"address":"` + testAddr1 + `","moniker":"c1","pub_key_b64":"AAAA"}],
 			"threshold_m":1,"total_n":1,
@@ -333,7 +333,7 @@ func TestHandleLaunchCreate_BadCommissionRate(t *testing.T) {
 	tok := h.seedSession(testAddr1)
 	body := []byte(`{
 		"record":{"chain_id":"x","max_commission_rate":"bad","max_commission_change_rate":"0.01"},
-		"launch_type":"TESTNET","visibility":"PUBLIC",
+		"launch_type":"TESTNET","visibility":"ALLOWLIST",
 		"committee":{"members":[],"threshold_m":1,"total_n":1,
 			"lead_address":"` + testAddr1 + `","creation_signature":"` + testSig + `"}
 	}`)
@@ -384,7 +384,7 @@ func TestHandleLaunchGet_Success(t *testing.T) {
 	h := newHarness(t)
 	l := testLaunch()
 	h.launches.data[l.ID] = l
-	w := h.do("GET", "/launch/"+l.ID.String(), nil, nil)
+	w := h.getAsMember("/launch/" + l.ID.String())
 	assertStatusCode(t, w, http.StatusOK)
 	assertContentTypeJSON(t, w)
 }
@@ -531,7 +531,7 @@ func TestHandleCommitteeGet_Success(t *testing.T) {
 	h := newHarness(t)
 	l := testLaunch()
 	h.launches.data[l.ID] = l
-	w := h.do("GET", "/committee/"+l.ID.String(), nil, nil)
+	w := h.getAsMember("/committee/" + l.ID.String())
 	assertStatusCode(t, w, http.StatusOK)
 	assertContentTypeJSON(t, w)
 }
@@ -605,7 +605,7 @@ func TestHandleGenesisGet_InitialGenesis(t *testing.T) {
 	l.InitialGenesisSHA256 = "abc123"
 	h.launches.data[l.ID] = l
 	h.genesis.initial[l.ID.String()] = []byte(`{"chain_id":"testchain-1"}`)
-	w := h.do("GET", "/launch/"+l.ID.String()+"/genesis", nil, nil)
+	w := h.getAsMember("/launch/" + l.ID.String() + "/genesis")
 	assertStatusCode(t, w, http.StatusOK)
 }
 
@@ -621,7 +621,7 @@ func TestHandleGenesisHashGet_Success(t *testing.T) {
 	h := newHarness(t)
 	l := testLaunch()
 	h.launches.data[l.ID] = l
-	w := h.do("GET", "/launch/"+l.ID.String()+"/genesis/hash", nil, nil)
+	w := h.getAsMember("/launch/" + l.ID.String() + "/genesis/hash")
 	assertStatusCode(t, w, http.StatusOK)
 	assertContentTypeJSON(t, w)
 }
@@ -726,7 +726,7 @@ func TestHandleAllocationList_Success(t *testing.T) {
 	l := testLaunch()
 	require.NoError(t, l.UploadAllocationFile(launch.AllocationClaims, "deadbeefclaims"))
 	h.launches.data[l.ID] = l
-	w := h.do("GET", "/launch/"+l.ID.String()+"/allocations", nil, nil)
+	w := h.getAsMember("/launch/" + l.ID.String() + "/allocations")
 	assertStatusCode(t, w, http.StatusOK)
 	assertContentTypeJSON(t, w)
 	body := w.Body.String()
@@ -744,7 +744,7 @@ func TestHandleAllocationGet_Attestor_Redirect(t *testing.T) {
 		ExternalURL: "https://example.com/claims.csv",
 		SHA256:      validAllocSHA256,
 	}
-	w := h.do("GET", "/launch/"+l.ID.String()+"/allocations/claims", nil, nil)
+	w := h.getAsMember("/launch/" + l.ID.String() + "/allocations/claims")
 	assertStatusCode(t, w, http.StatusFound)
 	assert.Equal(t, "https://example.com/claims.csv", w.Header().Get("Location"))
 }
@@ -755,7 +755,7 @@ func TestHandleAllocationGet_HostMode_Stream(t *testing.T) {
 	h.launches.data[l.ID] = l
 	csv := "address,amount\ncosmos1abc,1000\n"
 	h.allocation.bytes[l.ID.String()+":claims"] = []byte(csv)
-	w := h.do("GET", "/launch/"+l.ID.String()+"/allocations/claims", nil, nil)
+	w := h.getAsMember("/launch/" + l.ID.String() + "/allocations/claims")
 	assertStatusCode(t, w, http.StatusOK)
 	assert.Equal(t, "application/octet-stream", w.Header().Get("Content-Type"))
 	assert.Equal(t, csv, w.Body.String())
@@ -1158,7 +1158,7 @@ func TestHandleDashboard_Success(t *testing.T) {
 	h := newHarness(t)
 	l := testLaunch()
 	h.launches.data[l.ID] = l
-	w := h.do("GET", "/launch/"+l.ID.String()+"/dashboard", nil, nil)
+	w := h.getAsMember("/launch/" + l.ID.String() + "/dashboard")
 	assertStatusCode(t, w, http.StatusOK)
 	assertContentTypeJSON(t, w)
 }
@@ -1181,7 +1181,7 @@ func TestHandlePeers_Success(t *testing.T) {
 	h := newHarness(t)
 	l := testLaunch()
 	h.launches.data[l.ID] = l
-	w := h.do("GET", "/launch/"+l.ID.String()+"/peers", nil, nil)
+	w := h.getAsMember("/launch/" + l.ID.String() + "/peers")
 	assertStatusCode(t, w, http.StatusOK)
 	assertContentTypeJSON(t, w)
 }
@@ -1204,7 +1204,7 @@ func TestHandleAudit_Success(t *testing.T) {
 	h := newHarness(t)
 	l := testLaunch()
 	h.launches.data[l.ID] = l
-	w := h.do("GET", "/launch/"+l.ID.String()+"/audit", nil, nil)
+	w := h.getAsMember("/launch/" + l.ID.String() + "/audit")
 	assertStatusCode(t, w, http.StatusOK)
 	assertContentTypeJSON(t, w)
 }
@@ -1229,7 +1229,7 @@ func TestHandleEvents_Success(t *testing.T) {
 	h.launches.data[l.ID] = l
 	// thinSSEBroker returns an immediately-closed channel, so the handler exits
 	// after writing the SSE headers and flushing once.
-	w := h.do("GET", "/launch/"+l.ID.String()+"/events", nil, nil)
+	w := h.getAsMember("/launch/" + l.ID.String() + "/events")
 	assertStatusCode(t, w, http.StatusOK)
 	if ct := w.Header().Get("Content-Type"); ct != "text/event-stream" {
 		t.Errorf("want Content-Type text/event-stream, got %q", ct)
@@ -1398,7 +1398,7 @@ func TestGenesisGet_AttestorMode_Redirects(t *testing.T) {
 		SHA256:      l.InitialGenesisSHA256,
 	}
 
-	w := h.do("GET", "/launch/"+l.ID.String()+"/genesis", nil, nil)
+	w := h.getAsMember("/launch/" + l.ID.String() + "/genesis")
 	assertStatusCode(t, w, http.StatusFound)
 	if loc := w.Header().Get("Location"); loc != "https://example.com/genesis.json" {
 		t.Errorf("Location header: got %q", loc)
@@ -1413,7 +1413,7 @@ func TestGenesisGet_HostMode_StreamsFile(t *testing.T) {
 	// Store raw bytes (Option C path in thin fake).
 	h.genesis.initial[l.ID.String()] = []byte(`{"chain_id":"testchain-1"}`)
 
-	w := h.do("GET", "/launch/"+l.ID.String()+"/genesis", nil, nil)
+	w := h.getAsMember("/launch/" + l.ID.String() + "/genesis")
 	assertStatusCode(t, w, http.StatusOK)
 	if ct := w.Header().Get("Content-Type"); ct != "application/json" {
 		t.Errorf("Content-Type: got %q", ct)

@@ -215,8 +215,10 @@ func (s *Server) Handler() http.Handler {
 
 	// Genesis endpoints — default is attestor mode (JSON ref); host mode must be explicitly enabled.
 	r.Post("/launch/{id}/genesis", s.requireAuth(s.handleGenesisUpload))
-	r.Get("/launch/{id}/genesis", s.handleGenesisGet)
-	r.Get("/launch/{id}/genesis/hash", s.handleGenesisHashGet)
+	// optionalAuth so an allowlisted member can be identified and pass the visibility gate; an
+	// anonymous caller resolves to "" and is treated as a non-member (private-always).
+	r.Get("/launch/{id}/genesis", s.optionalAuth(s.handleGenesisGet))
+	r.Get("/launch/{id}/genesis/hash", s.optionalAuth(s.handleGenesisHashGet))
 
 	// Allocation file endpoints — committee-gated dual-mode upload (like genesis);
 	// list + serve. Approval/rejection goes through the generic proposal endpoints.

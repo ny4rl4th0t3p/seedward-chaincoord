@@ -181,24 +181,20 @@ func (r *LaunchRepository) FindAll(ctx context.Context, operatorAddr string, pag
 	q := conn(ctx, r.db)
 	offset := (page - 1) * perPage
 
-	// PUBLIC launches are visible to all. ALLOWLIST launches are visible only to
-	// addresses on the list.
-	var (
-		rows *sql.Rows
-		err  error
-	)
+	// Launches are private (D5b): a caller sees a launch only if they are a committee member
+	// or on its members allowlist. An unauthenticated caller sees nothing. (This mirrors the
+	// in-memory IsVisibleTo used by single-launch reads.)
 	if operatorAddr == "" {
-		rows, err = q.QueryContext(ctx,
-			`SELECT * FROM launches WHERE visibility='PUBLIC' ORDER BY created_at DESC LIMIT ? OFFSET ?`,
-			perPage, offset)
-	} else {
-		rows, err = q.QueryContext(ctx, `
-			SELECT DISTINCT l.* FROM launches l
-			LEFT JOIN allowlist al ON al.launch_id = l.id AND al.address = ?
-			WHERE l.visibility='PUBLIC' OR al.address IS NOT NULL
-			ORDER BY l.created_at DESC LIMIT ? OFFSET ?`,
-			operatorAddr, perPage, offset)
+		return []*launch.Launch{}, 0, nil
 	}
+	rows, err := q.QueryContext(ctx, `
+		SELECT DISTINCT l.* FROM launches l
+		LEFT JOIN allowlist al ON al.launch_id = l.id AND al.address = ?
+		LEFT JOIN committees c ON c.launch_id = l.id
+		LEFT JOIN committee_members cm ON cm.committee_id = c.id AND cm.address = ?
+		WHERE al.address IS NOT NULL OR cm.address IS NOT NULL
+		ORDER BY l.created_at DESC LIMIT ? OFFSET ?`,
+		operatorAddr, operatorAddr, perPage, offset)
 	if err != nil {
 		return nil, 0, fmt.Errorf("launch find all: %w", err)
 	}
@@ -228,17 +224,15 @@ func (r *LaunchRepository) FindAll(ctx context.Context, operatorAddr string, pag
 		launches = append(launches, l)
 	}
 
-	// Total count (same filter).
+	// Total count (same membership filter; operatorAddr is non-empty here).
 	var total int
-	if operatorAddr == "" {
-		err = q.QueryRowContext(ctx, `SELECT COUNT(*) FROM launches WHERE visibility='PUBLIC'`).Scan(&total)
-	} else {
-		err = q.QueryRowContext(ctx, `
-			SELECT COUNT(DISTINCT l.id) FROM launches l
-			LEFT JOIN allowlist al ON al.launch_id = l.id AND al.address = ?
-			WHERE l.visibility='PUBLIC' OR al.address IS NOT NULL`,
-			operatorAddr).Scan(&total)
-	}
+	err = q.QueryRowContext(ctx, `
+		SELECT COUNT(DISTINCT l.id) FROM launches l
+		LEFT JOIN allowlist al ON al.launch_id = l.id AND al.address = ?
+		LEFT JOIN committees c ON c.launch_id = l.id
+		LEFT JOIN committee_members cm ON cm.committee_id = c.id AND cm.address = ?
+		WHERE al.address IS NOT NULL OR cm.address IS NOT NULL`,
+		operatorAddr, operatorAddr).Scan(&total)
 	if err != nil {
 		return nil, 0, fmt.Errorf("launch count: %w", err)
 	}

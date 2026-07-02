@@ -154,7 +154,7 @@ func TestJoinRequestService_Submit_WindowNotOpen(t *testing.T) {
 	svc := newJoinReqSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo())
 
 	_, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
-	require.ErrorIs(t, err, ports.ErrForbidden, "CanValidatorApply gates a closed window as forbidden")
+	require.ErrorIs(t, err, ports.ErrForbidden, "a closed window is gated as forbidden")
 }
 
 func TestJoinRequestService_Submit_InvalidConnectionFields(t *testing.T) {
@@ -210,45 +210,32 @@ func TestJoinRequestService_Submit_Success(t *testing.T) {
 	assert.Equal(t, testAddr1, jr.SubmitterAddress.String(), "SubmitterAddress should be the signer")
 }
 
-// D3: a PUBLIC launch admits any validated validator without an allowlist (open
-// join). The fake validator's address (testAddr2) is on no list; submission
-// succeeds purely because Visibility is PUBLIC. (Removing this open-join path —
-// always-gating every launch — is S4.)
-func TestJoinRequestService_Submit_PublicAdmitsAnyValidator(t *testing.T) {
-	l := testLaunch() // VisibilityPublic, empty allowlist
+// v1 membership: the gate is on the hot SUBMITTER address (committee ∪ members), not the gentx
+// validator — validators are vetted by committee approval, not allowlisted. A committee submitter
+// passes (Submit_Success); an allowlisted non-committee member also passes.
+func TestJoinRequestService_Submit_AllowlistedMemberAllowed(t *testing.T) {
+	l := test1of1Launch() // committee = testAddr1 only
 	l.Status = launch.StatusWindowOpen
+	l.Allowlist = launch.NewAllowlist([]launch.OperatorAddress{mustAddr(testAddr2)}) // member, not committee
 	svc := newJoinReqSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo())
 
-	_, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
-	require.NoError(t, err, "PUBLIC launch should admit any validated validator")
+	in := validSubmitInput(l)
+	in.OperatorAddress = testAddr2 // submit as the allowlisted member
+	_, err := svc.Submit(context.Background(), l.ID, in)
+	require.NoError(t, err, "an allowlisted member may submit")
 }
 
-// D3: on an ALLOWLIST launch the gate follows the gentx's validator address, not
-// the submitter. The validator (fake: testAddr2) is allowlisted; the submitter
-// (testAddr1, the signer) is NOT — submission must still succeed.
-func TestJoinRequestService_Submit_AllowlistGatesValidatorNotSubmitter(t *testing.T) {
-	l := testLaunch()
+// A non-member (neither committee nor on the members list) is rejected before any gentx work —
+// a leaked launch URL grants nothing.
+func TestJoinRequestService_Submit_NonMemberForbidden(t *testing.T) {
+	l := test1of1Launch() // committee = testAddr1 only; empty allowlist
 	l.Status = launch.StatusWindowOpen
-	l.Visibility = launch.VisibilityAllowlist
-	l.Allowlist = launch.NewAllowlist([]launch.OperatorAddress{mustAddr(testAddr2)}) // validator only
 	svc := newJoinReqSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo())
 
-	_, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
-	require.NoError(t, err, "validator is allowlisted; submission should succeed")
-}
-
-// D3: conversely, an allowlisted submitter cannot get a non-allowlisted validator
-// in — the allowlist controls the validator set. Submitter (testAddr1) is on the
-// list; validator (fake: testAddr2) is not → forbidden.
-func TestJoinRequestService_Submit_AllowlistRejectsNonAllowlistedValidator(t *testing.T) {
-	l := testLaunch()
-	l.Status = launch.StatusWindowOpen
-	l.Visibility = launch.VisibilityAllowlist
-	l.Allowlist = launch.NewAllowlist([]launch.OperatorAddress{mustAddr(testAddr1)}) // submitter only
-	svc := newJoinReqSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo())
-
-	_, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
-	require.ErrorIs(t, err, ports.ErrForbidden, "non-allowlisted validator")
+	in := validSubmitInput(l)
+	in.OperatorAddress = testAddr2 // not committee, not a member
+	_, err := svc.Submit(context.Background(), l.ID, in)
+	require.ErrorIs(t, err, ports.ErrForbidden, "a non-member must not be able to submit")
 }
 
 func TestJoinRequestService_Submit_GentxInvalid(t *testing.T) {

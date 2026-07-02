@@ -201,11 +201,17 @@ func (s *JoinRequestService) Submit(ctx context.Context, launchID uuid.UUID, inp
 		return nil, fmt.Errorf("submit join request: submitter address: %w", err)
 	}
 
+	// Membership gate (v1): only committee members or allowlisted members — keyed on the hot
+	// SUBMITTER address — may submit. A leaked launch URL grants nothing to a non-member. This
+	// runs BEFORE gentx validation, so a non-member can't probe. Validators themselves are not
+	// allowlisted; they are vetted by committee approval, anchored on the operator address.
+	if !l.IsVisibleTo(input.OperatorAddress) {
+		return nil, fmt.Errorf("submit join request: not a member of this launch: %w", ports.ErrForbidden)
+	}
+
 	// Pre-acceptance gentx validation (shared invariant set, authoritative server-side).
-	// Runs BEFORE the allowlist check: the gentx cryptographically proves the
-	// validator's operator address, and that — not the submitter — is what the
-	// allowlist gates. Returns the extracted consensus pubkey + the validator
-	// operator address, or a per-invariant error.
+	// Returns the extracted consensus pubkey + the validator operator (self-delegator)
+	// address the committee will vet at approval, or a per-invariant error.
 	consensusPubKey, validatorAddrStr, err := s.validateGentx(l, input.GentxJSON)
 	if err != nil {
 		return nil, err
@@ -215,11 +221,9 @@ func (s *JoinRequestService) Submit(ctx context.Context, launchID uuid.UUID, inp
 		return nil, fmt.Errorf("submit join request: validator address: %w", err)
 	}
 
-	// Gate the verified validator address against the launch's join policy
-	// (window-open + allowlist). D3: the allowlist controls the validator SET, so
-	// it checks the gentx's validator — not the submitter, who needs only to be
-	// authenticated. (Removing open-join / always-gating every launch is S4.)
-	if err := l.CanValidatorApply(validatorAddr); err != nil {
+	// The application window must be open. (Membership was already checked above on the
+	// submitter; the validator address is carried for dedup + committee approval, not gated.)
+	if err := l.EnsureOpenForApplications(); err != nil {
 		return nil, fmt.Errorf("submit join request: %w: %w", err, ports.ErrForbidden)
 	}
 

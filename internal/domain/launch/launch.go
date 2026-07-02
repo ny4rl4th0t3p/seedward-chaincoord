@@ -54,17 +54,15 @@ var (
 	ErrCommitteeMemberNotFound = errors.New("committee member not found")
 	ErrCommitteeMemberExists   = errors.New("address is already a committee member")
 	ErrInvalidCommitteeChange  = errors.New("invalid committee change")
-	// CanValidatorApply guards (the JoinRequestService maps both to 403 — the allowlist
-	// gate — so these exist for domain-test precision, not a distinct HTTP status).
 	ErrWindowNotOpen           = errors.New("application window is not open")
-	ErrValidatorNotAllowlisted = errors.New("validator address not on the allowlist")
 )
 
-// Visibility controls who can discover the launch.
+// Visibility is a launch field retained for the schema, but it is effectively single-valued:
+// every launch is private. Discovery is gated to committee ∪ allowlist ∪ invited viewers;
+// there is no public/browsable kind. (Removing the field entirely is a larger, deferred cleanup.)
 type Visibility string
 
 const (
-	VisibilityPublic    Visibility = "PUBLIC"
 	VisibilityAllowlist Visibility = "ALLOWLIST"
 )
 
@@ -153,8 +151,6 @@ type Launch struct {
 	// approvedVotingPower tracks the sum of self-delegations of approved validators
 	// in base denom (as int64 for calculation purposes). Maintained by the application layer.
 	approvedVotingPower map[string]int64 // operator_address → self_delegation
-
-	events []any // accumulated domain events
 }
 
 // New creates a new Launch in DRAFT status.
@@ -279,16 +275,14 @@ func (l *Launch) MarkLaunched() error {
 	return nil
 }
 
-// CanValidatorApply reports whether a validator with the given operator address
-// may join: the window must be open and, on an ALLOWLIST launch, the validator
-// must be allowlisted. The caller passes the gentx's verified validator address
-// (not the request submitter) — the allowlist gates the validator SET (D3).
-func (l *Launch) CanValidatorApply(addr OperatorAddress) error {
+// EnsureOpenForApplications reports whether the launch's application window is open.
+// It does NOT gate membership: who may submit is enforced by the service on the hot
+// SUBMITTER address (membership = committee ∪ members, via IsVisibleTo), and validators
+// are vetted by committee approval anchored on the operator address — there is no
+// validator allowlist (v1 membership model).
+func (l *Launch) EnsureOpenForApplications() error {
 	if l.Status != StatusWindowOpen {
 		return fmt.Errorf("application window is not open (status: %s): %w", l.Status, ErrWindowNotOpen)
-	}
-	if l.Visibility == VisibilityAllowlist && !l.Allowlist.Contains(addr) {
-		return fmt.Errorf("validator address not on allowlist: %w", ErrValidatorNotAllowlisted)
 	}
 	return nil
 }
@@ -296,9 +290,9 @@ func (l *Launch) CanValidatorApply(addr OperatorAddress) error {
 // IsVisibleTo reports whether the launch is visible to the given operator address.
 // An empty address represents an unauthenticated caller.
 func (l *Launch) IsVisibleTo(addr string) bool {
-	if l.Visibility == VisibilityPublic {
-		return true
-	}
+	// Every launch is discovery-private (D5b): visible only to its committee and its
+	// validator allowlist (invited viewers are added in D5a). There is no public kind —
+	// an empty/unparseable caller sees nothing.
 	if addr == "" {
 		return false
 	}
@@ -306,7 +300,7 @@ func (l *Launch) IsVisibleTo(addr string) bool {
 	if err != nil {
 		return false
 	}
-	return l.Allowlist.Contains(validated)
+	return l.Committee.HasMember(validated) || l.Allowlist.Contains(validated)
 }
 
 // ReplaceCommitteeMember swaps the committee member at oldAddr with newMember.
@@ -511,13 +505,6 @@ func (l *Launch) ApprovedVotingPowerOf(operatorAddr OperatorAddress) int64 {
 // Called exclusively by repository implementations — not for domain or application use.
 func (l *Launch) InitVotingPower(powers map[string]int64) {
 	l.approvedVotingPower = powers
-}
-
-// PopEvents returns and clears the accumulated domain events.
-func (l *Launch) PopEvents() []any {
-	ev := l.events
-	l.events = nil
-	return ev
 }
 
 func (l *Launch) touch() {

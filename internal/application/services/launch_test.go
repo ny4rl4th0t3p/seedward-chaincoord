@@ -28,7 +28,7 @@ func TestLaunchService_CreateLaunch_Success(t *testing.T) {
 	l, err := svc.CreateLaunch(context.Background(), CreateLaunchInput{
 		Record:     testChainRecord(),
 		LaunchType: launch.LaunchTypeTestnet,
-		Visibility: launch.VisibilityPublic,
+		Visibility: launch.VisibilityAllowlist,
 		Committee:  testCommittee(1, 1),
 	})
 	require.NoError(t, err)
@@ -553,15 +553,14 @@ func TestLaunchService_GetLaunch_NotFound(t *testing.T) {
 	require.ErrorIs(t, err, ports.ErrNotFound)
 }
 
-func TestLaunchService_GetLaunch_AllowlistHidden(t *testing.T) {
-	l := testLaunch()
-	l.Visibility = launch.VisibilityAllowlist
-	// Allowlist is empty — no one is on it.
+func TestLaunchService_GetLaunch_Hidden(t *testing.T) {
+	// A private launch is invisible to a caller who is neither committee nor allowlisted.
+	l := test1of1Launch() // committee = testAddr1 only; empty allowlist
 	repo := newFakeLaunchRepo(l)
 	svc := newLaunchSvc(repo, newFakeGenesisStore())
 
-	_, err := svc.GetLaunch(context.Background(), l.ID, testAddr1) // addr not on allowlist
-	require.ErrorIs(t, err, ports.ErrNotFound, "want ErrNotFound for invisible launch")
+	_, err := svc.GetLaunch(context.Background(), l.ID, testAddr2) // not committee, not allowlisted
+	require.ErrorIs(t, err, ports.ErrNotFound, "want ErrNotFound for a launch the caller can't see")
 }
 
 func TestLaunchService_GetLaunch_Success(t *testing.T) {
@@ -569,7 +568,8 @@ func TestLaunchService_GetLaunch_Success(t *testing.T) {
 	repo := newFakeLaunchRepo(l)
 	svc := newLaunchSvc(repo, newFakeGenesisStore())
 
-	got, err := svc.GetLaunch(context.Background(), l.ID, "")
+	// testAddr1 is a committee member → the private launch is visible to it.
+	got, err := svc.GetLaunch(context.Background(), l.ID, testAddr1)
 	require.NoError(t, err)
 	assert.Equal(t, l.ID, got.ID)
 }
@@ -583,7 +583,7 @@ func TestLaunchService_GetDashboard_WithGenesisTime(t *testing.T) {
 	repo := newFakeLaunchRepo(l)
 	svc := newLaunchSvc(repo, newFakeGenesisStore())
 
-	dash, err := svc.GetDashboard(context.Background(), l.ID, "")
+	dash, err := svc.GetDashboard(context.Background(), l.ID, testAddr1)
 	require.NoError(t, err)
 	assert.NotNil(t, dash.Countdown, "expected non-nil countdown when genesis time is set")
 }
@@ -593,7 +593,7 @@ func TestLaunchService_GetDashboard_NoGenesisTime(t *testing.T) {
 	repo := newFakeLaunchRepo(l)
 	svc := newLaunchSvc(repo, newFakeGenesisStore())
 
-	dash, err := svc.GetDashboard(context.Background(), l.ID, "")
+	dash, err := svc.GetDashboard(context.Background(), l.ID, testAddr1)
 	require.NoError(t, err)
 	assert.Nil(t, dash.Countdown, "expected nil countdown when no genesis time set")
 }
@@ -651,7 +651,7 @@ func TestLaunchService_ListLaunches_DelegatesToRepo(t *testing.T) {
 		r := testChainRecord()
 		r.ChainID = "other-chain-1"
 		return r
-	}(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee(1, 1))
+	}(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee(1, 1))
 	repo := newFakeLaunchRepo(l1, l2)
 	svc := newLaunchSvc(repo, newFakeGenesisStore())
 
@@ -694,7 +694,7 @@ func TestLaunchService_GetCommittee_Success(t *testing.T) {
 	l := testLaunch()
 	svc := newLaunchSvc(newFakeLaunchRepo(l), newFakeGenesisStore())
 
-	c, err := svc.GetCommittee(context.Background(), l.ID, "")
+	c, err := svc.GetCommittee(context.Background(), l.ID, testAddr1)
 	require.NoError(t, err)
 	assert.Equal(t, l.Committee.ThresholdM, c.ThresholdM)
 }
@@ -782,7 +782,7 @@ func TestLaunchService_CreateLaunch_AuditEvent(t *testing.T) {
 	l, err := svc.CreateLaunch(context.Background(), CreateLaunchInput{
 		Record:     testChainRecord(),
 		LaunchType: launch.LaunchTypeTestnet,
-		Visibility: launch.VisibilityPublic,
+		Visibility: launch.VisibilityAllowlist,
 		Committee:  testCommittee(1, 1),
 	})
 	require.NoError(t, err)

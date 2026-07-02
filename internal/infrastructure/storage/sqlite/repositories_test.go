@@ -174,28 +174,55 @@ func TestLaunchRepository_FindByChainID(t *testing.T) {
 func TestLaunchRepository_FindAll(t *testing.T) {
 	t.Parallel()
 
+	// Valid bech32 addresses that are NOT in the test committee (addr1/2/3).
+	const (
+		outsider = "cosmos1v93xxer9venks6t2ddkx6mn0wpchyum5nn4cca"
+		stranger = "cosmos1sxpg8py9s6rc3zv23wxgmr50jzge9yu5r5slya"
+	)
+
 	tests := []struct {
 		name string
 		run  func(t *testing.T, repo *LaunchRepository)
 	}{
 		{
-			name: "unauthenticated caller only sees public launches",
+			name: "unauthenticated caller sees nothing (private-always)",
 			run: func(t *testing.T, repo *LaunchRepository) {
 				ctx := context.Background()
-
-				pub := testLaunch(t)
-				require.NoError(t, repo.Save(ctx, pub))
-
-				restricted := testLaunch(t)
-				restricted.Record.ChainID = "restricted-chain-1"
-				restricted.Visibility = launch.VisibilityAllowlist
-				require.NoError(t, repo.Save(ctx, restricted))
-
+				require.NoError(t, repo.Save(ctx, testLaunch(t)))
 				launches, total, err := repo.FindAll(ctx, "", 1, 10)
 				require.NoError(t, err, "FindAll")
-				require.Equal(t, 1, total, "expected 1 public launch")
+				assert.Zero(t, total)
+				assert.Empty(t, launches)
+			},
+		},
+		{
+			name: "committee member sees their launch",
+			run: func(t *testing.T, repo *LaunchRepository) {
+				ctx := context.Background()
+				l := testLaunch(t) // committee includes addr1
+				require.NoError(t, repo.Save(ctx, l))
+				launches, total, err := repo.FindAll(ctx, addr1, 1, 10)
+				require.NoError(t, err, "FindAll")
+				require.Equal(t, 1, total)
 				require.Len(t, launches, 1)
-				assert.Equal(t, pub.ID, launches[0].ID, "returned wrong launch")
+				assert.Equal(t, l.ID, launches[0].ID)
+			},
+		},
+		{
+			name: "allowlisted member sees it; a non-member does not",
+			run: func(t *testing.T, repo *LaunchRepository) {
+				ctx := context.Background()
+				l := testLaunch(t)
+				l.Allowlist = launch.NewAllowlist([]launch.OperatorAddress{mustAddr(outsider)})
+				require.NoError(t, repo.Save(ctx, l))
+
+				_, total, err := repo.FindAll(ctx, outsider, 1, 10)
+				require.NoError(t, err)
+				assert.Equal(t, 1, total, "allowlisted member should see the launch")
+
+				_, total, err = repo.FindAll(ctx, stranger, 1, 10)
+				require.NoError(t, err)
+				assert.Zero(t, total, "a non-member should see nothing")
 			},
 		},
 	}

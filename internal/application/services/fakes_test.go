@@ -89,7 +89,7 @@ func testCommittee(threshold, total int) launch.Committee {
 
 // testLaunch returns a DRAFT launch with a 2-of-3 committee.
 func testLaunch() *launch.Launch {
-	l, err := launch.New(uuid.New(), testChainRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee(2, 3))
+	l, err := launch.New(uuid.New(), testChainRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee(2, 3))
 	if err != nil {
 		panic(err)
 	}
@@ -126,7 +126,7 @@ func test1of1Launch() *launch.Launch {
 		CreationSignature: mustSig(),
 		CreatedAt:         time.Now().UTC(),
 	}
-	l, err := launch.New(uuid.New(), rec, launch.LaunchTypeTestnet, launch.VisibilityPublic, committee)
+	l, err := launch.New(uuid.New(), rec, launch.LaunchTypeTestnet, launch.VisibilityAllowlist, committee)
 	if err != nil {
 		panic(err)
 	}
@@ -135,7 +135,7 @@ func test1of1Launch() *launch.Launch {
 
 // test1of3Launch returns a DRAFT launch with a 1-of-3 committee (threshold 1 → auto-execute).
 func test1of3Launch() *launch.Launch {
-	l, err := launch.New(uuid.New(), testChainRecord(), launch.LaunchTypeTestnet, launch.VisibilityPublic, testCommittee(1, 3))
+	l, err := launch.New(uuid.New(), testChainRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee(1, 3))
 	if err != nil {
 		panic(err)
 	}

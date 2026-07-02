@@ -71,8 +71,21 @@ type CreateLaunchInput struct {
 
 // CreateLaunch creates a new Launch in DRAFT status.
 func (s *LaunchService) CreateLaunch(ctx context.Context, input CreateLaunchInput) (*launch.Launch, error) {
+	// Launches are private-always: default empty visibility to ALLOWLIST and reject the
+	// legacy PUBLIC (browsable) kind — discovery is gated to committee ∪ allowlist ∪ viewers.
+	visibility := input.Visibility
+	switch visibility {
+	case "":
+		visibility = launch.VisibilityAllowlist
+	case launch.VisibilityAllowlist:
+		// ok — the only supported kind
+	default:
+		return nil, fmt.Errorf("create launch: visibility %q is not supported; launches are private: %w",
+			visibility, ports.ErrBadRequest)
+	}
+
 	al := launch.NewAllowlist(input.Allowlist)
-	l, err := launch.New(uuid.New(), input.Record, input.LaunchType, input.Visibility, input.Committee)
+	l, err := launch.New(uuid.New(), input.Record, input.LaunchType, visibility, input.Committee)
 	if err != nil {
 		return nil, fmt.Errorf("create launch: %w", err)
 	}
