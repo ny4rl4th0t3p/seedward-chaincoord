@@ -178,14 +178,27 @@ COMMITTEE_PAYLOAD=$(printf \
   "${COORD_ADDR}" "${COORD_ADDR}" "${COORD_PUBKEY}")
 CREATION_SIG=$(echo "${COMMITTEE_PAYLOAD}" | smoke-signer sign-committee --key-index 0)
 
+# Launches are private-always: validators must be pre-vetted into the members allowlist to see/join.
+# These addresses are deterministic — the gaiad operator keys are imported from the same smoke-signer
+# keys (indices 1-4), so they match the operator_address each validator submits with.
+VAL_ADDR_1=$(smoke-signer address --key-index 1)
+VAL_ADDR_2=$(smoke-signer address --key-index 2)
+VAL_ADDR_3=$(smoke-signer address --key-index 3)
+VAL_ADDR_4=$(smoke-signer address --key-index 4)
+
 LAUNCH_BODY=$(jq -n \
   --arg chain_id       "${CHAIN_ID}" \
   --arg creation_sig   "${CREATION_SIG}" \
   --arg coord_addr     "${COORD_ADDR}" \
   --arg coord_pubkey   "${COORD_PUBKEY}" \
+  --arg val1           "${VAL_ADDR_1}" \
+  --arg val2           "${VAL_ADDR_2}" \
+  --arg val3           "${VAL_ADDR_3}" \
+  --arg val4           "${VAL_ADDR_4}" \
   '{
     launch_type: "PERMISSIONLESS",
-    visibility:  "PUBLIC",
+    visibility:  "ALLOWLIST",
+    allowlist:   [$val1, $val2, $val3, $val4],
     record: {
       chain_id:                   $chain_id,
       chain_name:                 "Gaia Smoke Test",
@@ -380,14 +393,16 @@ echo "    genesis published via proposal ${PROP_ID}"
 # Step 15 — Download final genesis, distribute, and verify hash inline
 # ---------------------------------------------------------------------------
 echo "==> [15/20] distributing and verifying final genesis..."
-curl_check -L "${SERVER}/launch/${LAUNCH_ID}/genesis" > /tmp/final_genesis.json
+curl_check -L "${SERVER}/launch/${LAUNCH_ID}/genesis" \
+  -H "Authorization: Bearer ${COORD_TOKEN}" > /tmp/final_genesis.json
 
 for i in 1 2 3 4; do
   cp /tmp/final_genesis.json "${GAIA_SHARED}/val${i}/config/genesis.json"
 done
 
 LOCAL_HASH=$(sha256sum /tmp/final_genesis.json | awk '{print $1}')
-SERVER_HASH=$(curl_check "${SERVER}/launch/${LAUNCH_ID}/genesis/hash" | jq -r '.final_sha256')
+SERVER_HASH=$(curl_check "${SERVER}/launch/${LAUNCH_ID}/genesis/hash" \
+  -H "Authorization: Bearer ${COORD_TOKEN}" | jq -r '.final_sha256')
 if [ "${LOCAL_HASH}" != "${SERVER_HASH}" ]; then
   echo "HASH MISMATCH: local=${LOCAL_HASH} server=${SERVER_HASH}"
   exit 1
@@ -399,7 +414,8 @@ echo "    genesis SHA256: ${GENESIS_HASH} (verified)"
 # Step 16 — Configure persistent_peers in each validator's config.toml
 # ---------------------------------------------------------------------------
 echo "==> [16/20] configuring persistent_peers..."
-PEERS=$(curl_check "${SERVER}/launch/${LAUNCH_ID}/peers?format=text")
+PEERS=$(curl_check "${SERVER}/launch/${LAUNCH_ID}/peers?format=text" \
+  -H "Authorization: Bearer ${COORD_TOKEN}")
 for i in 1 2 3 4; do
   cfg="${GAIA_SHARED}/val${i}/config/config.toml"
   sed -i "s|^persistent_peers = .*|persistent_peers = \"${PEERS}\"|" "${cfg}"
@@ -451,7 +467,8 @@ curl_check -X PATCH "${SERVER}/launch/${LAUNCH_ID}" \
 # ---------------------------------------------------------------------------
 echo "==> [20/20] waiting for LAUNCHED status (180s timeout)..."
 for i in $(seq 1 60); do
-  STATUS=$(curl_check "${SERVER}/launch/${LAUNCH_ID}" | jq -r '.status')
+  STATUS=$(curl_check "${SERVER}/launch/${LAUNCH_ID}" \
+    -H "Authorization: Bearer ${COORD_TOKEN}" | jq -r '.status')
   if [ "${STATUS}" = "LAUNCHED" ]; then
     echo "SUCCESS: chain launched"
     exit 0

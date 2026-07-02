@@ -424,7 +424,8 @@ func TestE2E_HappyPath(t *testing.T) {
 			"min_validator_count":        4,
 		},
 		"launch_type": "TESTNET",
-		"visibility":  "PUBLIC",
+		"visibility":  "ALLOWLIST",
+		"allowlist":   []string{val1.addr, val2.addr, val3.addr, val4.addr},
 		"committee": map[string]any{
 			"members": []map[string]any{
 				{
@@ -471,7 +472,7 @@ func TestE2E_HappyPath(t *testing.T) {
 	raiseProposal(t, coordClient, launchID, coord, proposal.ActionPublishChainRecord,
 		proposal.PublishChainRecordPayload{InitialGenesisHash: initialGenesisHash})
 
-	mustDecode(t, c.do("GET", "/launch/"+launchID, nil), http.StatusOK, &launchGet)
+	mustDecode(t, coordClient.do("GET", "/launch/"+launchID, nil), http.StatusOK, &launchGet)
 	if launchGet.Status != "PUBLISHED" {
 		t.Fatalf("want PUBLISHED after publish-chain-record proposal, got %s", launchGet.Status)
 	}
@@ -603,7 +604,7 @@ func TestE2E_HappyPath(t *testing.T) {
 		proposal.CloseApplicationWindowPayload{})
 
 	// Verify launch is now WINDOW_CLOSED.
-	mustDecode(t, c.do("GET", "/launch/"+launchID, nil), http.StatusOK, &launchGet)
+	mustDecode(t, coordClient.do("GET", "/launch/"+launchID, nil), http.StatusOK, &launchGet)
 	if launchGet.Status != "WINDOW_CLOSED" {
 		t.Fatalf("want WINDOW_CLOSED after close-window proposal, got %s", launchGet.Status)
 	}
@@ -657,7 +658,7 @@ func TestE2E_HappyPath(t *testing.T) {
 	raiseProposal(t, coordClient, launchID, coord, proposal.ActionPublishGenesis,
 		proposal.PublishGenesisPayload{GenesisHash: finalGenesisHash})
 
-	mustDecode(t, c.do("GET", "/launch/"+launchID, nil), http.StatusOK, &launchGet)
+	mustDecode(t, coordClient.do("GET", "/launch/"+launchID, nil), http.StatusOK, &launchGet)
 	if launchGet.Status != "GENESIS_READY" {
 		t.Fatalf("want GENESIS_READY after publish-genesis proposal, got %s", launchGet.Status)
 	}
@@ -694,7 +695,7 @@ func TestE2E_HappyPath(t *testing.T) {
 	// 18. Poll GET /launch/:id until status=LAUNCHED (2s timeout).
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		mustDecode(t, c.do("GET", "/launch/"+launchID, nil), http.StatusOK, &launchGet)
+		mustDecode(t, coordClient.do("GET", "/launch/"+launchID, nil), http.StatusOK, &launchGet)
 		if launchGet.Status == "LAUNCHED" {
 			break
 		}
@@ -784,7 +785,7 @@ func makeCommitteeMember(a actor, moniker string) map[string]any {
 }
 
 // createLaunch creates a launch with the given committee members/threshold and returns the launch ID.
-func createLaunch(t *testing.T, c *testClient, lead actor, members []map[string]any, thresholdM, totalN int) string {
+func createLaunch(t *testing.T, c *testClient, lead actor, members []map[string]any, thresholdM, totalN int, allowlist ...string) string {
 	t.Helper()
 	gentxDeadline := time.Now().Add(48 * time.Hour).UTC().Format(time.RFC3339)
 	windowOpen := time.Now().UTC().Format(time.RFC3339)
@@ -806,7 +807,8 @@ func createLaunch(t *testing.T, c *testClient, lead actor, members []map[string]
 			"min_validator_count":        1,
 		},
 		"launch_type": "TESTNET",
-		"visibility":  "PUBLIC",
+		"visibility":  "ALLOWLIST",
+		"allowlist":   allowlist,
 		"committee": map[string]any{
 			"members":            members,
 			"threshold_m":        thresholdM,
@@ -998,7 +1000,7 @@ func TestE2E_MultiCommitteeQuorum(t *testing.T) {
 		makeCommitteeMember(coord1, "coord1"),
 		makeCommitteeMember(coord2, "coord2"),
 		makeCommitteeMember(coord3, "coord3"),
-	}, 2, 3)
+	}, 2, 3, val.addr)
 
 	publishLaunch(t, launchID, signerPair{coord1Client, coord1}, signerPair{coord2Client, coord2})
 
@@ -1057,7 +1059,7 @@ func TestE2E_ProposalVeto(t *testing.T) {
 		makeCommitteeMember(coord1, "coord1"),
 		makeCommitteeMember(coord2, "coord2"),
 		makeCommitteeMember(coord3, "coord3"),
-	}, 2, 3)
+	}, 2, 3, val.addr)
 
 	publishLaunch(t, launchID, signerPair{coord1Client, coord1}, signerPair{coord2Client, coord2})
 
@@ -1110,7 +1112,7 @@ func TestE2E_ValidatorNegativePaths(t *testing.T) {
 
 	launchID := createLaunch(t, coordClient, coord, []map[string]any{
 		makeCommitteeMember(coord, "coord"),
-	}, 1, 1)
+	}, 1, 1, val1.addr, val2.addr)
 
 	publishLaunch(t, launchID, signerPair{coordClient, coord})
 
@@ -1282,7 +1284,7 @@ func TestE2E_LaunchCancellation(t *testing.T) {
 
 	launchID := createLaunch(t, coordClient, coord, []map[string]any{
 		makeCommitteeMember(coord, "coord"),
-	}, 1, 1)
+	}, 1, 1, val.addr, lateVal.addr)
 
 	publishLaunch(t, launchID, signerPair{coordClient, coord})
 
