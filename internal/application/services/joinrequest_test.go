@@ -154,7 +154,7 @@ func TestJoinRequestService_Submit_WindowNotOpen(t *testing.T) {
 	svc := newJoinReqSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo())
 
 	_, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
-	require.ErrorIs(t, err, ports.ErrForbidden, "a closed window is gated as forbidden")
+	require.ErrorIs(t, err, ports.ErrConflict, "a closed window is a launch-state conflict (409), not authz (403)")
 }
 
 func TestJoinRequestService_Submit_InvalidConnectionFields(t *testing.T) {

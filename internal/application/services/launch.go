@@ -530,7 +530,8 @@ func (s *LaunchService) PatchLaunch(
 
 	if hasDraftFields(input) {
 		if l.Status != launch.StatusDraft {
-			return nil, fmt.Errorf("patch launch: only DRAFT launches may have chain fields updated: %w", ports.ErrForbidden)
+			// Launch-STATE gate (not authz) → 409 Conflict. The committee check above is the 403.
+			return nil, fmt.Errorf("patch launch: only DRAFT launches may have chain fields updated: %w", ports.ErrConflict)
 		}
 		applyDraftFields(l, input)
 	}
@@ -665,11 +666,13 @@ func (s *LaunchService) SetCommittee(ctx context.Context, launchID uuid.UUID, co
 	if err != nil {
 		return err
 	}
-	if l.Status != launch.StatusDraft {
-		return fmt.Errorf("set committee: launch must be in DRAFT status, current: %s: %w", l.Status, ports.ErrForbidden)
-	}
 	if l.Committee.LeadAddress.String() != callerAddr {
+		// Authorization first (403) so an unauthorized caller cannot probe launch state.
 		return fmt.Errorf("set committee: only the lead coordinator may replace the committee: %w", ports.ErrForbidden)
+	}
+	if l.Status != launch.StatusDraft {
+		// Launch-STATE gate (not authz) → 409 Conflict.
+		return fmt.Errorf("set committee: launch must be in DRAFT status, current: %s: %w", l.Status, ports.ErrConflict)
 	}
 	if committee.ThresholdM < 1 || committee.ThresholdM > committee.TotalN {
 		return fmt.Errorf("set committee: threshold %d out of range [1, %d]: %w", committee.ThresholdM, committee.TotalN, ports.ErrBadRequest)

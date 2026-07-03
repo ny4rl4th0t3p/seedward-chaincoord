@@ -223,10 +223,11 @@ func (s *JoinRequestService) Submit(ctx context.Context, launchID uuid.UUID, inp
 		return nil, fmt.Errorf("submit join request: validator address: %w", err)
 	}
 
-	// The application window must be open. (Membership was already checked above on the
-	// submitter; the validator address is carried for dedup + committee approval, not gated.)
+	// The application window must be open. This is a launch-STATE gate, not authorization —
+	// map it to 409 Conflict, not 403 (membership was already checked above on the submitter;
+	// the validator address is carried for dedup + committee approval, not gated).
 	if err := l.EnsureOpenForApplications(); err != nil {
-		return nil, fmt.Errorf("submit join request: %w: %w", err, ports.ErrForbidden)
+		return nil, fmt.Errorf("submit join request: %w: %w", err, ports.ErrConflict)
 	}
 
 	// Submission-window deadline: a launch-state gate, enforced here alongside

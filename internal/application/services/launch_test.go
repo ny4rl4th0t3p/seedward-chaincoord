@@ -455,7 +455,7 @@ func TestLaunchService_PatchLaunch_DraftFieldsOnNonDraft(t *testing.T) {
 
 	name := "updated-name"
 	_, err := svc.PatchLaunch(context.Background(), l.ID, PatchLaunchInput{ChainName: &name}, testAddr1)
-	require.ErrorIs(t, err, ports.ErrForbidden, "want ErrForbidden for draft-only field on non-DRAFT launch")
+	require.ErrorIs(t, err, ports.ErrConflict, "draft-only field on a non-DRAFT launch is a state conflict (409)")
 }
 
 func TestLaunchService_PatchLaunch_MonitorRPCURLOnAnyStatus(t *testing.T) {
@@ -577,7 +577,7 @@ func TestLaunchService_SetCommittee_NotDraft(t *testing.T) {
 	svc := newLaunchSvc(repo, newFakeGenesisStore())
 
 	err := svc.SetCommittee(context.Background(), l.ID, testCommittee(1, 1), testAddr1)
-	require.ErrorIs(t, err, ports.ErrForbidden, "want ErrForbidden for non-DRAFT launch")
+	require.ErrorIs(t, err, ports.ErrConflict, "a non-DRAFT launch is a state conflict (409)")
 }
 
 func TestLaunchService_SetCommittee_NotLead(t *testing.T) {
