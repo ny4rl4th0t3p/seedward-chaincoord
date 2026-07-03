@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -18,9 +19,14 @@ const maxGentxDownloadCount = 10000
 
 // joinRequestJSON is the wire representation of a JoinRequest.
 type joinRequestJSON struct {
-	ID                 string          `json:"id"`
+	ID string `json:"id"`
+	// SubmitterAddress is the hot actor that signed the submission — the members-list key and
+	// the approval group key (M3). It may differ from OperatorAddress (an authorized uploader).
+	SubmitterAddress   string          `json:"submitter_address"`
 	LaunchID           string          `json:"launch_id"`
 	OperatorAddress    string          `json:"operator_address"`
+	SelfDelegation     string          `json:"self_delegation"`
+	Moniker            string          `json:"moniker"`
 	ConsensusPubKey    string          `json:"consensus_pubkey"`
 	GentxJSON          json.RawMessage `json:"gentx" swaggertype:"object"`
 	PeerAddress        string          `json:"peer_address"`
@@ -34,17 +40,20 @@ type joinRequestJSON struct {
 
 func joinRequestToJSON(jr *joinrequest.JoinRequest) joinRequestJSON {
 	out := joinRequestJSON{
-		ID:              jr.ID.String(),
-		LaunchID:        jr.LaunchID.String(),
-		OperatorAddress: jr.OperatorAddress.String(),
-		ConsensusPubKey: jr.ConsensusPubKey,
-		GentxJSON:       jr.GentxJSON,
-		PeerAddress:     jr.PeerAddress.String(),
-		RPCEndpoint:     jr.RPCEndpoint.String(),
-		Memo:            jr.Memo,
-		SubmittedAt:     jr.SubmittedAt,
-		Status:          string(jr.Status),
-		RejectionReason: jr.RejectionReason,
+		ID:               jr.ID.String(),
+		SubmitterAddress: jr.SubmitterAddress.String(),
+		LaunchID:         jr.LaunchID.String(),
+		OperatorAddress:  jr.OperatorAddress.String(),
+		SelfDelegation:   strconv.FormatInt(jr.SelfDelegationAmount(), 10),
+		Moniker:          jr.Moniker(),
+		ConsensusPubKey:  jr.ConsensusPubKey,
+		GentxJSON:        jr.GentxJSON,
+		PeerAddress:      jr.PeerAddress.String(),
+		RPCEndpoint:      jr.RPCEndpoint.String(),
+		Memo:             jr.Memo,
+		SubmittedAt:      jr.SubmittedAt,
+		Status:           string(jr.Status),
+		RejectionReason:  jr.RejectionReason,
 	}
 	if jr.ApprovedByProposal != nil {
 		s := jr.ApprovedByProposal.String()
@@ -167,6 +176,65 @@ func (s *Server) handleJoinList(w http.ResponseWriter, r *http.Request) {
 		Page:    pg.Page,
 		PerPage: pg.PerPage,
 	})
+}
+
+// submitterGroupJSON is the M3 approval read-model: a submitter (hot actor) with all their
+// join requests for a launch, the members-list label, and per-actor aggregates.
+type submitterGroupJSON struct {
+	SubmitterAddress    string            `json:"submitter_address"`
+	Label               string            `json:"label"`
+	RequestCount        int               `json:"request_count"`
+	TotalSelfDelegation string            `json:"total_self_delegation"`
+	Requests            []joinRequestJSON `json:"requests"`
+}
+
+// GET /launch/{id}/join/grouped
+// List a launch's join requests grouped by submitter (hot actor). Committee only.
+//
+// @Summary      List join requests grouped by submitter
+// @Description  Returns join requests grouped by the submitting hot actor, each group carrying the member label
+// @Description  and per-actor aggregates (count, total self-delegation). Committee members only.
+// @Tags         join
+// @Security     BearerAuth
+// @Produce      json
+// @Param        id  path      string  true  "Launch UUID"
+// @Success      200  {array}   submitterGroupJSON
+// @Failure      400  {object}  errorEnvelope
+// @Failure      401  {object}  errorEnvelope
+// @Failure      403  {object}  errorEnvelope
+// @Failure      404  {object}  errorEnvelope
+// @Router       /launch/{id}/join/grouped [get]
+func (s *Server) handleJoinGrouped(w http.ResponseWriter, r *http.Request) {
+	launchID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_id", "launch id must be a valid UUID")
+		return
+	}
+
+	callerAddr := operatorFromContext(r.Context())
+	groups, err := s.joinReqs.ListGroupedBySubmitter(r.Context(), launchID, callerAddr)
+	if err != nil {
+		writeServiceError(w, r, err)
+		return
+	}
+
+	out := make([]submitterGroupJSON, len(groups))
+	for i, g := range groups {
+		reqs := make([]joinRequestJSON, len(g.Requests))
+		var total int64
+		for j, jr := range g.Requests {
+			reqs[j] = joinRequestToJSON(jr)
+			total += jr.SelfDelegationAmount()
+		}
+		out[i] = submitterGroupJSON{
+			SubmitterAddress:    g.SubmitterAddress.String(),
+			Label:               g.Label,
+			RequestCount:        len(g.Requests),
+			TotalSelfDelegation: strconv.FormatInt(total, 10),
+			Requests:            reqs,
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // GET /launch/{id}/gentxs

@@ -504,3 +504,50 @@ func makeJoinRequestSplit(t *testing.T, launchID uuid.UUID, validatorAddr, submi
 		time.Now().UTC(),
 	)
 }
+
+// ---- M3 grouped-by-submitter read-model ----
+
+func TestJoinRequestService_ListGroupedBySubmitter(t *testing.T) {
+	l := test1of1Launch() // committee = testAddr1
+	l.Allowlist = launch.NewAllowlistFromMembers([]launch.Member{
+		{Address: mustAddr(testAddr2), Label: "acme"},
+		{Address: mustAddr(testAddr3), Label: "beta"},
+	})
+	jrRepo := newFakeJoinRequestRepo(
+		makeJoinRequestSplit(t, l.ID, testAddr1, testAddr2), // submitter acme, validator testAddr1
+		makeJoinRequestSplit(t, l.ID, testAddr3, testAddr2), // submitter acme, validator testAddr3
+		makeJoinRequestSplit(t, l.ID, testAddr2, testAddr3), // submitter beta, validator testAddr2
+	)
+	svc := newJoinReqSvc(newFakeLaunchRepo(l), jrRepo)
+
+	groups, err := svc.ListGroupedBySubmitter(context.Background(), l.ID, testAddr1)
+	require.NoError(t, err)
+	require.Len(t, groups, 2)
+
+	// Deterministic: groups sorted by submitter address.
+	assert.Less(t, groups[0].SubmitterAddress.String(), groups[1].SubmitterAddress.String())
+
+	byAddr := make(map[string]SubmitterGroup, len(groups))
+	for _, g := range groups {
+		byAddr[g.SubmitterAddress.String()] = g
+	}
+	acme := byAddr[testAddr2]
+	assert.Equal(t, "acme", acme.Label, "group carries the submitter's members-list label")
+	assert.Len(t, acme.Requests, 2, "acme submitted two validators")
+	beta := byAddr[testAddr3]
+	assert.Equal(t, "beta", beta.Label)
+	assert.Len(t, beta.Requests, 1)
+}
+
+func TestJoinRequestService_ListGroupedBySubmitter_NotCommittee(t *testing.T) {
+	l := test1of1Launch() // committee = testAddr1 only
+	svc := newJoinReqSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo())
+	_, err := svc.ListGroupedBySubmitter(context.Background(), l.ID, testAddr2) // not committee
+	require.ErrorIs(t, err, ports.ErrForbidden)
+}
+
+func TestJoinRequestService_ListGroupedBySubmitter_LaunchNotFound(t *testing.T) {
+	svc := newJoinReqSvc(newFakeLaunchRepo(), newFakeJoinRequestRepo())
+	_, err := svc.ListGroupedBySubmitter(context.Background(), uuid.New(), testAddr1)
+	require.ErrorIs(t, err, ports.ErrNotFound)
+}

@@ -138,6 +138,19 @@ func (r *JoinRequestRepository) FindApprovedByLaunch(ctx context.Context, launch
 	return scanJoinRequestRows(rows)
 }
 
+// AllByLaunch returns every join request for a launch (all statuses), ordered by submitted_at.
+func (r *JoinRequestRepository) AllByLaunch(ctx context.Context, launchID uuid.UUID) ([]*joinrequest.JoinRequest, error) {
+	q := conn(ctx, r.db)
+	rows, err := q.QueryContext(ctx,
+		`SELECT * FROM join_requests WHERE launch_id=? ORDER BY submitted_at`,
+		uuidToStr(launchID))
+	if err != nil {
+		return nil, fmt.Errorf("join request all by launch: %w", err)
+	}
+	defer rows.Close()
+	return scanJoinRequestRows(rows)
+}
+
 // CountBySubmitter counts a launch's join requests by the request signer (the per-submitter cap).
 func (r *JoinRequestRepository) CountBySubmitter(ctx context.Context, launchID uuid.UUID, submitterAddr string) (int, error) {
 	q := conn(ctx, r.db)

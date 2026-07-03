@@ -63,6 +63,11 @@ type JoinRequestRepository interface {
 	// FindApprovedByLaunch returns all APPROVED join requests for genesis assembly.
 	FindApprovedByLaunch(ctx context.Context, launchID uuid.UUID) ([]*joinrequest.JoinRequest, error)
 
+	// AllByLaunch returns every join request for a launch, all statuses, ordered by
+	// submitted_at. Unpaginated — used by the submitter-grouped approval read-model,
+	// which needs the full set to group and aggregate per actor.
+	AllByLaunch(ctx context.Context, launchID uuid.UUID) ([]*joinrequest.JoinRequest, error)
+
 	// CountBySubmitter returns the number of join requests a submitter (the request signer) has
 	// made for a launch — the per-submitter rate-limit cap.
 	CountBySubmitter(ctx context.Context, launchID uuid.UUID, submitterAddr string) (int, error)

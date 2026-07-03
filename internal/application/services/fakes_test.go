@@ -419,6 +419,16 @@ func (f *fakeJoinRequestRepo) FindApprovedByLaunch(_ context.Context, launchID u
 	return out, nil
 }
 
+func (f *fakeJoinRequestRepo) AllByLaunch(_ context.Context, launchID uuid.UUID) ([]*joinrequest.JoinRequest, error) {
+	var out []*joinrequest.JoinRequest
+	for _, jr := range f.data {
+		if jr.LaunchID == launchID {
+			out = append(out, jr)
+		}
+	}
+	return out, nil
+}
+
 func (f *fakeJoinRequestRepo) CountBySubmitter(_ context.Context, launchID uuid.UUID, addr string) (int, error) {
 	return f.countByOp[launchID.String()+":"+addr], nil
 }

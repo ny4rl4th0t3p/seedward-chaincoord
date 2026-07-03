@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -321,4 +322,64 @@ func (s *JoinRequestService) ListForLaunch(
 	page, perPage int,
 ) ([]*joinrequest.JoinRequest, int, error) {
 	return s.joinRequests.FindByLaunch(ctx, launchID, status, page, perPage)
+}
+
+// SubmitterGroup is the approval read-model (M3): a submitter (hot actor address) and all
+// their join requests for a launch, plus the members-list label the committee vets the
+// submitted operator address against. Requests preserve submitted_at order.
+type SubmitterGroup struct {
+	SubmitterAddress launch.OperatorAddress
+	Label            string
+	Requests         []*joinrequest.JoinRequest
+}
+
+// ListGroupedBySubmitter returns a launch's join requests grouped by submitter (hot actor),
+// each group carrying the submitter's members-list label. Committee members only — the view
+// exposes labels + operator/self-delegation detail used to vet identity. Loading by actor is
+// what surfaces anomalies (e.g. a second unexpected large self-delegation under one submitter).
+//
+// Authorization mirrors the coordinator-only convention: 404 if the launch does not exist,
+// 403 if the caller is authenticated but not a committee member.
+func (s *JoinRequestService) ListGroupedBySubmitter(
+	ctx context.Context, launchID uuid.UUID, callerAddr string,
+) ([]SubmitterGroup, error) {
+	l, err := s.launches.FindByID(ctx, launchID)
+	if err != nil {
+		return nil, err
+	}
+	callerOp, err := launch.NewOperatorAddress(callerAddr)
+	if err != nil || !l.Committee.HasMember(callerOp) {
+		return nil, fmt.Errorf("list grouped join requests: caller is not a committee member: %w", ports.ErrForbidden)
+	}
+
+	reqs, err := s.joinRequests.AllByLaunch(ctx, launchID)
+	if err != nil {
+		return nil, fmt.Errorf("list grouped join requests: %w", err)
+	}
+
+	// Group by submitter address. AllByLaunch is ordered by submitted_at, so each group's
+	// Requests preserve that order as they are appended.
+	groups := make(map[string]*SubmitterGroup)
+	order := make([]string, 0)
+	for _, jr := range reqs {
+		key := jr.SubmitterAddress.String()
+		g, ok := groups[key]
+		if !ok {
+			g = &SubmitterGroup{
+				SubmitterAddress: jr.SubmitterAddress,
+				Label:            l.Allowlist.Label(jr.SubmitterAddress),
+			}
+			groups[key] = g
+			order = append(order, key)
+		}
+		g.Requests = append(g.Requests, jr)
+	}
+
+	// Deterministic output: groups sorted by submitter address.
+	sort.Strings(order)
+	out := make([]SubmitterGroup, 0, len(order))
+	for _, key := range order {
+		out = append(out, *groups[key])
+	}
+	return out, nil
 }

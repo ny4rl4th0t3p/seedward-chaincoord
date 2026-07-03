@@ -247,6 +247,7 @@ func (s *Server) Handler() http.Handler {
 
 	// Read endpoints — no rate limiting.
 	r.Get("/launch/{id}/join", s.requireAuth(s.handleJoinList))
+	r.Get("/launch/{id}/join/grouped", s.requireAuth(s.handleJoinGrouped))
 	r.Get("/launch/{id}/join/{req_id}", s.requireAuth(s.handleJoinGet))
 	r.Get("/launch/{id}/gentxs", s.requireAuth(s.handleGentxsGet))
 	r.Get("/launch/{id}/proposals", s.requireAuth(s.handleProposalList))

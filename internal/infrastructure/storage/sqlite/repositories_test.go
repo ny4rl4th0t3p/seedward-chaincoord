@@ -622,6 +622,35 @@ func TestJoinRequestRepository_FindApprovedByLaunch(t *testing.T) {
 	}
 }
 
+func TestJoinRequestRepository_AllByLaunch(t *testing.T) {
+	t.Parallel()
+	db := openTestDB(t)
+	lRepo := NewLaunchRepository(db)
+	jrRepo := NewJoinRequestRepository(db)
+	ctx := context.Background()
+
+	l := testLaunch(t)
+	require.NoError(t, lRepo.Save(ctx, l))
+
+	// A rejected and a pending request — AllByLaunch must return both, unlike
+	// FindApprovedByLaunch which filters to APPROVED only.
+	rejected := testJoinRequest(t, l.ID)
+	require.NoError(t, jrRepo.Save(ctx, rejected))
+	require.NoError(t, rejected.Reject("nope"))
+	require.NoError(t, jrRepo.Save(ctx, rejected))
+
+	pending := testJoinRequest(t, l.ID)
+	require.NoError(t, jrRepo.Save(ctx, pending))
+
+	all, err := jrRepo.AllByLaunch(ctx, l.ID)
+	require.NoError(t, err)
+	require.Len(t, all, 2, "AllByLaunch returns every status")
+
+	approved, err := jrRepo.FindApprovedByLaunch(ctx, l.ID)
+	require.NoError(t, err)
+	assert.Empty(t, approved, "sanity: none are approved")
+}
+
 func TestJoinRequestRepository_FindActiveByValidator(t *testing.T) {
 	t.Parallel()
 

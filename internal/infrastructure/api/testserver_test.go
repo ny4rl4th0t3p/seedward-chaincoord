@@ -577,6 +577,16 @@ func (r *thinJoinRequestRepo) FindApprovedByLaunch(_ context.Context, launchID u
 	return out, nil
 }
 
+func (r *thinJoinRequestRepo) AllByLaunch(_ context.Context, launchID uuid.UUID) ([]*joinrequest.JoinRequest, error) {
+	var out []*joinrequest.JoinRequest
+	for _, jr := range r.data {
+		if jr.LaunchID == launchID {
+			out = append(out, jr)
+		}
+	}
+	return out, nil
+}
+
 func (*thinJoinRequestRepo) CountBySubmitter(_ context.Context, _ uuid.UUID, _ string) (int, error) {
 	return 0, nil
 }
