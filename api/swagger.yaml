@@ -5,6 +5,13 @@ definitions:
       address:
         type: string
     type: object
+  api.addMemberRequest:
+    properties:
+      address:
+        type: string
+      label:
+        type: string
+    type: object
   api.allocationFileMeta:
     properties:
       approved_by_proposal:
@@ -164,9 +171,6 @@ definitions:
         type: string
       record:
         $ref: '#/definitions/api.chainRecordJSON'
-      visibility:
-        example: PUBLIC
-        type: string
     type: object
   api.dashboardJSON:
     properties:
@@ -264,6 +268,8 @@ definitions:
         type: string
       memo:
         type: string
+      moniker:
+        type: string
       operator_address:
         type: string
       peer_address:
@@ -272,9 +278,16 @@ definitions:
         type: string
       rpc_endpoint:
         type: string
+      self_delegation:
+        type: string
       status:
         type: string
       submitted_at:
+        type: string
+      submitter_address:
+        description: |-
+          SubmitterAddress is the hot actor that signed the submission — the members-list key and
+          the approval group key (M3). It may differ from OperatorAddress (an authorized uploader).
         type: string
     type: object
   api.launchJSON:
@@ -297,7 +310,16 @@ definitions:
         type: string
       updated_at:
         type: string
-      visibility:
+    type: object
+  api.memberJSON:
+    properties:
+      added_at:
+        type: string
+      added_by:
+        type: string
+      address:
+        type: string
+      label:
         type: string
     type: object
   api.pageEnvelope-array_api_coordinatorAllowlistEntryJSON:
@@ -374,9 +396,6 @@ definitions:
         type: string
       repo_url:
         type: string
-      visibility:
-        example: PUBLIC
-        type: string
     type: object
   api.peerJSON:
     properties:
@@ -442,6 +461,21 @@ definitions:
       decision:
         type: string
       timestamp:
+        type: string
+    type: object
+  api.submitterGroupJSON:
+    properties:
+      label:
+        type: string
+      request_count:
+        type: integer
+      requests:
+        items:
+          $ref: '#/definitions/api.joinRequestJSON'
+        type: array
+      submitter_address:
+        type: string
+      total_self_delegation:
         type: string
     type: object
   api.tokenResponse:
@@ -1638,6 +1672,183 @@ paths:
       summary: Get a join request
       tags:
       - join-requests
+  /launch/{id}/join/grouped:
+    get:
+      description: |-
+        Returns join requests grouped by the submitting hot actor, each group carrying the member label
+        and per-actor aggregates (count, total self-delegation). Committee members only.
+      parameters:
+      - description: Launch UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/api.submitterGroupJSON'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: List join requests grouped by submitter
+      tags:
+      - join
+  /launch/{id}/members:
+    get:
+      description: Returns the launch's members list (address + label + provenance),
+        sorted by address. Committee members only.
+      parameters:
+      - description: Launch UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/api.memberJSON'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: List launch members
+      tags:
+      - members
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Adds a hot actor address (with a label) to the launch's members list — granting see + submit access.
+        Committee members only. Allowed only in DRAFT/PUBLISHED/WINDOW_OPEN. Idempotent on address.
+      parameters:
+      - description: Launch UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Address and label to add
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api.addMemberRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/api.memberJSON'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Add a launch member
+      tags:
+      - members
+  /launch/{id}/members/{address}:
+    delete:
+      description: |-
+        Removes a hot actor address from the launch's members list — revoking see + submit access.
+        Committee members only. Allowed only in DRAFT/PUBLISHED/WINDOW_OPEN.
+      parameters:
+      - description: Launch UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Operator address to remove
+        in: path
+        name: address
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Remove a launch member
+      tags:
+      - members
   /launch/{id}/open-window:
     post:
       description: Transitions a launch from DRAFT to OPEN. Coordinator only.
