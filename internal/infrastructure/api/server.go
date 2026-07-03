@@ -209,6 +209,13 @@ func (s *Server) Handler() http.Handler {
 	r.Post("/launch/{id}/open-window", s.requireAuth(s.handleOpenWindow))
 	r.Post("/launch/{id}/cancel", s.requireAuth(s.handleLaunchCancel))
 
+	// Members list — committee-gated (add/remove/list). requireAuth so an unauthenticated
+	// caller is 401; the service enforces committee membership (403) and the editable-status
+	// gate (409). These grant/revoke the hot-address see+submit membership.
+	r.Post("/launch/{id}/members", s.jsonPOST(s.handleMemberAdd))
+	r.Delete("/launch/{id}/members/{address}", s.requireAuth(s.handleMemberRemove))
+	r.Get("/launch/{id}/members", s.requireAuth(s.handleMemberList))
+
 	// Unauthenticated chain metadata — bypasses allowlist so validators can add
 	// the chain to their wallet before being granted access.
 	r.Get("/launch/{id}/chain-hint", s.handleChainHint)

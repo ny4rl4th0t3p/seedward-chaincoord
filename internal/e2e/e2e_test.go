@@ -1260,6 +1260,125 @@ func TestE2E_PrivateLaunch(t *testing.T) {
 	t.Logf("E2E private launch complete: allowlist visibility enforced for launch %s", launchID)
 }
 
+// ── TestE2E_MembersManagement ─────────────────────────────────────────────────
+
+// TestE2E_MembersManagement drives the M2 members endpoints end-to-end through the
+// real server and auth: a committee member adds a hot address (granting see access),
+// the added member can then see the launch, the member list is committee-only, and
+// removal revokes access.
+func TestE2E_MembersManagement(t *testing.T) {
+	coord := newActor(t)
+	member := newActor(t)
+	stranger := newActor(t)
+
+	srv := startServer(t)
+	c := srv.client
+
+	coordClient := c.withToken(authenticate(t, c, coord))
+	memberClient := c.withToken(authenticate(t, c, member))
+
+	gentxDeadline := time.Now().Add(48 * time.Hour).UTC().Format(time.RFC3339)
+	windowOpen := time.Now().UTC().Format(time.RFC3339)
+	launchBody := map[string]any{
+		"record": map[string]any{
+			"chain_id":                   "members-1",
+			"chain_name":                 "Members Chain",
+			"bech32_prefix":              "cosmos",
+			"binary_name":                "memberschaind",
+			"binary_version":             "v1.0.0",
+			"binary_sha256":              "abc123",
+			"denom":                      "umem",
+			"min_self_delegation":        "1000000",
+			"max_commission_rate":        "0.20",
+			"max_commission_change_rate": "0.01",
+			"gentx_deadline":             gentxDeadline,
+			"application_window_open":    windowOpen,
+			"min_validator_count":        1,
+		},
+		"launch_type": "TESTNET",
+		"committee": map[string]any{
+			"members":            []map[string]any{makeCommitteeMember(coord, "coord")},
+			"threshold_m":        1,
+			"total_n":            1,
+			"lead_address":       coord.addr,
+			"creation_signature": base64.StdEncoding.EncodeToString(make([]byte, 64)),
+		},
+	}
+	var launchResp struct {
+		ID string `json:"id"`
+	}
+	mustDecode(t, coordClient.do("POST", "/launch", launchBody), http.StatusCreated, &launchResp)
+	launchID := launchResp.ID
+
+	// Before being added, the member cannot see the private launch.
+	resp := memberClient.do("GET", "/launch/"+launchID, nil)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("member GET before add: want 404, got %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	// A non-committee caller cannot add members.
+	resp = memberClient.do("POST", "/launch/"+launchID+"/members", map[string]any{"address": stranger.addr})
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("non-committee add member: want 403, got %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	// Committee adds the member with a label; provenance names the adder.
+	var added struct {
+		Address string `json:"address"`
+		Label   string `json:"label"`
+		AddedBy string `json:"added_by"`
+	}
+	mustDecode(t, coordClient.do("POST", "/launch/"+launchID+"/members",
+		map[string]any{"address": member.addr, "label": "acme-fleet"}), http.StatusCreated, &added)
+	if added.Address != member.addr || added.Label != "acme-fleet" || added.AddedBy != coord.addr {
+		t.Fatalf("added member mismatch: %+v (adder %s)", added, coord.addr)
+	}
+
+	// The member can now see the launch.
+	mustDecode(t, memberClient.do("GET", "/launch/"+launchID, nil), http.StatusOK, nil)
+
+	// The committee sees the member on the list.
+	var list []struct {
+		Address string `json:"address"`
+		Label   string `json:"label"`
+	}
+	mustDecode(t, coordClient.do("GET", "/launch/"+launchID+"/members", nil), http.StatusOK, &list)
+	if len(list) != 1 || list[0].Address != member.addr || list[0].Label != "acme-fleet" {
+		t.Fatalf("member list mismatch: %+v", list)
+	}
+
+	// The member (not committee) cannot read the members list.
+	resp = memberClient.do("GET", "/launch/"+launchID+"/members", nil)
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("non-committee list members: want 403, got %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	// Removing a non-member is a 404.
+	resp = coordClient.do("DELETE", "/launch/"+launchID+"/members/"+stranger.addr, nil)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("remove non-member: want 404, got %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	// Removing the member revokes access.
+	resp = coordClient.do("DELETE", "/launch/"+launchID+"/members/"+member.addr, nil)
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("remove member: want 204, got %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	resp = memberClient.do("GET", "/launch/"+launchID, nil)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("removed member GET: want 404 (access revoked), got %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	t.Logf("E2E members management complete for launch %s", launchID)
+}
+
 // ── TestE2E_LaunchCancellation ────────────────────────────────────────────────
 
 func TestE2E_LaunchCancellation(t *testing.T) {

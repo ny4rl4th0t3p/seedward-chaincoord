@@ -114,6 +114,27 @@ func TestLaunchRepository_Save(t *testing.T) {
 				assert.Empty(t, got.Allowlist.Label(addr2), "empty label must round-trip")
 			},
 		},
+		{
+			name: "round-trips member provenance — added_by/added_at survive",
+			run: func(t *testing.T, repo *LaunchRepository) {
+				ctx := context.Background()
+				l := testLaunch(t)
+				addr := mustAddr("cosmos1v93xxer9venks6t2ddkx6mn0wpchyum5nn4cca")
+				added := time.Date(2026, 7, 3, 12, 0, 0, 0, time.UTC)
+				l.Allowlist = launch.NewAllowlistFromMembers([]launch.Member{
+					{Address: addr, Label: "acme", AddedBy: "cosmos1sxpg8py9s6rc3zv23wxgmr50jzge9yu5r5slya", AddedAt: added},
+				})
+				require.NoError(t, repo.Save(ctx, l))
+
+				got, err := repo.FindByID(ctx, l.ID)
+				require.NoError(t, err)
+				members := got.Allowlist.Members()
+				require.Len(t, members, 1)
+				assert.Equal(t, "acme", members[0].Label)
+				assert.Equal(t, "cosmos1sxpg8py9s6rc3zv23wxgmr50jzge9yu5r5slya", members[0].AddedBy, "added_by round-trips")
+				assert.True(t, members[0].AddedAt.Equal(added), "added_at round-trips")
+			},
+		},
 	}
 
 	for _, tc := range tests {

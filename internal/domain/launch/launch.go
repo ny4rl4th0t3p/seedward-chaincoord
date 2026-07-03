@@ -55,6 +55,8 @@ var (
 	ErrCommitteeMemberExists   = errors.New("address is already a committee member")
 	ErrInvalidCommitteeChange  = errors.New("invalid committee change")
 	ErrWindowNotOpen           = errors.New("application window is not open")
+	ErrMembersNotEditable      = errors.New("members list is not editable in the current launch status")
+	ErrNotAMember              = errors.New("address is not a member of this launch")
 )
 
 // CommitteeMember is an individual coordinator in the M-of-N committee.
@@ -296,6 +298,45 @@ func (l *Launch) IsVisibleTo(addr string) bool {
 // that have parsed the caller (e.g. join submit) call this to avoid a second bech32 decode.
 func (l *Launch) IsVisibleToAddr(addr OperatorAddress) bool {
 	return l.Committee.HasMember(addr) || l.Allowlist.Contains(addr)
+}
+
+// membersEditable reports whether the member list may be modified in the current status.
+// Membership governs who can see + submit, which is only meaningful before the application
+// window closes (E1): DRAFT, PUBLISHED, WINDOW_OPEN. After that the set is frozen.
+func (l *Launch) membersEditable() bool {
+	switch l.Status {
+	case StatusDraft, StatusPublished, StatusWindowOpen:
+		return true
+	case StatusWindowClosed, StatusGenesisReady, StatusLaunched, StatusCancelled:
+		return false
+	}
+	return false
+}
+
+// AddMember adds (or relabels) a member on the launch's members list. Idempotent on
+// address — re-adding overwrites the label and provenance. Allowed only while the
+// member list is editable; returns ErrMembersNotEditable otherwise. Authorization
+// (committee-only) is enforced by the application layer, not here.
+func (l *Launch) AddMember(m Member) error {
+	if !l.membersEditable() {
+		return fmt.Errorf("cannot add member in status %s: %w", l.Status, ErrMembersNotEditable)
+	}
+	l.Allowlist = l.Allowlist.AddMember(m)
+	return nil
+}
+
+// RemoveMember removes a member from the members list. Returns ErrNotAMember if the
+// address is not currently on the list (a committee member not separately on the list is
+// not "a member" for this purpose). Allowed only while the members list is editable.
+func (l *Launch) RemoveMember(addr OperatorAddress) error {
+	if !l.membersEditable() {
+		return fmt.Errorf("cannot remove member in status %s: %w", l.Status, ErrMembersNotEditable)
+	}
+	if !l.Allowlist.Contains(addr) {
+		return fmt.Errorf("address %s: %w", addr.String(), ErrNotAMember)
+	}
+	l.Allowlist = l.Allowlist.Remove(addr)
+	return nil
 }
 
 // ReplaceCommitteeMember swaps the committee member at oldAddr with newMember.

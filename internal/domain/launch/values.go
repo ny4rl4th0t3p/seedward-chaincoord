@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/cosmos/btcutil/bech32"
 )
@@ -181,33 +182,45 @@ func (c CommissionRate) LessThanOrEqual(other CommissionRate) bool {
 
 // Member is an entry in a launch's members list: a hot actor address permitted to see
 // and submit to the launch, with a label pointing to the committee's off-band
-// verification of who holds it. The label is set when a member is added (M2 endpoints).
+// verification of who holds it. AddedBy/AddedAt record the committee member who added
+// the entry and when; both are zero for entries created before provenance was tracked
+// (e.g. the address-only create/patch path).
 type Member struct {
 	Address OperatorAddress
 	Label   string
+	AddedBy string
+	AddedAt time.Time
 }
 
-// Allowlist is an immutable set of member OperatorAddresses, each carrying a label.
-// The zero value is an empty (open) allowlist.
+// memberMeta is the per-address value stored in an Allowlist: everything about a member
+// except the address itself (which is the map key).
+type memberMeta struct {
+	label   string
+	addedBy string
+	addedAt time.Time
+}
+
+// Allowlist is an immutable set of member OperatorAddresses, each carrying a label and
+// add-provenance. The zero value is an empty (open) allowlist.
 type Allowlist struct {
-	members map[string]string // address string → label
+	members map[string]memberMeta // address string → metadata
 }
 
-// NewAllowlist builds an Allowlist from bare addresses, each with an empty label.
+// NewAllowlist builds an Allowlist from bare addresses, each with empty metadata.
 func NewAllowlist(addresses []OperatorAddress) Allowlist {
-	m := make(map[string]string, len(addresses))
+	m := make(map[string]memberMeta, len(addresses))
 	for _, a := range addresses {
-		m[a.String()] = ""
+		m[a.String()] = memberMeta{}
 	}
 	return Allowlist{members: m}
 }
 
-// NewAllowlistFromMembers builds an Allowlist from labeled members. A later entry for
-// the same address wins, mirroring set semantics.
+// NewAllowlistFromMembers builds an Allowlist from full members. A later entry for the
+// same address wins, mirroring set semantics.
 func NewAllowlistFromMembers(members []Member) Allowlist {
-	m := make(map[string]string, len(members))
+	m := make(map[string]memberMeta, len(members))
 	for _, mem := range members {
-		m[mem.Address.String()] = mem.Label
+		m[mem.Address.String()] = memberMeta{label: mem.Label, addedBy: mem.AddedBy, addedAt: mem.AddedAt}
 	}
 	return Allowlist{members: m}
 }
@@ -219,27 +232,27 @@ func (al Allowlist) Contains(addr OperatorAddress) bool {
 
 // Label returns the label for addr, or "" if addr is not a member.
 func (al Allowlist) Label(addr OperatorAddress) string {
-	return al.members[addr.String()]
+	return al.members[addr.String()].label
 }
 
-// Add returns a copy with addr added, carrying an empty label.
+// Add returns a copy with addr added, carrying empty metadata.
 func (al Allowlist) Add(addr OperatorAddress) Allowlist {
 	return al.AddMember(Member{Address: addr})
 }
 
-// AddMember returns a copy with the labeled member added, replacing any existing entry
-// for the same address.
+// AddMember returns a copy with the member added, replacing any existing entry for the
+// same address (label and provenance are overwritten).
 func (al Allowlist) AddMember(mem Member) Allowlist {
-	m := make(map[string]string, len(al.members)+1)
+	m := make(map[string]memberMeta, len(al.members)+1)
 	for k, v := range al.members {
 		m[k] = v
 	}
-	m[mem.Address.String()] = mem.Label
+	m[mem.Address.String()] = memberMeta{label: mem.Label, addedBy: mem.AddedBy, addedAt: mem.AddedAt}
 	return Allowlist{members: m}
 }
 
 func (al Allowlist) Remove(addr OperatorAddress) Allowlist {
-	m := make(map[string]string, len(al.members))
+	m := make(map[string]memberMeta, len(al.members))
 	for k, v := range al.members {
 		m[k] = v
 	}
@@ -257,11 +270,11 @@ func (al Allowlist) Addresses() []OperatorAddress {
 	return out
 }
 
-// Members returns the labeled members, sorted by address.
+// Members returns the full members, sorted by address.
 func (al Allowlist) Members() []Member {
 	out := make([]Member, 0, len(al.members))
 	for k, v := range al.members {
-		out = append(out, Member{Address: OperatorAddress{value: k}, Label: v})
+		out = append(out, Member{Address: OperatorAddress{value: k}, Label: v.label, AddedBy: v.addedBy, AddedAt: v.addedAt})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Address.value < out[j].Address.value })
 	return out

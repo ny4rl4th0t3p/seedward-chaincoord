@@ -376,8 +376,11 @@ func mapLaunchDomainErr(op string, err error) error {
 	case errors.Is(err, launch.ErrInvalidStatusTransition),
 		errors.Is(err, launch.ErrCommitteeMemberExists),
 		errors.Is(err, launch.ErrInsufficientValidators),
+		errors.Is(err, launch.ErrMembersNotEditable),
 		errors.Is(err, launch.ErrDominantVotingPower):
 		return fmt.Errorf("%s: %w: %w", op, err, ports.ErrConflict)
+	case errors.Is(err, launch.ErrNotAMember):
+		return fmt.Errorf("%s: %w: %w", op, err, ports.ErrNotFound)
 	case errors.Is(err, launch.ErrGenesisHashRequired),
 		errors.Is(err, launch.ErrCommitteeMemberNotFound),
 		errors.Is(err, launch.ErrInvalidCommitteeChange):
@@ -573,6 +576,86 @@ func applyDraftFields(l *launch.Launch, input PatchLaunchInput) {
 	if input.Allowlist != nil {
 		l.Allowlist = launch.NewAllowlist(input.Allowlist)
 	}
+}
+
+// maxMemberLabelLen caps a member label to keep the members list readable and bound
+// storage; the label is a short pointer to off-band verification, not free-form notes.
+const maxMemberLabelLen = 128
+
+// requireCommittee loads a launch and asserts the caller is one of its committee members.
+// Returns the launch on success; ErrNotFound if the launch does not exist (existence is
+// not hidden further here — this matches the coordinator-only convention, IsCoordinator);
+// ErrForbidden if the caller is authenticated but not a committee member.
+func (s *LaunchService) requireCommittee(ctx context.Context, launchID uuid.UUID, callerAddr, op string) (*launch.Launch, error) {
+	l, err := s.launches.FindByID(ctx, launchID)
+	if err != nil {
+		return nil, err
+	}
+	callerOp, err := launch.NewOperatorAddress(callerAddr)
+	if err != nil || !l.Committee.HasMember(callerOp) {
+		return nil, fmt.Errorf("%s: caller is not a committee member: %w", op, ports.ErrForbidden)
+	}
+	return l, nil
+}
+
+// AddMember adds a hot actor address to the launch's members list with a label, recording
+// the committee member who added it and when. Committee members only (403 otherwise);
+// allowed only while the members list is editable — DRAFT/PUBLISHED/WINDOW_OPEN (409
+// otherwise). Idempotent on address: re-adding overwrites the label and provenance.
+func (s *LaunchService) AddMember(ctx context.Context, launchID uuid.UUID, address, label, callerAddr string) (*launch.Member, error) {
+	const op = "add member"
+	l, err := s.requireCommittee(ctx, launchID, callerAddr, op)
+	if err != nil {
+		return nil, err
+	}
+	if len(label) > maxMemberLabelLen {
+		return nil, fmt.Errorf("%s: label exceeds %d characters: %w", op, maxMemberLabelLen, ports.ErrBadRequest)
+	}
+	addr, err := launch.NewOperatorAddress(address)
+	if err != nil {
+		return nil, fmt.Errorf("%s: address: %w: %w", op, err, ports.ErrBadRequest)
+	}
+	m := launch.Member{Address: addr, Label: label, AddedBy: callerAddr, AddedAt: time.Now().UTC()}
+	if err := l.AddMember(m); err != nil {
+		return nil, mapLaunchDomainErr(op, err)
+	}
+	if err := s.launches.Save(ctx, l); err != nil {
+		return nil, fmt.Errorf("%s: save: %w", op, err)
+	}
+	return &m, nil
+}
+
+// RemoveMember removes a hot actor address from the launch's members list. Committee
+// members only (403); allowed only while the members list is editable (409); returns
+// ErrNotFound if the address is not currently a member (404).
+func (s *LaunchService) RemoveMember(ctx context.Context, launchID uuid.UUID, address, callerAddr string) error {
+	const op = "remove member"
+	l, err := s.requireCommittee(ctx, launchID, callerAddr, op)
+	if err != nil {
+		return err
+	}
+	addr, err := launch.NewOperatorAddress(address)
+	if err != nil {
+		return fmt.Errorf("%s: address: %w: %w", op, err, ports.ErrBadRequest)
+	}
+	if err := l.RemoveMember(addr); err != nil {
+		return mapLaunchDomainErr(op, err)
+	}
+	if err := s.launches.Save(ctx, l); err != nil {
+		return fmt.Errorf("%s: save: %w", op, err)
+	}
+	return nil
+}
+
+// ListMembers returns the launch's members (address + label + provenance), sorted by
+// address. Committee members only (403); a non-committee caller — member or not — is
+// forbidden, matching the coordinator-only read convention.
+func (s *LaunchService) ListMembers(ctx context.Context, launchID uuid.UUID, callerAddr string) ([]launch.Member, error) {
+	l, err := s.requireCommittee(ctx, launchID, callerAddr, "list members")
+	if err != nil {
+		return nil, err
+	}
+	return l.Allowlist.Members(), nil
 }
 
 // SetCommittee replaces the committee on a DRAFT launch.

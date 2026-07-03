@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -147,9 +148,13 @@ func (r *LaunchRepository) saveAllowlist(ctx context.Context, l *launch.Launch) 
 		return fmt.Errorf("delete allowlist: %w", err)
 	}
 	for _, mem := range l.Allowlist.Members() {
+		addedAt := ""
+		if !mem.AddedAt.IsZero() {
+			addedAt = timeToStr(mem.AddedAt)
+		}
 		if _, err := q.ExecContext(ctx,
-			`INSERT INTO allowlist (launch_id, address, label) VALUES (?,?,?)`,
-			uuidToStr(l.ID), mem.Address.String(), mem.Label,
+			`INSERT INTO allowlist (launch_id, address, label, added_by, added_at) VALUES (?,?,?,?,?)`,
+			uuidToStr(l.ID), mem.Address.String(), mem.Label, mem.AddedBy, addedAt,
 		); err != nil {
 			return fmt.Errorf("insert allowlist: %w", err)
 		}
@@ -418,7 +423,8 @@ func (r *LaunchRepository) loadCommittee(ctx context.Context, l *launch.Launch) 
 
 func (r *LaunchRepository) loadAllowlist(ctx context.Context, l *launch.Launch) error {
 	q := conn(ctx, r.db)
-	rows, err := q.QueryContext(ctx, `SELECT address, label FROM allowlist WHERE launch_id=?`, uuidToStr(l.ID))
+	rows, err := q.QueryContext(ctx,
+		`SELECT address, label, added_by, added_at FROM allowlist WHERE launch_id=?`, uuidToStr(l.ID))
 	if err != nil {
 		return fmt.Errorf("load allowlist: %w", err)
 	}
@@ -426,15 +432,21 @@ func (r *LaunchRepository) loadAllowlist(ctx context.Context, l *launch.Launch) 
 
 	var members []launch.Member
 	for rows.Next() {
-		var addrStr, label string
-		if err := rows.Scan(&addrStr, &label); err != nil {
+		var addrStr, label, addedBy, addedAtStr string
+		if err := rows.Scan(&addrStr, &label, &addedBy, &addedAtStr); err != nil {
 			return fmt.Errorf("scan allowlist: %w", err)
 		}
 		addr, err := launch.NewOperatorAddress(addrStr)
 		if err != nil {
 			return fmt.Errorf("load allowlist address: %w", err)
 		}
-		members = append(members, launch.Member{Address: addr, Label: label})
+		var addedAt time.Time
+		if addedAtStr != "" {
+			if addedAt, err = strToTime(addedAtStr); err != nil {
+				return fmt.Errorf("load allowlist added_at: %w", err)
+			}
+		}
+		members = append(members, launch.Member{Address: addr, Label: label, AddedBy: addedBy, AddedAt: addedAt})
 	}
 	if err := rows.Err(); err != nil {
 		return err

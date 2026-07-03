@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -334,6 +335,116 @@ func TestLaunchService_PatchLaunch_NotCommitteeMember(t *testing.T) {
 	name := "new-name"
 	_, err := svc.PatchLaunch(context.Background(), l.ID, PatchLaunchInput{ChainName: &name}, testAddr2)
 	require.ErrorIs(t, err, ports.ErrForbidden)
+}
+
+// ---- M2 members management ----
+
+func TestLaunchService_AddMember_Success(t *testing.T) {
+	l := test1of1Launch() // committee = testAddr1; status DRAFT
+	repo := newFakeLaunchRepo(l)
+	svc := newLaunchSvc(repo, newFakeGenesisStore())
+
+	m, err := svc.AddMember(context.Background(), l.ID, testAddr2, "acme-fleet", testAddr1)
+	require.NoError(t, err)
+	assert.Equal(t, testAddr2, m.Address.String())
+	assert.Equal(t, "acme-fleet", m.Label)
+	assert.Equal(t, testAddr1, m.AddedBy, "provenance records the adding committee member")
+	assert.False(t, m.AddedAt.IsZero(), "added_at is stamped")
+
+	got, err := repo.FindByID(context.Background(), l.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "acme-fleet", got.Allowlist.Label(mustAddr(testAddr2)), "member persisted with label")
+	assert.True(t, got.IsVisibleTo(testAddr2), "an added member can now see + submit to the launch")
+}
+
+func TestLaunchService_AddMember_UsableDuringWindowOpen(t *testing.T) {
+	l := test1of1Launch()
+	l.Status = launch.StatusWindowOpen // onboarding during the open window is the point (E1)
+	repo := newFakeLaunchRepo(l)
+	svc := newLaunchSvc(repo, newFakeGenesisStore())
+
+	_, err := svc.AddMember(context.Background(), l.ID, testAddr2, "late-joiner", testAddr1)
+	require.NoError(t, err, "members must be addable during WINDOW_OPEN")
+}
+
+func TestLaunchService_AddMember_NotCommittee(t *testing.T) {
+	l := test1of1Launch() // committee = testAddr1 only
+	svc := newLaunchSvc(newFakeLaunchRepo(l), newFakeGenesisStore())
+	_, err := svc.AddMember(context.Background(), l.ID, testAddr3, "x", testAddr2) // testAddr2 not committee
+	require.ErrorIs(t, err, ports.ErrForbidden)
+}
+
+func TestLaunchService_AddMember_WrongStatus(t *testing.T) {
+	l := test1of1Launch()
+	l.Status = launch.StatusWindowClosed // frozen (E1)
+	svc := newLaunchSvc(newFakeLaunchRepo(l), newFakeGenesisStore())
+	_, err := svc.AddMember(context.Background(), l.ID, testAddr2, "x", testAddr1)
+	require.ErrorIs(t, err, ports.ErrConflict, "members list is frozen after WINDOW_OPEN")
+}
+
+func TestLaunchService_AddMember_InvalidAddress(t *testing.T) {
+	l := test1of1Launch()
+	svc := newLaunchSvc(newFakeLaunchRepo(l), newFakeGenesisStore())
+	_, err := svc.AddMember(context.Background(), l.ID, "not-a-bech32-addr", "x", testAddr1)
+	require.ErrorIs(t, err, ports.ErrBadRequest)
+}
+
+func TestLaunchService_AddMember_LabelTooLong(t *testing.T) {
+	l := test1of1Launch()
+	svc := newLaunchSvc(newFakeLaunchRepo(l), newFakeGenesisStore())
+	_, err := svc.AddMember(context.Background(), l.ID, testAddr2, strings.Repeat("a", maxMemberLabelLen+1), testAddr1)
+	require.ErrorIs(t, err, ports.ErrBadRequest)
+}
+
+func TestLaunchService_RemoveMember_Success(t *testing.T) {
+	l := test1of1Launch()
+	l.Allowlist = launch.NewAllowlistFromMembers([]launch.Member{{Address: mustAddr(testAddr2), Label: "x"}})
+	repo := newFakeLaunchRepo(l)
+	svc := newLaunchSvc(repo, newFakeGenesisStore())
+
+	require.NoError(t, svc.RemoveMember(context.Background(), l.ID, testAddr2, testAddr1))
+	got, err := repo.FindByID(context.Background(), l.ID)
+	require.NoError(t, err)
+	assert.False(t, got.Allowlist.Contains(mustAddr(testAddr2)), "removed member no longer on the list")
+	assert.False(t, got.IsVisibleTo(testAddr2), "removed member loses see + submit access")
+}
+
+func TestLaunchService_RemoveMember_Absent(t *testing.T) {
+	l := test1of1Launch() // empty allowlist
+	svc := newLaunchSvc(newFakeLaunchRepo(l), newFakeGenesisStore())
+	err := svc.RemoveMember(context.Background(), l.ID, testAddr2, testAddr1)
+	require.ErrorIs(t, err, ports.ErrNotFound, "removing a non-member is 404")
+}
+
+func TestLaunchService_RemoveMember_NotCommittee(t *testing.T) {
+	l := test1of1Launch()
+	l.Allowlist = launch.NewAllowlistFromMembers([]launch.Member{{Address: mustAddr(testAddr2), Label: "x"}})
+	svc := newLaunchSvc(newFakeLaunchRepo(l), newFakeGenesisStore())
+	err := svc.RemoveMember(context.Background(), l.ID, testAddr2, testAddr3) // testAddr3 not committee
+	require.ErrorIs(t, err, ports.ErrForbidden)
+}
+
+func TestLaunchService_ListMembers_SortedForCommittee(t *testing.T) {
+	l := test1of1Launch()
+	l.Allowlist = launch.NewAllowlistFromMembers([]launch.Member{
+		{Address: mustAddr(testAddr3), Label: "c"},
+		{Address: mustAddr(testAddr2), Label: "b"},
+	})
+	svc := newLaunchSvc(newFakeLaunchRepo(l), newFakeGenesisStore())
+
+	members, err := svc.ListMembers(context.Background(), l.ID, testAddr1)
+	require.NoError(t, err)
+	require.Len(t, members, 2)
+	for i := 1; i < len(members); i++ {
+		assert.Less(t, members[i-1].Address.String(), members[i].Address.String(), "members sorted by address")
+	}
+}
+
+func TestLaunchService_ListMembers_NotCommittee(t *testing.T) {
+	l := test1of1Launch()
+	svc := newLaunchSvc(newFakeLaunchRepo(l), newFakeGenesisStore())
+	_, err := svc.ListMembers(context.Background(), l.ID, testAddr2) // not committee
+	require.ErrorIs(t, err, ports.ErrForbidden, "member list is committee-only")
 }
 
 func TestLaunchService_PatchLaunch_DraftFieldsOnNonDraft(t *testing.T) {

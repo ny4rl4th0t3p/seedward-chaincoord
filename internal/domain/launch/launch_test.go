@@ -784,3 +784,66 @@ func TestReadinessConfirmation_Invalidate(t *testing.T) {
 	require.NotNil(t, rc.InvalidatedAt)
 	assert.True(t, rc.InvalidatedAt.Equal(at), "InvalidatedAt should be set to the given time")
 }
+
+// ---- M2 members management (domain) ----
+
+func newDraftLaunch(t *testing.T) *launch.Launch {
+	t.Helper()
+	l, err := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
+	require.NoError(t, err)
+	return l
+}
+
+func TestLaunch_AddMember_DraftOK(t *testing.T) {
+	l := newDraftLaunch(t)
+	addr := launch.MustNewOperatorAddress(testAddr2)
+	require.NoError(t, l.AddMember(launch.Member{Address: addr, Label: "acme"}))
+	assert.True(t, l.Allowlist.Contains(addr))
+	assert.Equal(t, "acme", l.Allowlist.Label(addr))
+}
+
+func TestLaunch_AddMember_IdempotentOverwritesLabel(t *testing.T) {
+	l := newDraftLaunch(t)
+	addr := launch.MustNewOperatorAddress(testAddr2)
+	require.NoError(t, l.AddMember(launch.Member{Address: addr, Label: "old"}))
+	require.NoError(t, l.AddMember(launch.Member{Address: addr, Label: "new"}))
+	assert.Equal(t, 1, l.Allowlist.Len(), "re-adding the same address does not grow the set")
+	assert.Equal(t, "new", l.Allowlist.Label(addr), "re-adding overwrites the label")
+}
+
+func TestLaunch_RemoveMember_Success(t *testing.T) {
+	l := newDraftLaunch(t)
+	addr := launch.MustNewOperatorAddress(testAddr2)
+	require.NoError(t, l.AddMember(launch.Member{Address: addr}))
+	require.NoError(t, l.RemoveMember(addr))
+	assert.False(t, l.Allowlist.Contains(addr))
+}
+
+func TestLaunch_RemoveMember_Absent(t *testing.T) {
+	l := newDraftLaunch(t)
+	err := l.RemoveMember(launch.MustNewOperatorAddress(testAddr2))
+	require.ErrorIs(t, err, launch.ErrNotAMember)
+}
+
+func TestLaunch_MembersEditable_ByStatus(t *testing.T) {
+	addr := launch.MustNewOperatorAddress(testAddr2)
+
+	editable := []launch.Status{launch.StatusDraft, launch.StatusPublished, launch.StatusWindowOpen}
+	for _, st := range editable {
+		l := newDraftLaunch(t)
+		l.Status = st
+		require.NoErrorf(t, l.AddMember(launch.Member{Address: addr}), "status %s should allow member edits", st)
+	}
+
+	frozen := []launch.Status{
+		launch.StatusWindowClosed, launch.StatusGenesisReady, launch.StatusLaunched, launch.StatusCancelled,
+	}
+	for _, st := range frozen {
+		l := newDraftLaunch(t)
+		l.Status = st
+		require.ErrorIsf(t, l.AddMember(launch.Member{Address: addr}), launch.ErrMembersNotEditable,
+			"status %s should freeze the members list (add)", st)
+		require.ErrorIsf(t, l.RemoveMember(addr), launch.ErrMembersNotEditable,
+			"status %s should freeze the members list (remove)", st)
+	}
+}
