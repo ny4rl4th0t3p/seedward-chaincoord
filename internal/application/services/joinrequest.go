@@ -205,8 +205,10 @@ func (s *JoinRequestService) Submit(ctx context.Context, launchID uuid.UUID, inp
 	// SUBMITTER address — may submit. A leaked launch URL grants nothing to a non-member. This
 	// runs BEFORE gentx validation, so a non-member can't probe. Validators themselves are not
 	// allowlisted; they are vetted by committee approval, anchored on the operator address.
-	if !l.IsVisibleTo(input.OperatorAddress) {
-		return nil, fmt.Errorf("submit join request: not a member of this launch: %w", ports.ErrForbidden)
+	// Non-members get ErrNotFound, not ErrForbidden, matching GetLaunch — a 403 here would
+	// distinguish a real private launch from a nonexistent one and leak its existence.
+	if !l.IsVisibleToAddr(submitterAddr) {
+		return nil, fmt.Errorf("submit join request: %w", ports.ErrNotFound)
 	}
 
 	// Pre-acceptance gentx validation (shared invariant set, authoritative server-side).

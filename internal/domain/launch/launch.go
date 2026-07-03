@@ -300,7 +300,13 @@ func (l *Launch) IsVisibleTo(addr string) bool {
 	if err != nil {
 		return false
 	}
-	return l.Committee.HasMember(validated) || l.Allowlist.Contains(validated)
+	return l.IsVisibleToAddr(validated)
+}
+
+// IsVisibleToAddr is IsVisibleTo for an already-validated operator address. Hot paths
+// that have parsed the caller (e.g. join submit) call this to avoid a second bech32 decode.
+func (l *Launch) IsVisibleToAddr(addr OperatorAddress) bool {
+	return l.Committee.HasMember(addr) || l.Allowlist.Contains(addr)
 }
 
 // ReplaceCommitteeMember swaps the committee member at oldAddr with newMember.

@@ -395,6 +395,15 @@ its value as a historical document.
 - **Web UI is not fully validated end-to-end.** Visual and interaction regressions may exist even when the full test
   suite passes. The tool is described as research-grade and should be validated against a real test launch before any
   production use.
+- **Validator SET is not bounded by an allowlist — admission rests on committee approval (open).** Membership
+  (see + submit) gates the hot *submitter* address; the *validator* operator address inside a gentx is **not**
+  pre-allowlisted. A vetted member can therefore submit a valid gentx for any validator operator address, and the
+  committee is the sole gate that vets it (anchored off-band on the operator/self-delegation, per decision #8). This is
+  deliberate — a validator-set allowlist would force every fleet node to pre-register a valoper + hot wallet, which is
+  friction for ~zero gain, and the blast radius is bounded (an attacker can only submit for *their own* validator, can't
+  overwrite a member's pending gentx, and the anomaly surfaces at approval). It remains **open to revisit**: whether v1.x
+  should offer an optional per-launch validator-address allow/deny list for coordinators who want the set bounded before
+  approval rather than at it. Tracked against the membership/onboarding plan.
 - **Training-project origin.** The codebase was built as an SDD (spec-driven development) exercise with significant AI
   agent assistance under human supervision. The architecture is intentional, and the test coverage is real, but the
   maturity is appropriate to "interesting prototype" rather than "battle-tested production tool."

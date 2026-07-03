@@ -177,6 +177,17 @@ func (r *LaunchRepository) FindByChainID(ctx context.Context, chainID string) (*
 	return r.hydrate(ctx, l)
 }
 
+// membershipFilterFrom is the FROM/JOIN/WHERE clause shared by the visibility-gated
+// launch list and count queries (D5b): a caller sees a launch only if they are on its
+// allowlist or its committee. Both bound params are the caller's operator address. Keeping
+// this in one place keeps the paginated results and the total count in agreement.
+const membershipFilterFrom = `
+	FROM launches l
+	LEFT JOIN allowlist al ON al.launch_id = l.id AND al.address = ?
+	LEFT JOIN committees c ON c.launch_id = l.id
+	LEFT JOIN committee_members cm ON cm.committee_id = c.id AND cm.address = ?
+	WHERE al.address IS NOT NULL OR cm.address IS NOT NULL`
+
 func (r *LaunchRepository) FindAll(ctx context.Context, operatorAddr string, page, perPage int) ([]*launch.Launch, int, error) {
 	q := conn(ctx, r.db)
 	offset := (page - 1) * perPage
@@ -187,12 +198,8 @@ func (r *LaunchRepository) FindAll(ctx context.Context, operatorAddr string, pag
 	if operatorAddr == "" {
 		return []*launch.Launch{}, 0, nil
 	}
-	rows, err := q.QueryContext(ctx, `
-		SELECT DISTINCT l.* FROM launches l
-		LEFT JOIN allowlist al ON al.launch_id = l.id AND al.address = ?
-		LEFT JOIN committees c ON c.launch_id = l.id
-		LEFT JOIN committee_members cm ON cm.committee_id = c.id AND cm.address = ?
-		WHERE al.address IS NOT NULL OR cm.address IS NOT NULL
+	rows, err := q.QueryContext(ctx,
+		`SELECT DISTINCT l.* `+membershipFilterFrom+`
 		ORDER BY l.created_at DESC LIMIT ? OFFSET ?`,
 		operatorAddr, operatorAddr, perPage, offset)
 	if err != nil {
@@ -226,12 +233,8 @@ func (r *LaunchRepository) FindAll(ctx context.Context, operatorAddr string, pag
 
 	// Total count (same membership filter; operatorAddr is non-empty here).
 	var total int
-	err = q.QueryRowContext(ctx, `
-		SELECT COUNT(DISTINCT l.id) FROM launches l
-		LEFT JOIN allowlist al ON al.launch_id = l.id AND al.address = ?
-		LEFT JOIN committees c ON c.launch_id = l.id
-		LEFT JOIN committee_members cm ON cm.committee_id = c.id AND cm.address = ?
-		WHERE al.address IS NOT NULL OR cm.address IS NOT NULL`,
+	err = q.QueryRowContext(ctx,
+		`SELECT COUNT(DISTINCT l.id) `+membershipFilterFrom,
 		operatorAddr, operatorAddr).Scan(&total)
 	if err != nil {
 		return nil, 0, fmt.Errorf("launch count: %w", err)

@@ -227,7 +227,7 @@ func TestJoinRequestService_Submit_AllowlistedMemberAllowed(t *testing.T) {
 
 // A non-member (neither committee nor on the members list) is rejected before any gentx work —
 // a leaked launch URL grants nothing.
-func TestJoinRequestService_Submit_NonMemberForbidden(t *testing.T) {
+func TestJoinRequestService_Submit_NonMemberNotFound(t *testing.T) {
 	l := test1of1Launch() // committee = testAddr1 only; empty allowlist
 	l.Status = launch.StatusWindowOpen
 	svc := newJoinReqSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo())
@@ -235,7 +235,9 @@ func TestJoinRequestService_Submit_NonMemberForbidden(t *testing.T) {
 	in := validSubmitInput(l)
 	in.OperatorAddress = testAddr2 // not committee, not a member
 	_, err := svc.Submit(context.Background(), l.ID, in)
-	require.ErrorIs(t, err, ports.ErrForbidden, "a non-member must not be able to submit")
+	// Not-found, not forbidden: a 403 would distinguish a real private launch from a
+	// nonexistent one and leak its existence (mirrors GetLaunch).
+	require.ErrorIs(t, err, ports.ErrNotFound, "a non-member must not learn the launch exists")
 }
 
 func TestJoinRequestService_Submit_GentxInvalid(t *testing.T) {
