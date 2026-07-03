@@ -86,7 +86,7 @@ func testLaunch(t *testing.T) *launch.Launch {
 	rec.MaxCommissionRate = cr
 	rec.MaxCommissionChangeRate = cr
 
-	l, err := launch.New(uuid.New(), rec, launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, err := launch.New(uuid.New(), rec, launch.LaunchTypeTestnet, testCommittee())
 	require.NoError(t, err, "testLaunch")
 	return l
 }

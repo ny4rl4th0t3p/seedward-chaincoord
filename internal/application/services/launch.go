@@ -64,28 +64,15 @@ func (s *LaunchService) WithURLValidator(fn func(string) error) *LaunchService {
 type CreateLaunchInput struct {
 	Record     launch.ChainRecord
 	LaunchType launch.LaunchType
-	Visibility launch.Visibility
 	Allowlist  []launch.OperatorAddress
 	Committee  launch.Committee
 }
 
-// CreateLaunch creates a new Launch in DRAFT status.
+// CreateLaunch creates a new Launch in DRAFT status. Launches are private-always:
+// discovery is gated to committee ∪ allowlist ∪ viewers; there is no public/browsable kind.
 func (s *LaunchService) CreateLaunch(ctx context.Context, input CreateLaunchInput) (*launch.Launch, error) {
-	// Launches are private-always: default empty visibility to ALLOWLIST and reject the
-	// legacy PUBLIC (browsable) kind — discovery is gated to committee ∪ allowlist ∪ viewers.
-	visibility := input.Visibility
-	switch visibility {
-	case "":
-		visibility = launch.VisibilityAllowlist
-	case launch.VisibilityAllowlist:
-		// ok — the only supported kind
-	default:
-		return nil, fmt.Errorf("create launch: visibility %q is not supported; launches are private: %w",
-			visibility, ports.ErrBadRequest)
-	}
-
 	al := launch.NewAllowlist(input.Allowlist)
-	l, err := launch.New(uuid.New(), input.Record, input.LaunchType, visibility, input.Committee)
+	l, err := launch.New(uuid.New(), input.Record, input.LaunchType, input.Committee)
 	if err != nil {
 		return nil, fmt.Errorf("create launch: %w", err)
 	}
@@ -98,7 +85,6 @@ func (s *LaunchService) CreateLaunch(ctx context.Context, input CreateLaunchInpu
 		LaunchID:    l.ID,
 		ChainID:     l.Record.ChainID,
 		LaunchType:  string(l.LaunchType),
-		Visibility:  string(l.Visibility),
 		LeadAddress: l.Committee.LeadAddress.String(),
 	})
 	return l, nil
@@ -512,7 +498,6 @@ type PatchLaunchInput struct {
 	RepoCommit        *string
 	GenesisTime       *time.Time
 	MinValidatorCount *int
-	Visibility        *launch.Visibility
 	Allowlist         []launch.OperatorAddress // nil = no change; empty slice = clear
 	MonitorRPCURL     *string                  // settable in any status
 }
@@ -558,7 +543,7 @@ func hasDraftFields(input PatchLaunchInput) bool {
 	return input.ChainName != nil || input.BinaryVersion != nil ||
 		input.BinarySHA256 != nil || input.RepoURL != nil || input.RepoCommit != nil ||
 		input.GenesisTime != nil || input.MinValidatorCount != nil ||
-		input.Visibility != nil || input.Allowlist != nil
+		input.Allowlist != nil
 }
 
 // applyDraftFields writes all draft-only optional fields from input onto l.
@@ -584,9 +569,6 @@ func applyDraftFields(l *launch.Launch, input PatchLaunchInput) {
 	}
 	if input.MinValidatorCount != nil {
 		l.Record.MinValidatorCount = *input.MinValidatorCount
-	}
-	if input.Visibility != nil {
-		l.Visibility = *input.Visibility
 	}
 	if input.Allowlist != nil {
 		l.Allowlist = launch.NewAllowlist(input.Allowlist)

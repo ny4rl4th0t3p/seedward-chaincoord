@@ -164,9 +164,6 @@ definitions:
         type: string
       record:
         $ref: '#/definitions/api.chainRecordJSON'
-      visibility:
-        example: PUBLIC
-        type: string
     type: object
   api.dashboardJSON:
     properties:
@@ -297,8 +294,6 @@ definitions:
         type: string
       updated_at:
         type: string
-      visibility:
-        type: string
     type: object
   api.pageEnvelope-array_api_coordinatorAllowlistEntryJSON:
     properties:
@@ -373,9 +368,6 @@ definitions:
       repo_commit:
         type: string
       repo_url:
-        type: string
-      visibility:
-        example: PUBLIC
         type: string
     type: object
   api.peerJSON:

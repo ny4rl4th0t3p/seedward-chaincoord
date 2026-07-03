@@ -34,7 +34,7 @@ func (r *LaunchRepository) Save(ctx context.Context, l *launch.Launch) error {
 			repo_url=?, repo_commit=?, genesis_time=?, denom=?, min_self_delegation=?,
 			max_commission_rate=?, max_commission_change_rate=?,
 			gentx_deadline=?, application_window_open=?, min_validator_count=?,
-			launch_type=?, visibility=?, status=?,
+			launch_type=?, status=?,
 			initial_genesis_sha256=?, final_genesis_sha256=?,
 			monitor_rpc_url=?,
 			updated_at=?, version=version+1
@@ -47,7 +47,7 @@ func (r *LaunchRepository) Save(ctx context.Context, l *launch.Launch) error {
 		l.Record.MaxCommissionRate.String(), l.Record.MaxCommissionChangeRate.String(),
 		timeToStr(l.Record.GentxDeadline), timeToStr(l.Record.ApplicationWindowOpen),
 		l.Record.MinValidatorCount,
-		string(l.LaunchType), string(l.Visibility), string(l.Status),
+		string(l.LaunchType), string(l.Status),
 		l.InitialGenesisSHA256, l.FinalGenesisSHA256,
 		l.MonitorRPCURL,
 		timeToStr(l.UpdatedAt),
@@ -88,11 +88,11 @@ func (r *LaunchRepository) insert(ctx context.Context, l *launch.Launch) error {
 			repo_url, repo_commit, genesis_time, denom, min_self_delegation,
 			max_commission_rate, max_commission_change_rate,
 			gentx_deadline, application_window_open, min_validator_count,
-			launch_type, visibility, status,
+			launch_type, status,
 			initial_genesis_sha256, final_genesis_sha256,
 			monitor_rpc_url,
 			created_at, updated_at, version
-		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)`,
+		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)`,
 		uuidToStr(l.ID),
 		l.Record.ChainID, l.Record.ChainName, l.Record.Bech32Prefix, l.Record.BinaryName,
 		l.Record.BinaryVersion, l.Record.BinarySHA256,
@@ -102,7 +102,7 @@ func (r *LaunchRepository) insert(ctx context.Context, l *launch.Launch) error {
 		l.Record.MaxCommissionRate.String(), l.Record.MaxCommissionChangeRate.String(),
 		timeToStr(l.Record.GentxDeadline), timeToStr(l.Record.ApplicationWindowOpen),
 		l.Record.MinValidatorCount,
-		string(l.LaunchType), string(l.Visibility), string(l.Status),
+		string(l.LaunchType), string(l.Status),
 		l.InitialGenesisSHA256, l.FinalGenesisSHA256,
 		l.MonitorRPCURL,
 		timeToStr(l.CreatedAt), timeToStr(l.UpdatedAt),
@@ -488,7 +488,7 @@ func scanLaunchCols(scan func(dest ...any) error) (*launch.Launch, error) {
 		maxCommRate, maxCommChangeRate                                     string
 		gentxDeadline, appWindowOpen                                       string
 		minValCount                                                        int
-		launchType, visibility, status                                     string
+		launchType, status                                                 string
 		initialGenesisSHA256, finalGenesisSHA256                           string
 		monitorRPCURL                                                      string
 		createdAt, updatedAt                                               string
@@ -500,7 +500,7 @@ func scanLaunchCols(scan func(dest ...any) error) (*launch.Launch, error) {
 		&repoURL, &repoCommit, &genesisTime, &denom, &minSelfDelegation,
 		&maxCommRate, &maxCommChangeRate,
 		&gentxDeadline, &appWindowOpen, &minValCount,
-		&launchType, &visibility, &status,
+		&launchType, &status,
 		&initialGenesisSHA256, &finalGenesisSHA256,
 		&monitorRPCURL,
 		&createdAt, &updatedAt, &version,
@@ -567,7 +567,6 @@ func scanLaunchCols(scan func(dest ...any) error) (*launch.Launch, error) {
 			MinValidatorCount:       minValCount,
 		},
 		LaunchType:           launch.LaunchType(launchType),
-		Visibility:           launch.Visibility(visibility),
 		Status:               launch.Status(status),
 		InitialGenesisSHA256: initialGenesisSHA256,
 		FinalGenesisSHA256:   finalGenesisSHA256,

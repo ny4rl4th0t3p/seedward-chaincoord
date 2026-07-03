@@ -424,7 +424,6 @@ func TestE2E_HappyPath(t *testing.T) {
 			"min_validator_count":        4,
 		},
 		"launch_type": "TESTNET",
-		"visibility":  "ALLOWLIST",
 		"allowlist":   []string{val1.addr, val2.addr, val3.addr, val4.addr},
 		"committee": map[string]any{
 			"members": []map[string]any{
@@ -807,7 +806,6 @@ func createLaunch(t *testing.T, c *testClient, lead actor, members []map[string]
 			"min_validator_count":        1,
 		},
 		"launch_type": "TESTNET",
-		"visibility":  "ALLOWLIST",
 		"allowlist":   allowlist,
 		"committee": map[string]any{
 			"members":            members,
@@ -1209,7 +1207,6 @@ func TestE2E_PrivateLaunch(t *testing.T) {
 			"min_validator_count":        1,
 		},
 		"launch_type": "TESTNET",
-		"visibility":  "ALLOWLIST",
 		"committee": map[string]any{
 			"members":            []map[string]any{makeCommitteeMember(coord, "coord")},
 			"threshold_m":        1,
@@ -1246,8 +1243,7 @@ func TestE2E_PrivateLaunch(t *testing.T) {
 
 	// Invited can now access the launch.
 	var launchGet struct {
-		ID         string `json:"id"`
-		Visibility string `json:"visibility"`
+		ID string `json:"id"`
 	}
 	mustDecode(t, invitedClient.do("GET", "/launch/"+launchID, nil), http.StatusOK, &launchGet)
 	if launchGet.ID != launchID {

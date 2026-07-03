@@ -28,7 +28,6 @@ func TestLaunchService_CreateLaunch_Success(t *testing.T) {
 	l, err := svc.CreateLaunch(context.Background(), CreateLaunchInput{
 		Record:     testChainRecord(),
 		LaunchType: launch.LaunchTypeTestnet,
-		Visibility: launch.VisibilityAllowlist,
 		Committee:  testCommittee(1, 1),
 	})
 	require.NoError(t, err)
@@ -421,7 +420,6 @@ func TestLaunchService_PatchLaunch_AllDraftFields(t *testing.T) {
 	repoCommit := "abc123def"
 	gt := time.Now().Add(72 * time.Hour).UTC()
 	minVal := 7
-	vis := launch.VisibilityAllowlist
 	allow := []launch.OperatorAddress{mustAddr(testAddr2)}
 
 	updated, err := svc.PatchLaunch(context.Background(), l.ID, PatchLaunchInput{
@@ -432,7 +430,6 @@ func TestLaunchService_PatchLaunch_AllDraftFields(t *testing.T) {
 		RepoCommit:        &repoCommit,
 		GenesisTime:       &gt,
 		MinValidatorCount: &minVal,
-		Visibility:        &vis,
 		Allowlist:         allow,
 	}, testAddr1)
 	require.NoError(t, err)
@@ -444,7 +441,6 @@ func TestLaunchService_PatchLaunch_AllDraftFields(t *testing.T) {
 	require.NotNil(t, updated.Record.GenesisTime)
 	assert.True(t, updated.Record.GenesisTime.Equal(gt))
 	assert.Equal(t, minVal, updated.Record.MinValidatorCount)
-	assert.Equal(t, launch.VisibilityAllowlist, updated.Visibility)
 	assert.True(t, updated.Allowlist.Contains(mustAddr(testAddr2)), "allowlist not applied")
 }
 
@@ -651,7 +647,7 @@ func TestLaunchService_ListLaunches_DelegatesToRepo(t *testing.T) {
 		r := testChainRecord()
 		r.ChainID = "other-chain-1"
 		return r
-	}(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee(1, 1))
+	}(), launch.LaunchTypeTestnet, testCommittee(1, 1))
 	repo := newFakeLaunchRepo(l1, l2)
 	svc := newLaunchSvc(repo, newFakeGenesisStore())
 
@@ -782,7 +778,6 @@ func TestLaunchService_CreateLaunch_AuditEvent(t *testing.T) {
 	l, err := svc.CreateLaunch(context.Background(), CreateLaunchInput{
 		Record:     testChainRecord(),
 		LaunchType: launch.LaunchTypeTestnet,
-		Visibility: launch.VisibilityAllowlist,
 		Committee:  testCommittee(1, 1),
 	})
 	require.NoError(t, err)

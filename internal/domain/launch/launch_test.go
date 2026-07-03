@@ -57,7 +57,7 @@ func validSig() string {
 }
 
 func TestNewLaunch_HappyPath(t *testing.T) {
-	l, err := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, err := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	require.NoError(t, err)
 	assert.Equal(t, launch.StatusDraft, l.Status)
 }
@@ -65,19 +65,19 @@ func TestNewLaunch_HappyPath(t *testing.T) {
 func TestNewLaunch_InvalidRecord(t *testing.T) {
 	r := testRecord()
 	r.ChainID = ""
-	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
 	require.Error(t, err, "expected error for empty chain_id")
 }
 
 func TestNewLaunch_InvalidCommitteeThreshold(t *testing.T) {
 	c := testCommittee()
 	c.ThresholdM = 0
-	_, err := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, c)
+	_, err := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, c)
 	require.Error(t, err, "expected error for threshold 0")
 }
 
 func TestStateMachine_HappyPath(t *testing.T) {
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 
 	require.NoError(t, l.Publish("abc123"))
 	assert.Equal(t, launch.StatusPublished, l.Status)
@@ -87,7 +87,7 @@ func TestStateMachine_HappyPath(t *testing.T) {
 }
 
 func TestStateMachine_InvalidTransitions(t *testing.T) {
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 
 	require.ErrorIs(t, l.OpenWindow(), launch.ErrInvalidStatusTransition, "cannot open window from DRAFT")
 	require.ErrorIs(t, l.CloseWindow(10), launch.ErrInvalidStatusTransition, "cannot close window from DRAFT")
@@ -95,7 +95,7 @@ func TestStateMachine_InvalidTransitions(t *testing.T) {
 }
 
 func TestCloseWindow_MinValidatorCount(t *testing.T) {
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	_ = l.Publish("abc123")
 	_ = l.OpenWindow()
 
@@ -104,7 +104,7 @@ func TestCloseWindow_MinValidatorCount(t *testing.T) {
 }
 
 func TestVotingPowerWarning(t *testing.T) {
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 
 	addr1 := launch.MustNewOperatorAddress(testAddr1)
 	addr2 := launch.MustNewOperatorAddress(testAddr2)
@@ -115,7 +115,7 @@ func TestVotingPowerWarning(t *testing.T) {
 }
 
 func TestVotingPowerWarning_NoWarningBelow33(t *testing.T) {
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 
 	// 4 validators at 25 each — no single entity reaches 33%
 	l.RecordValidatorApproval(launch.MustNewOperatorAddress(testAddr1), 25)
@@ -126,7 +126,7 @@ func TestVotingPowerWarning_NoWarningBelow33(t *testing.T) {
 }
 
 func TestCloseWindow_DominantVotingPowerBlocked(t *testing.T) {
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	_ = l.Publish("abc123")
 	_ = l.OpenWindow()
 
@@ -141,7 +141,7 @@ func TestIsVisibleTo(t *testing.T) {
 	outsider := launch.MustNewOperatorAddress(testAddr4)      // neither committee nor allowlist
 
 	al := launch.NewAllowlist([]launch.OperatorAddress{onAllowlist})
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypePermissioned, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypePermissioned, testCommittee())
 	l.Allowlist = al
 
 	assert.True(t, l.IsVisibleTo(onAllowlist.String()), "addr on allowlist should be visible")
@@ -155,62 +155,62 @@ func TestIsVisibleTo(t *testing.T) {
 func TestNewLaunch_ThresholdExceedsN(t *testing.T) {
 	c := testCommittee()
 	c.ThresholdM = 4 // TotalN is 3
-	_, err := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, c)
+	_, err := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, c)
 	require.Error(t, err, "threshold (4) > TotalN (3)")
 }
 
 func TestNewLaunch_MemberCountMismatch(t *testing.T) {
 	c := testCommittee()
 	c.TotalN = 5 // Members has only 3 elements
-	_, err := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, c)
+	_, err := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, c)
 	require.Error(t, err, "member count (3) != TotalN (5)")
 }
 
 func TestNewLaunch_EmptyBinaryName(t *testing.T) {
 	r := testRecord()
 	r.BinaryName = ""
-	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
 	require.Error(t, err, "expected error for empty binary_name")
 }
 
 func TestNewLaunch_EmptyDenom(t *testing.T) {
 	r := testRecord()
 	r.Denom = ""
-	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
 	require.Error(t, err, "expected error for empty denom")
 }
 
 func TestNewLaunch_MinValidatorCountZero(t *testing.T) {
 	r := testRecord()
 	r.MinValidatorCount = 0
-	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
 	require.Error(t, err, "expected error for min_validator_count = 0")
 }
 
 func TestNewLaunch_ZeroGentxDeadline(t *testing.T) {
 	r := testRecord()
 	r.GentxDeadline = time.Time{}
-	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
 	require.Error(t, err, "expected error for zero gentx_deadline")
 }
 
 // ---- Publish error paths ----------------------------------------------------
 
 func TestPublish_NotFromDraft(t *testing.T) {
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	_ = l.Publish("abc123") // now PUBLISHED
 	require.ErrorIs(t, l.Publish("def456"), launch.ErrInvalidStatusTransition, "cannot publish from PUBLISHED")
 }
 
 func TestPublish_EmptyGenesisHash(t *testing.T) {
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	require.ErrorIs(t, l.Publish(""), launch.ErrGenesisHashRequired, "empty genesis hash")
 }
 
 // ---- OpenWindow error paths --------------------------------------------------
 
 func TestOpenWindow_NotFromPublished(t *testing.T) {
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	// Still in DRAFT — OpenWindow should fail.
 	require.ErrorIs(t, l.OpenWindow(), launch.ErrInvalidStatusTransition, "cannot open window from DRAFT")
 	// Advance to WINDOW_OPEN and confirm it cannot be re-opened.
@@ -222,7 +222,7 @@ func TestOpenWindow_NotFromPublished(t *testing.T) {
 // ---- CloseWindow error paths ------------------------------------------------
 
 func TestCloseWindow_NotFromWindowOpen(t *testing.T) {
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	require.ErrorIs(t, l.CloseWindow(10), launch.ErrInvalidStatusTransition, "cannot close window from DRAFT")
 }
 
@@ -230,7 +230,7 @@ func TestCloseWindow_DominantVotingPower_JustAboveThreshold(t *testing.T) {
 	// addr1 holds 34% of total (> 33.33%) — window close must be blocked.
 	r := testRecord()
 	r.MinValidatorCount = 1
-	l, _ := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
 	_ = l.Publish("abc123")
 	_ = l.OpenWindow()
 	l.RecordValidatorApproval(launch.MustNewOperatorAddress(testAddr1), 34) // 34/100 = 34%
@@ -242,7 +242,7 @@ func TestCloseWindow_DominantVotingPower_JustBelowThreshold(t *testing.T) {
 	// 4 validators at 25% each — no single entity dominates.
 	r := testRecord()
 	r.MinValidatorCount = 1
-	l, _ := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
 	_ = l.Publish("abc123")
 	_ = l.OpenWindow()
 	for _, a := range []string{testAddr1, testAddr2, testAddr3, testAddr4} {
@@ -254,7 +254,7 @@ func TestCloseWindow_DominantVotingPower_JustBelowThreshold(t *testing.T) {
 // ---- PublishGenesis error paths ---------------------------------------------
 
 func TestPublishGenesis_NotFromWindowClosed(t *testing.T) {
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	require.ErrorIs(t, l.PublishGenesis("abc"), launch.ErrInvalidStatusTransition, "cannot publish genesis from DRAFT")
 	_ = l.Publish("abc123")
 	require.ErrorIs(t, l.PublishGenesis("abc"), launch.ErrInvalidStatusTransition, "cannot publish genesis from PUBLISHED")
@@ -263,7 +263,7 @@ func TestPublishGenesis_NotFromWindowClosed(t *testing.T) {
 func TestPublishGenesis_EmptyHash(t *testing.T) {
 	r := testRecord()
 	r.MinValidatorCount = 1
-	l, _ := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
 	_ = l.Publish("abc123")
 	_ = l.OpenWindow()
 	_ = l.CloseWindow(1)
@@ -275,7 +275,7 @@ func TestPublishGenesis_EmptyHash(t *testing.T) {
 func TestMarkLaunched_Success(t *testing.T) {
 	r := testRecord()
 	r.MinValidatorCount = 1
-	l, _ := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
 	_ = l.Publish("abc123")
 	_ = l.OpenWindow()
 	_ = l.CloseWindow(1)
@@ -285,7 +285,7 @@ func TestMarkLaunched_Success(t *testing.T) {
 }
 
 func TestMarkLaunched_NotFromGenesisReady(t *testing.T) {
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	require.ErrorIs(t, l.MarkLaunched(), launch.ErrInvalidStatusTransition, "cannot mark launched from DRAFT")
 }
 
@@ -294,7 +294,7 @@ func TestMarkLaunched_NotFromGenesisReady(t *testing.T) {
 func TestStateMachine_FullPath(t *testing.T) {
 	r := testRecord()
 	r.MinValidatorCount = 1
-	l, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
 	require.NoError(t, err)
 	steps := []struct {
 		name string
@@ -318,7 +318,7 @@ func TestStateMachine_FullPath(t *testing.T) {
 // there is no validator allowlist. This domain guard only checks the window is open.)
 
 func TestEnsureOpenForApplications_NotWindowOpen(t *testing.T) {
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	// DRAFT
 	require.ErrorIs(t, l.EnsureOpenForApplications(), launch.ErrWindowNotOpen, "window not open (DRAFT)")
 	// PUBLISHED
@@ -327,7 +327,7 @@ func TestEnsureOpenForApplications_NotWindowOpen(t *testing.T) {
 }
 
 func TestEnsureOpenForApplications_WindowOpen(t *testing.T) {
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	_ = l.Publish("abc123")
 	_ = l.OpenWindow()
 	assert.NoError(t, l.EnsureOpenForApplications())
@@ -336,7 +336,7 @@ func TestEnsureOpenForApplications_WindowOpen(t *testing.T) {
 // ---- Voting power helpers ---------------------------------------------------
 
 func TestRecordValidatorApproval_UpdatesExisting(t *testing.T) {
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	addr := launch.MustNewOperatorAddress(testAddr1)
 	l.RecordValidatorApproval(addr, 100)
 	l.RecordValidatorApproval(addr, 50) // update
@@ -344,7 +344,7 @@ func TestRecordValidatorApproval_UpdatesExisting(t *testing.T) {
 }
 
 func TestRemoveValidatorApproval(t *testing.T) {
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	addr := launch.MustNewOperatorAddress(testAddr1)
 	l.RecordValidatorApproval(addr, 100)
 	l.RemoveValidatorApproval(addr)
@@ -352,13 +352,13 @@ func TestRemoveValidatorApproval(t *testing.T) {
 }
 
 func TestApprovedVotingPowerOf_NotFound(t *testing.T) {
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	addr := launch.MustNewOperatorAddress(testAddr1)
 	assert.Equal(t, int64(0), l.ApprovedVotingPowerOf(addr), "want 0 for unknown addr")
 }
 
 func TestInitVotingPower(t *testing.T) {
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	addr := launch.MustNewOperatorAddress(testAddr1)
 	l.InitVotingPower(map[string]int64{addr.String(): 500})
 	assert.Equal(t, int64(500), l.ApprovedVotingPowerOf(addr))
@@ -378,7 +378,7 @@ func TestHasMember_PresentAndAbsent(t *testing.T) {
 
 func TestIsVisibleTo_InvalidAddress(t *testing.T) {
 	al := launch.NewAllowlist([]launch.OperatorAddress{launch.MustNewOperatorAddress(testAddr1)})
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypePermissioned, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypePermissioned, testCommittee())
 	l.Allowlist = al
 	// An invalid bech32 string should be treated as "not visible".
 	assert.False(t, l.IsVisibleTo("not-a-bech32-address"), "invalid address should not be visible")
@@ -387,7 +387,7 @@ func TestIsVisibleTo_InvalidAddress(t *testing.T) {
 // ---- ReplaceCommitteeMember -------------------------------------------------
 
 func TestLaunch_ReplaceCommitteeMember_Success(t *testing.T) {
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	oldAddr := launch.MustNewOperatorAddress(testAddr2)
 	newMember := launch.CommitteeMember{
 		Address:   launch.MustNewOperatorAddress(testAddr4),
@@ -408,7 +408,7 @@ func TestLaunch_ReplaceCommitteeMember_Success(t *testing.T) {
 }
 
 func TestLaunch_ReplaceCommitteeMember_UpdatesLead(t *testing.T) {
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	leadAddr := launch.MustNewOperatorAddress(testAddr1)
 	newMember := launch.CommitteeMember{
 		Address:   launch.MustNewOperatorAddress(testAddr4),
@@ -421,7 +421,7 @@ func TestLaunch_ReplaceCommitteeMember_UpdatesLead(t *testing.T) {
 }
 
 func TestLaunch_ReplaceCommitteeMember_NotFound(t *testing.T) {
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	unknownAddr := launch.MustNewOperatorAddress(testAddr5)
 	newMember := launch.CommitteeMember{Address: launch.MustNewOperatorAddress(testAddr4)}
 
@@ -431,7 +431,7 @@ func TestLaunch_ReplaceCommitteeMember_NotFound(t *testing.T) {
 // ---- ExpandCommittee --------------------------------------------------------
 
 func TestLaunch_ExpandCommittee_Success(t *testing.T) {
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	newMember := launch.CommitteeMember{
 		Address:   launch.MustNewOperatorAddress(testAddr4),
 		Moniker:   "coord-4",
@@ -453,7 +453,7 @@ func TestLaunch_ExpandCommittee_Success(t *testing.T) {
 }
 
 func TestLaunch_ExpandCommittee_ExplicitThreshold(t *testing.T) {
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	newMember := launch.CommitteeMember{
 		Address:   launch.MustNewOperatorAddress(testAddr4),
 		Moniker:   "coord-4",
@@ -465,7 +465,7 @@ func TestLaunch_ExpandCommittee_ExplicitThreshold(t *testing.T) {
 }
 
 func TestLaunch_ExpandCommittee_DuplicateMember(t *testing.T) {
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	duplicate := launch.CommitteeMember{
 		Address:   launch.MustNewOperatorAddress(testAddr2),
 		Moniker:   "dup",
@@ -477,7 +477,7 @@ func TestLaunch_ExpandCommittee_DuplicateMember(t *testing.T) {
 
 func TestLaunch_ExpandCommittee_LivenessGuard(t *testing.T) {
 	// 2-of-3 → expand to 4 members with threshold 4 (M == N) should be rejected.
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	newMember := launch.CommitteeMember{
 		Address:   launch.MustNewOperatorAddress(testAddr4),
 		Moniker:   "coord-4",
@@ -491,7 +491,7 @@ func TestLaunch_ExpandCommittee_LivenessGuard(t *testing.T) {
 
 func TestLaunch_ShrinkCommittee_Success(t *testing.T) {
 	// 2-of-3 → remove addr3 with threshold 1 → 1-of-2.
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	removeAddr := launch.MustNewOperatorAddress(testAddr3)
 
 	require.NoError(t, l.ShrinkCommittee(removeAddr, 1))
@@ -506,7 +506,7 @@ func TestLaunch_ShrinkCommittee_Success(t *testing.T) {
 
 func TestLaunch_ShrinkCommittee_TransfersLeadWhenRemoved(t *testing.T) {
 	// Remove the lead (addr1); lead should transfer to the first remaining member.
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	leadAddr := launch.MustNewOperatorAddress(testAddr1)
 
 	require.NoError(t, l.ShrinkCommittee(leadAddr, 1))
@@ -514,7 +514,7 @@ func TestLaunch_ShrinkCommittee_TransfersLeadWhenRemoved(t *testing.T) {
 }
 
 func TestLaunch_ShrinkCommittee_NonLeadDoesNotChangeLead(t *testing.T) {
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	removeAddr := launch.MustNewOperatorAddress(testAddr3) // not the lead
 
 	require.NoError(t, l.ShrinkCommittee(removeAddr, 1))
@@ -522,7 +522,7 @@ func TestLaunch_ShrinkCommittee_NonLeadDoesNotChangeLead(t *testing.T) {
 }
 
 func TestLaunch_ShrinkCommittee_MemberNotFound(t *testing.T) {
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	unknownAddr := launch.MustNewOperatorAddress(testAddr5)
 
 	require.ErrorIs(t, l.ShrinkCommittee(unknownAddr, 1), launch.ErrCommitteeMemberNotFound, "expected error for unknown member address")
@@ -530,7 +530,7 @@ func TestLaunch_ShrinkCommittee_MemberNotFound(t *testing.T) {
 
 func TestLaunch_ShrinkCommittee_LivenessGuard(t *testing.T) {
 	// 2-of-3 → remove addr3 with threshold 2 → would produce 2-of-2 (M == N), rejected.
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	removeAddr := launch.MustNewOperatorAddress(testAddr3)
 
 	require.ErrorIs(t, l.ShrinkCommittee(removeAddr, 2), launch.ErrInvalidCommitteeChange, "expected liveness guard error: threshold must be < N")
@@ -551,7 +551,7 @@ func TestLaunch_ShrinkCommittee_CannotShrinkBelowOneActiveMember(t *testing.T) {
 		CreationSignature: sig,
 		CreatedAt:         time.Now(),
 	}
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, smallCommittee)
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, smallCommittee)
 
 	require.ErrorIs(t, l.ShrinkCommittee(launch.MustNewOperatorAddress(testAddr2), 1), launch.ErrInvalidCommitteeChange,
 		"expected error: cannot shrink to a 1-of-1 committee (liveness guard)")
@@ -563,7 +563,7 @@ const testHashA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 const testHashB = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 
 func TestLaunch_UploadAllocationFile_Success(t *testing.T) {
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 
 	require.NoError(t, l.UploadAllocationFile(launch.AllocationClaims, testHashA))
 	f, ok := l.AllocationFileOf(launch.AllocationClaims)
@@ -574,13 +574,13 @@ func TestLaunch_UploadAllocationFile_Success(t *testing.T) {
 }
 
 func TestLaunch_UploadAllocationFile_InvalidType(t *testing.T) {
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	require.ErrorIs(t, l.UploadAllocationFile(launch.AllocationType("bogus"), testHashA), launch.ErrUnknownAllocationType)
 	require.ErrorIs(t, l.UploadAllocationFile(launch.AllocationAccounts, ""), launch.ErrAllocationEmptyHash)
 }
 
 func TestLaunch_UploadAllocationFile_ReuploadResetsToPending(t *testing.T) {
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	pid := uuid.New()
 	_ = l.UploadAllocationFile(launch.AllocationClaims, testHashA)
 	_ = l.ApproveAllocationFile(launch.AllocationClaims, testHashA, pid)
@@ -595,7 +595,7 @@ func TestLaunch_UploadAllocationFile_ReuploadResetsToPending(t *testing.T) {
 }
 
 func TestLaunch_ApproveAllocationFile_Success(t *testing.T) {
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	pid := uuid.New()
 	_ = l.UploadAllocationFile(launch.AllocationGrants, testHashA)
 
@@ -607,19 +607,19 @@ func TestLaunch_ApproveAllocationFile_Success(t *testing.T) {
 }
 
 func TestLaunch_ApproveAllocationFile_StaleHash(t *testing.T) {
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	_ = l.UploadAllocationFile(launch.AllocationGrants, testHashA)
 
 	require.ErrorIs(t, l.ApproveAllocationFile(launch.AllocationGrants, testHashB, uuid.New()), launch.ErrAllocationStaleHash)
 }
 
 func TestLaunch_ApproveAllocationFile_NotFound(t *testing.T) {
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	require.ErrorIs(t, l.ApproveAllocationFile(launch.AllocationAuthz, testHashA, uuid.New()), launch.ErrAllocationNotFound)
 }
 
 func TestLaunch_RejectAllocationFile(t *testing.T) {
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	_ = l.UploadAllocationFile(launch.AllocationFeegrant, testHashA)
 
 	// A stale veto (hash no longer matches) is a no-op leaving the file PENDING.
@@ -637,7 +637,7 @@ func TestLaunch_RejectAllocationFile(t *testing.T) {
 }
 
 func TestLaunch_AllocationLockedAfterPublish(t *testing.T) {
-	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	l.Status = launch.StatusGenesisReady // genesis published — allocation set is frozen
 
 	require.ErrorIs(t, l.UploadAllocationFile(launch.AllocationClaims, testHashA), launch.ErrAllocationLocked)
@@ -652,16 +652,16 @@ func TestCancel_FromAllNonTerminalStatuses(t *testing.T) {
 		setup func() *launch.Launch
 	}{
 		{"DRAFT", func() *launch.Launch {
-			l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+			l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 			return l
 		}},
 		{"PUBLISHED", func() *launch.Launch {
-			l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+			l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 			_ = l.Publish("hash")
 			return l
 		}},
 		{"WINDOW_OPEN", func() *launch.Launch {
-			l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+			l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 			_ = l.Publish("hash")
 			_ = l.OpenWindow()
 			return l
@@ -669,7 +669,7 @@ func TestCancel_FromAllNonTerminalStatuses(t *testing.T) {
 		{"WINDOW_CLOSED", func() *launch.Launch {
 			r := testRecord()
 			r.MinValidatorCount = 1
-			l, _ := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+			l, _ := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
 			_ = l.Publish("hash")
 			_ = l.OpenWindow()
 			_ = l.CloseWindow(1)
@@ -695,7 +695,7 @@ func TestCancel_TerminalStatuses_Rejected(t *testing.T) {
 		require.ErrorIs(t, l.Cancel(), launch.ErrInvalidStatusTransition, "cannot cancel LAUNCHED chain")
 	})
 	t.Run("CANCELED", func(t *testing.T) {
-		l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+		l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 		_ = l.Cancel()
 		require.ErrorIs(t, l.Cancel(), launch.ErrInvalidStatusTransition, "already CANCELED")
 	})
@@ -709,7 +709,7 @@ func advanceToGenesisReady(t *testing.T) *launch.Launch {
 	t.Helper()
 	r := testRecord()
 	r.MinValidatorCount = 1
-	l, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+	l, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
 	require.NoError(t, err)
 	_ = l.Publish("initial-hash")
 	_ = l.OpenWindow()
@@ -732,16 +732,16 @@ func TestReopenForRevision_WrongStatus(t *testing.T) {
 		setup func() *launch.Launch
 	}{
 		{"DRAFT", func() *launch.Launch {
-			l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+			l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 			return l
 		}},
 		{"PUBLISHED", func() *launch.Launch {
-			l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+			l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 			_ = l.Publish("hash")
 			return l
 		}},
 		{"WINDOW_OPEN", func() *launch.Launch {
-			l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+			l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 			_ = l.Publish("hash")
 			_ = l.OpenWindow()
 			return l
@@ -749,7 +749,7 @@ func TestReopenForRevision_WrongStatus(t *testing.T) {
 		{"WINDOW_CLOSED", func() *launch.Launch {
 			r := testRecord()
 			r.MinValidatorCount = 1
-			l, _ := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee())
+			l, _ := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
 			_ = l.Publish("hash")
 			_ = l.OpenWindow()
 			_ = l.CloseWindow(1)

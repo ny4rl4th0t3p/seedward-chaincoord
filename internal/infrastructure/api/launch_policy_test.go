@@ -26,7 +26,6 @@ const minimalLaunchBody = `{
 		"application_window_open": "2099-01-01T00:00:00Z"
 	},
 	"launch_type": "MAINNET",
-	"visibility": "PUBLIC",
 	"committee": {
 		"members": [{"address":"cosmos1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5lzv7xu","moniker":"m","pubkey_b64":"AAAA"}],
 		"threshold_m": 1,

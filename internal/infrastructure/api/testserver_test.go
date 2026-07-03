@@ -85,7 +85,7 @@ func testLaunch() *launch.Launch {
 		CreationSignature: mustSig(),
 		CreatedAt:         time.Now().UTC(),
 	}
-	l, err := launch.New(uuid.New(), rec, launch.LaunchTypeTestnet, launch.VisibilityAllowlist, committee)
+	l, err := launch.New(uuid.New(), rec, launch.LaunchTypeTestnet, committee)
 	if err != nil {
 		panic(err)
 	}

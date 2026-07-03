@@ -38,7 +38,6 @@ func TestPatchLaunchRequestCoversCommand(t *testing.T) {
 		MonitorRPCURL:     ptrTo("https://rpc.example.com"),
 		GenesisTime:       ptrTo(time.Now().UTC()),
 		MinValidatorCount: ptrTo(4),
-		Visibility:        ptrTo("public"),
 		Allowlist:         []string{validOperatorAddr},
 	}
 

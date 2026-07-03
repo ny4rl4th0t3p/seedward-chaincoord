@@ -197,7 +197,6 @@ LAUNCH_BODY=$(jq -n \
   --arg val4           "${VAL_ADDR_4}" \
   '{
     launch_type: "PERMISSIONLESS",
-    visibility:  "ALLOWLIST",
     allowlist:   [$val1, $val2, $val3, $val4],
     record: {
       chain_id:                   $chain_id,

@@ -57,15 +57,6 @@ var (
 	ErrWindowNotOpen           = errors.New("application window is not open")
 )
 
-// Visibility is a launch field retained for the schema, but it is effectively single-valued:
-// every launch is private. Discovery is gated to committee ∪ allowlist ∪ invited viewers;
-// there is no public/browsable kind. (Removing the field entirely is a larger, deferred cleanup.)
-type Visibility string
-
-const (
-	VisibilityAllowlist Visibility = "ALLOWLIST"
-)
-
 // CommitteeMember is an individual coordinator in the M-of-N committee.
 type CommitteeMember struct {
 	Address   OperatorAddress
@@ -124,7 +115,6 @@ type Launch struct {
 	ID         uuid.UUID
 	Record     ChainRecord
 	LaunchType LaunchType
-	Visibility Visibility
 	Allowlist  Allowlist
 	Status     Status
 	Committee  Committee
@@ -154,7 +144,7 @@ type Launch struct {
 }
 
 // New creates a new Launch in DRAFT status.
-func New(id uuid.UUID, record ChainRecord, lt LaunchType, vis Visibility, committee Committee) (*Launch, error) {
+func New(id uuid.UUID, record ChainRecord, lt LaunchType, committee Committee) (*Launch, error) {
 	if err := validateChainRecord(record); err != nil {
 		return nil, fmt.Errorf("launch: invalid chain record: %w", err)
 	}
@@ -169,7 +159,6 @@ func New(id uuid.UUID, record ChainRecord, lt LaunchType, vis Visibility, commit
 		ID:                  id,
 		Record:              record,
 		LaunchType:          lt,
-		Visibility:          vis,
 		Status:              StatusDraft,
 		Committee:           committee,
 		CreatedAt:           now,

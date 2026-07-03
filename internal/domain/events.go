@@ -160,7 +160,6 @@ type LaunchCreated struct {
 	LaunchID    uuid.UUID
 	ChainID     string
 	LaunchType  string
-	Visibility  string
 	LeadAddress string
 }
 

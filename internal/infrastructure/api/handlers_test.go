@@ -132,7 +132,7 @@ func validLaunchBody() []byte {
 			"application_window_open":"2026-04-01T00:00:00Z",
 			"min_validator_count":1
 		},
-		"launch_type":"TESTNET","visibility":"ALLOWLIST",
+		"launch_type":"TESTNET",
 		"committee":{
 			"members":[{"address":"` + testAddr1 + `","moniker":"c1","pub_key_b64":"AAAA"}],
 			"threshold_m":1,"total_n":1,
@@ -333,7 +333,7 @@ func TestHandleLaunchCreate_BadCommissionRate(t *testing.T) {
 	tok := h.seedSession(testAddr1)
 	body := []byte(`{
 		"record":{"chain_id":"x","max_commission_rate":"bad","max_commission_change_rate":"0.01"},
-		"launch_type":"TESTNET","visibility":"ALLOWLIST",
+		"launch_type":"TESTNET",
 		"committee":{"members":[],"threshold_m":1,"total_n":1,
 			"lead_address":"` + testAddr1 + `","creation_signature":"` + testSig + `"}
 	}`)
@@ -416,9 +416,8 @@ func TestHandleChainHint_NoAuthRequired(t *testing.T) {
 func TestHandleChainHint_AllowlistLaunchVisible(t *testing.T) {
 	h := newHarness(t)
 	l := testLaunch()
-	l.Visibility = launch.VisibilityAllowlist // not on allowlist, unauthenticated
 	h.launches.data[l.ID] = l
-	// chain-hint must bypass visibility — 200 even for allowlist launches.
+	// chain-hint must bypass visibility — 200 even for private (allowlist) launches.
 	w := h.do("GET", "/launch/"+l.ID.String()+"/chain-hint", nil, nil)
 	assertStatusCode(t, w, http.StatusOK)
 }

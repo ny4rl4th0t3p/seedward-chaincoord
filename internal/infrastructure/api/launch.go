@@ -40,7 +40,6 @@ type launchJSON struct {
 	ID                   string          `json:"id"`
 	Record               chainRecordJSON `json:"record"`
 	LaunchType           string          `json:"launch_type"`
-	Visibility           string          `json:"visibility"`
 	Status               string          `json:"status"`
 	InitialGenesisSHA256 string          `json:"initial_genesis_sha256,omitempty"`
 	FinalGenesisSHA256   string          `json:"final_genesis_sha256,omitempty"`
@@ -72,7 +71,6 @@ func launchToJSON(l *launch.Launch) launchJSON {
 			MinValidatorCount:       r.MinValidatorCount,
 		},
 		LaunchType:           string(l.LaunchType),
-		Visibility:           string(l.Visibility),
 		Status:               string(l.Status),
 		InitialGenesisSHA256: l.InitialGenesisSHA256,
 		FinalGenesisSHA256:   l.FinalGenesisSHA256,
@@ -86,7 +84,6 @@ func launchToJSON(l *launch.Launch) launchJSON {
 type createLaunchRequest struct {
 	Record     chainRecordJSON      `json:"record"`
 	LaunchType string               `json:"launch_type" example:"MAINNET"`
-	Visibility string               `json:"visibility" example:"PUBLIC"`
 	Allowlist  []string             `json:"allowlist"`
 	Committee  committeeRequestJSON `json:"committee"`
 }
@@ -148,7 +145,6 @@ func (s *Server) handleLaunchCreate(w http.ResponseWriter, r *http.Request) {
 	input := services.CreateLaunchInput{
 		Record:     record,
 		LaunchType: launch.LaunchType(body.LaunchType),
-		Visibility: launch.Visibility(body.Visibility),
 		Allowlist:  allowlist,
 		Committee:  committee,
 	}
@@ -242,7 +238,6 @@ type patchLaunchRequest struct {
 	MonitorRPCURL     *string    `json:"monitor_rpc_url,omitempty"`
 	GenesisTime       *time.Time `json:"genesis_time,omitempty"`
 	MinValidatorCount *int       `json:"min_validator_count,omitempty"`
-	Visibility        *string    `json:"visibility,omitempty" example:"PUBLIC"`
 	Allowlist         []string   `json:"allowlist,omitempty"`
 }
 
@@ -345,14 +340,6 @@ func parsePatchInput(raw map[string]json.RawMessage) (services.PatchLaunchInput,
 			return input, fmt.Errorf("min_validator_count must be an integer")
 		}
 		input.MinValidatorCount = &n
-	}
-	if v, ok := raw["visibility"]; ok {
-		var s string
-		if err := json.Unmarshal(v, &s); err != nil {
-			return input, fmt.Errorf("visibility must be a string")
-		}
-		vis := launch.Visibility(s)
-		input.Visibility = &vis
 	}
 	if v, ok := raw["allowlist"]; ok {
 		var addrs []string

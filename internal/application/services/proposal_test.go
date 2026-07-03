@@ -255,7 +255,7 @@ func TestProposalService_Sign_WrongLaunch(t *testing.T) {
 func TestProposalService_Sign_AlreadySigned(t *testing.T) {
 	// 3-of-3 committee: Raise adds testAddr1's signature (stays PENDING). Signing again
 	// as testAddr1 must be a state conflict (409), not a 500.
-	l, _ := launch.New(uuid.New(), testChainRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee(3, 3))
+	l, _ := launch.New(uuid.New(), testChainRecord(), launch.LaunchTypeTestnet, testCommittee(3, 3))
 	propRepo := newFakeProposalRepo()
 	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), propRepo, newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
 
@@ -297,7 +297,7 @@ func TestProposalService_Sign_TTLExpired(t *testing.T) {
 func TestProposalService_Sign_AddsSignature(t *testing.T) {
 	// 3-of-3 committee; Raise already added 1 signature (testAddr1 as proposer).
 	// Sign as testAddr2 → still PENDING.
-	l, _ := launch.New(uuid.New(), testChainRecord(), launch.LaunchTypeTestnet, launch.VisibilityAllowlist, testCommittee(3, 3))
+	l, _ := launch.New(uuid.New(), testChainRecord(), launch.LaunchTypeTestnet, testCommittee(3, 3))
 	propRepo := newFakeProposalRepo()
 	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), propRepo, newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
 

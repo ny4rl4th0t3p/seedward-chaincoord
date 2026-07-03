@@ -2,16 +2,24 @@
 
 Self-hosted coordination system for **Cosmos SDK** chain launches.
 
-*`chaincoord` is one of three operator tools I've built for Cosmos SDK chains. The others
-are [gentool](https://github.com/ny4rl4th0t3p/cosmos-genesis-tool) (deterministic genesis file generation)
-and [pour](https://github.com/ny4rl4th0t3p/pour) (pure-Go multi-chain faucet). Together they cover the painful workflows
-of launching and running a Cosmos chain. All three are Apache 2.0 and self-hostable.*
+`chaincoord` is the coordination server in **Seedward**, the self-hostable operator suite I'm building
+for the **Cosmos SDK** chain lifecycle. Its siblings:
 
-> **Training project for an SDD (Spec Driven Development) exercise.** This codebase was built to explore
-> the design space of decentralised genesis coordination. The heavy lifting was done by a supervised AI
-> agent. It is research-grade — not for production use.
+- [seedward-gentool](https://github.com/ny4rl4th0t3p/seedward-gentool) — deterministic genesis-file construction (also the genesis engine `rehearsal` embeds)
+- [seedward-rehearsal](https://github.com/ny4rl4th0t3p/seedward-rehearsal) — a pre-flight service that assembles a launch's real inputs and boots a throwaway chain to prove the genesis initializes and advances before anyone commits
+- [seedward-cli](https://github.com/ny4rl4th0t3p/seedward-cli) — the unified suite CLI (`seedward genesis`, `gentx validate`, `join`, `audit verify`, `rehearse`)
+- [pour](https://github.com/ny4rl4th0t3p/pour) — a pure-Go multi-chain faucet
 
-📖 **[Full documentation](https://ny4rl4th0t3p.github.io/seedward-chaincoord)** · 🏗️ **[Design document](docs/DESIGN.md)**
+*Together they cover the painful, usually ad-hoc workflows of launching and operating a Cosmos chain.
+Published components are Apache-2.0 and self-hostable.*
+
+> **Spec-Driven Development (SDD) project.** The design is mine — the protocol, the M-of-N committee
+> governance model, the launch-lifecycle state machine, the threat model, and the offline-verifiable
+> audit-log security design — authored as a spec and then implemented with AI assistance under my review.
+> It is research-grade — not for production use; the reasoning behind each decision is in the 
+> **[design document](docs/DESIGN.md)**.
+
+🏗️ **[Design document](docs/DESIGN.md)** · 📖 **[Full documentation](https://ny4rl4th0t3p.github.io/seedward-chaincoord)**
 
 ---
 
