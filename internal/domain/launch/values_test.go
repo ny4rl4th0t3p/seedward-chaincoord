@@ -256,3 +256,65 @@ func TestAllowlist_AddIdempotent(t *testing.T) {
 	al2 := al.Add(addr) // add again
 	assert.Equal(t, 1, al2.Len(), "add should be idempotent")
 }
+
+func TestAllowlist_NewAllowlist_EmptyLabels(t *testing.T) {
+	addr, _ := launch.NewOperatorAddress(testAddr1)
+	al := launch.NewAllowlist([]launch.OperatorAddress{addr})
+	assert.True(t, al.Contains(addr))
+	assert.Empty(t, al.Label(addr), "bare addresses carry an empty label")
+}
+
+func TestAllowlist_FromMembers_LabelRoundTrip(t *testing.T) {
+	addr1, _ := launch.NewOperatorAddress(testAddr1)
+	addr2, _ := launch.NewOperatorAddress(testAddr2)
+	al := launch.NewAllowlistFromMembers([]launch.Member{
+		{Address: addr1, Label: "acme-fleet"},
+		{Address: addr2, Label: "genesis-validator-2"},
+	})
+	assert.True(t, al.Contains(addr1))
+	assert.Equal(t, "acme-fleet", al.Label(addr1))
+	assert.Equal(t, "genesis-validator-2", al.Label(addr2))
+}
+
+func TestAllowlist_Label_NonMemberEmpty(t *testing.T) {
+	addr1, _ := launch.NewOperatorAddress(testAddr1)
+	addr2, _ := launch.NewOperatorAddress(testAddr2)
+	al := launch.NewAllowlistFromMembers([]launch.Member{{Address: addr1, Label: "x"}})
+	assert.Empty(t, al.Label(addr2), "a non-member has no label")
+}
+
+func TestAllowlist_Members_SortedWithLabels(t *testing.T) {
+	addr1, _ := launch.NewOperatorAddress(testAddr1)
+	addr2, _ := launch.NewOperatorAddress(testAddr2)
+	addr3, _ := launch.NewOperatorAddress(testAddr3)
+	al := launch.NewAllowlistFromMembers([]launch.Member{
+		{Address: addr3, Label: "c"},
+		{Address: addr1, Label: "a"},
+		{Address: addr2, Label: "b"},
+	})
+	members := al.Members()
+	require.Len(t, members, 3)
+	for i := 1; i < len(members); i++ {
+		assert.Less(t, members[i-1].Address.String(), members[i].Address.String(), "members not sorted by address")
+	}
+	// Labels travel with their address, not with position.
+	for _, m := range members {
+		assert.Equal(t, m.Label, al.Label(m.Address))
+	}
+}
+
+func TestAllowlist_AddMember_PreservesLabel(t *testing.T) {
+	addr, _ := launch.NewOperatorAddress(testAddr1)
+	al := launch.NewAllowlist(nil).AddMember(launch.Member{Address: addr, Label: "labeled"})
+	assert.True(t, al.Contains(addr))
+	assert.Equal(t, "labeled", al.Label(addr))
+}
+
+func TestAllowlist_AddMember_ReplacesLabel(t *testing.T) {
+	addr, _ := launch.NewOperatorAddress(testAddr1)
+	al := launch.NewAllowlistFromMembers([]launch.Member{{Address: addr, Label: "old"}})
+	al2 := al.AddMember(launch.Member{Address: addr, Label: "new"})
+	assert.Equal(t, 1, al2.Len(), "re-adding the same address does not grow the set")
+	assert.Equal(t, "new", al2.Label(addr), "re-adding replaces the label")
+	assert.Equal(t, "old", al.Label(addr), "original allowlist is unchanged")
+}

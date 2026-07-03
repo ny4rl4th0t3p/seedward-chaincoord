@@ -179,16 +179,35 @@ func (c CommissionRate) LessThanOrEqual(other CommissionRate) bool {
 	return c.f <= other.f
 }
 
-// Allowlist is an immutable set of OperatorAddresses.
-// The zero value is an empty (open) allowlist.
-type Allowlist struct {
-	members map[string]struct{}
+// Member is an entry in a launch's members list: a hot actor address permitted to see
+// and submit to the launch, with a label pointing to the committee's off-band
+// verification of who holds it. The label is set when a member is added (M2 endpoints).
+type Member struct {
+	Address OperatorAddress
+	Label   string
 }
 
+// Allowlist is an immutable set of member OperatorAddresses, each carrying a label.
+// The zero value is an empty (open) allowlist.
+type Allowlist struct {
+	members map[string]string // address string → label
+}
+
+// NewAllowlist builds an Allowlist from bare addresses, each with an empty label.
 func NewAllowlist(addresses []OperatorAddress) Allowlist {
-	m := make(map[string]struct{}, len(addresses))
+	m := make(map[string]string, len(addresses))
 	for _, a := range addresses {
-		m[a.String()] = struct{}{}
+		m[a.String()] = ""
+	}
+	return Allowlist{members: m}
+}
+
+// NewAllowlistFromMembers builds an Allowlist from labeled members. A later entry for
+// the same address wins, mirroring set semantics.
+func NewAllowlistFromMembers(members []Member) Allowlist {
+	m := make(map[string]string, len(members))
+	for _, mem := range members {
+		m[mem.Address.String()] = mem.Label
 	}
 	return Allowlist{members: m}
 }
@@ -198,19 +217,31 @@ func (al Allowlist) Contains(addr OperatorAddress) bool {
 	return ok
 }
 
+// Label returns the label for addr, or "" if addr is not a member.
+func (al Allowlist) Label(addr OperatorAddress) string {
+	return al.members[addr.String()]
+}
+
+// Add returns a copy with addr added, carrying an empty label.
 func (al Allowlist) Add(addr OperatorAddress) Allowlist {
-	m := make(map[string]struct{}, len(al.members)+1)
-	for k := range al.members {
-		m[k] = struct{}{}
+	return al.AddMember(Member{Address: addr})
+}
+
+// AddMember returns a copy with the labeled member added, replacing any existing entry
+// for the same address.
+func (al Allowlist) AddMember(mem Member) Allowlist {
+	m := make(map[string]string, len(al.members)+1)
+	for k, v := range al.members {
+		m[k] = v
 	}
-	m[addr.String()] = struct{}{}
+	m[mem.Address.String()] = mem.Label
 	return Allowlist{members: m}
 }
 
 func (al Allowlist) Remove(addr OperatorAddress) Allowlist {
-	m := make(map[string]struct{}, len(al.members))
-	for k := range al.members {
-		m[k] = struct{}{}
+	m := make(map[string]string, len(al.members))
+	for k, v := range al.members {
+		m[k] = v
 	}
 	delete(m, addr.String())
 	return Allowlist{members: m}
@@ -223,6 +254,16 @@ func (al Allowlist) Addresses() []OperatorAddress {
 	}
 	// Sort for deterministic output — callers must not depend on insertion order.
 	sort.Slice(out, func(i, j int) bool { return out[i].value < out[j].value })
+	return out
+}
+
+// Members returns the labeled members, sorted by address.
+func (al Allowlist) Members() []Member {
+	out := make([]Member, 0, len(al.members))
+	for k, v := range al.members {
+		out = append(out, Member{Address: OperatorAddress{value: k}, Label: v})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Address.value < out[j].Address.value })
 	return out
 }
 

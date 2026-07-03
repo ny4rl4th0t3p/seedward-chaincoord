@@ -404,9 +404,11 @@ its value as a historical document.
   overwrite a member's pending gentx, and the anomaly surfaces at approval). It remains **open to revisit**: whether v1.x
   should offer an optional per-launch validator-address allow/deny list for coordinators who want the set bounded before
   approval rather than at it. Tracked against the membership/onboarding plan.
-- **Training-project origin.** The codebase was built as an SDD (spec-driven development) exercise with significant AI
-  agent assistance under human supervision. The architecture is intentional, and the test coverage is real, but the
-  maturity is appropriate to "interesting prototype" rather than "battle-tested production tool."
+- **Authored spec, AI-assisted build.** This is a Spec-Driven Development project: the architecture — the protocol, the
+  M-of-N committee governance model, the lifecycle state machine, the threat model, and the offline-verifiable audit-log
+  security design — is mine, authored as a spec and then implemented with AI assistance under my review. The architecture
+  is intentional and the test coverage is real; the maturity is "interesting prototype," not "battle-tested production
+  tool" — validate against a real test launch before production use.
 
 ## What's next
 

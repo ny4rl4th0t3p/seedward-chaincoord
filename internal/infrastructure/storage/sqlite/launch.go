@@ -146,10 +146,10 @@ func (r *LaunchRepository) saveAllowlist(ctx context.Context, l *launch.Launch) 
 	if _, err := q.ExecContext(ctx, `DELETE FROM allowlist WHERE launch_id=?`, uuidToStr(l.ID)); err != nil {
 		return fmt.Errorf("delete allowlist: %w", err)
 	}
-	for _, addr := range l.Allowlist.Addresses() {
+	for _, mem := range l.Allowlist.Members() {
 		if _, err := q.ExecContext(ctx,
-			`INSERT INTO allowlist (launch_id, address) VALUES (?,?)`,
-			uuidToStr(l.ID), addr.String(),
+			`INSERT INTO allowlist (launch_id, address, label) VALUES (?,?,?)`,
+			uuidToStr(l.ID), mem.Address.String(), mem.Label,
 		); err != nil {
 			return fmt.Errorf("insert allowlist: %w", err)
 		}
@@ -418,28 +418,28 @@ func (r *LaunchRepository) loadCommittee(ctx context.Context, l *launch.Launch) 
 
 func (r *LaunchRepository) loadAllowlist(ctx context.Context, l *launch.Launch) error {
 	q := conn(ctx, r.db)
-	rows, err := q.QueryContext(ctx, `SELECT address FROM allowlist WHERE launch_id=?`, uuidToStr(l.ID))
+	rows, err := q.QueryContext(ctx, `SELECT address, label FROM allowlist WHERE launch_id=?`, uuidToStr(l.ID))
 	if err != nil {
 		return fmt.Errorf("load allowlist: %w", err)
 	}
 	defer rows.Close()
 
-	var addrs []launch.OperatorAddress
+	var members []launch.Member
 	for rows.Next() {
-		var addrStr string
-		if err := rows.Scan(&addrStr); err != nil {
+		var addrStr, label string
+		if err := rows.Scan(&addrStr, &label); err != nil {
 			return fmt.Errorf("scan allowlist: %w", err)
 		}
 		addr, err := launch.NewOperatorAddress(addrStr)
 		if err != nil {
 			return fmt.Errorf("load allowlist address: %w", err)
 		}
-		addrs = append(addrs, addr)
+		members = append(members, launch.Member{Address: addr, Label: label})
 	}
 	if err := rows.Err(); err != nil {
 		return err
 	}
-	l.Allowlist = launch.NewAllowlist(addrs)
+	l.Allowlist = launch.NewAllowlistFromMembers(members)
 	return nil
 }
 
