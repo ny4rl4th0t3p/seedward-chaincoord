@@ -155,27 +155,29 @@ Plain HTTP on loopback (`127.0.0.1` or `::1`) suppresses the warning automatical
 
 ## Configuration Reference
 
-| Key                      | Env var                        | Flag                       | Default               | Required |
-|--------------------------|--------------------------------|----------------------------|-----------------------|----------|
-| `listen_addr`            | `COORD_LISTEN_ADDR`            | `--listen-addr`            | `:8080`               | No       |
-| `db_path`                | `COORD_DB_PATH`                | `--db-path`                | —                     | Yes      |
-| `audit_log_path`         | `COORD_AUDIT_LOG_PATH`         | `--audit-log-path`         | —                     | Yes      |
-| `files_path`             | `COORD_FILES_PATH`             | `--files-path`             | —                     | Yes      |
-| `audit_private_key`      | `COORD_AUDIT_PRIVATE_KEY`      | —                          | —                     | Yes¹     |
-| `audit_private_key_file` | `COORD_AUDIT_PRIVATE_KEY_FILE` | —                          | —                     | Yes¹     |
-| `jwt_private_key`        | `COORD_JWT_PRIVATE_KEY`        | —                          | —                     | Yes²     |
-| `jwt_private_key_file`   | `COORD_JWT_PRIVATE_KEY_FILE`   | —                          | —                     | Yes²     |
-| `log_level`              | `COORD_LOG_LEVEL`              | `--log-level`              | `info`                | No       |
-| `cors_origins`           | `COORD_CORS_ORIGINS`           | `--cors-origins`           | *(disabled)*          | No       |
-| `admin_addresses`        | `COORD_ADMIN_ADDRESSES`        | —                          | *(none)*              | No       |
-| `launch_policy`          | `COORD_LAUNCH_POLICY`          | —                          | `restricted`          | No       |
-| `genesis_host_mode`      | `COORD_GENESIS_HOST_MODE`      | `--genesis-host-mode`      | `false`               | No       |
-| `genesis_max_bytes`      | `COORD_GENESIS_MAX_BYTES`      | `--genesis-max-bytes`      | `734003200` (700 MiB) | No       |
-| `tls_cert`               | `COORD_TLS_CERT`               | `--tls-cert`               | —                     | No       |
-| `tls_key`                | `COORD_TLS_KEY`                | `--tls-key`                | —                     | No       |
-| `insecure_no_tls`        | `COORD_INSECURE_NO_TLS`        | `--insecure-no-tls`        | `false`               | No       |
-| `insecure_no_rate_limit` | `COORD_INSECURE_NO_RATE_LIMIT` | `--insecure-no-rate-limit` | `false`               | No       |
-| `insecure_no_ssrf_check` | `COORD_INSECURE_NO_SSRF_CHECK` | —                          | `false`               | No       |
+| Key                        | Env var                          | Flag                       | Default               | Required |
+|----------------------------|----------------------------------|----------------------------|-----------------------|----------|
+| `listen_addr`              | `COORD_LISTEN_ADDR`              | `--listen-addr`            | `:8080`               | No       |
+| `db_path`                  | `COORD_DB_PATH`                  | `--db-path`                | —                     | Yes      |
+| `audit_log_path`           | `COORD_AUDIT_LOG_PATH`           | `--audit-log-path`         | —                     | Yes      |
+| `files_path`               | `COORD_FILES_PATH`               | `--files-path`             | —                     | Yes      |
+| `audit_private_key`        | `COORD_AUDIT_PRIVATE_KEY`        | —                          | —                     | Yes¹     |
+| `audit_private_key_file`   | `COORD_AUDIT_PRIVATE_KEY_FILE`   | —                          | —                     | Yes¹     |
+| `jwt_private_key`          | `COORD_JWT_PRIVATE_KEY`          | —                          | —                     | Yes²     |
+| `jwt_private_key_file`     | `COORD_JWT_PRIVATE_KEY_FILE`     | —                          | —                     | Yes²     |
+| `log_level`                | `COORD_LOG_LEVEL`                | `--log-level`              | `info`                | No       |
+| `cors_origins`             | `COORD_CORS_ORIGINS`             | `--cors-origins`           | *(disabled)*          | No       |
+| `admin_addresses`          | `COORD_ADMIN_ADDRESSES`          | —                          | *(none)*              | No       |
+| `launch_policy`            | `COORD_LAUNCH_POLICY`            | —                          | `restricted`          | No       |
+| `genesis_host_mode`        | `COORD_GENESIS_HOST_MODE`        | `--genesis-host-mode`      | `false`               | No       |
+| `genesis_max_bytes`        | `COORD_GENESIS_MAX_BYTES`        | `--genesis-max-bytes`      | `734003200` (700 MiB) | No       |
+| `tls_cert`                 | `COORD_TLS_CERT`                 | `--tls-cert`               | —                     | No       |
+| `tls_key`                  | `COORD_TLS_KEY`                  | `--tls-key`                | —                     | No       |
+| `insecure_no_tls`          | `COORD_INSECURE_NO_TLS`          | `--insecure-no-tls`        | `false`               | No       |
+| `insecure_no_rate_limit`   | `COORD_INSECURE_NO_RATE_LIMIT`   | `--insecure-no-rate-limit` | `false`               | No       |
+| `insecure_no_ssrf_check`   | `COORD_INSECURE_NO_SSRF_CHECK`   | —                          | `false`               | No       |
+| `rehearsal_ops_token`      | `COORD_REHEARSAL_OPS_TOKEN`      | —                          | *(bridge disabled)*   | No       |
+| `rehearsal_ops_token_file` | `COORD_REHEARSAL_OPS_TOKEN_FILE` | —                          | *(bridge disabled)*   | No       |
 
 ¹ Exactly one of `audit_private_key` (inline base64) or `audit_private_key_file` (path) must be set.  
 ² Exactly one of `jwt_private_key` (inline base64) or `jwt_private_key_file` (path) must be set.
@@ -254,6 +256,16 @@ for automated test environments** — do not enable in production.
 Disables DNS-resolution and private-IP validation on user-supplied RPC URLs (`monitor_rpc_url`) and genesis attestor
 URLs. Only enable this in trusted environments — for example, the smoke-test Docker network, where RPC hostnames are
 internal container names that would fail the SSRF check. **Do not enable in production.**
+
+### `rehearsal_ops_token` / `rehearsal_ops_token_file`
+
+Shared bearer token authenticating the **rehearsal bridge** (ops plane) endpoints under `/bridge/*` — a
+headless service-to-service credential, not a wallet. When set, the rehearsal service presents it as
+`Authorization: Bearer <token>` to pull the approved input set and post signed results. **Leave unset to
+disable the bridge** (all `/bridge/*` requests are rejected, fail-closed). Deployment-wide, not per-launch;
+prefer the `_file` variant (secret manager) over the plain env var. Rotation is "swap the secret + reload."
+Deploy the `/bridge/*` endpoints on an **internal network only** (e.g. an ingress rule restricting the
+prefix), since the ops plane must not be internet-reachable.
 
 ### `log_level`
 

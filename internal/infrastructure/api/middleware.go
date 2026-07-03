@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"net/http"
@@ -92,6 +93,26 @@ func (s *Server) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 		}
 		ctx := context.WithValue(r.Context(), operatorAddrKey, operatorAddr)
 		next(w, r.WithContext(ctx))
+	}
+}
+
+// requireOps gates the ops-plane bridge endpoints (/bridge/*) on the shared rehearsal ops
+// token (bridge contract D6/D4). It compares the Bearer token against the configured
+// rehearsal_ops_token in constant time. Fail-closed: if no token is configured the bridge is
+// disabled and every request is rejected. Unlike requireAuth it injects no operator identity —
+// the ops plane is a headless shared service credential, never a wallet (DEC-14).
+func (s *Server) requireOps(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if s.rehearsalOpsToken == "" {
+			writeError(w, http.StatusUnauthorized, "ops_credential_required", "rehearsal bridge is not enabled")
+			return
+		}
+		token := bearerToken(r)
+		if token == "" || subtle.ConstantTimeCompare([]byte(token), []byte(s.rehearsalOpsToken)) != 1 {
+			writeError(w, http.StatusUnauthorized, "invalid_ops_credential", "a valid ops credential is required")
+			return
+		}
+		next(w, r)
 	}
 }
 

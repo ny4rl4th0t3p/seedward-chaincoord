@@ -117,3 +117,36 @@ func TestRequireAdmin(t *testing.T) {
 		})
 	}
 }
+
+func TestRequireOps(t *testing.T) {
+	const opsToken = "s3cr3t-ops-token"
+
+	ok := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	tests := []struct {
+		name       string
+		configured string // the server's rehearsal_ops_token
+		authHeader string
+		wantStatus int
+	}{
+		{"valid ops token → 200", opsToken, "Bearer " + opsToken, http.StatusOK},
+		{"no token → 401", opsToken, "", http.StatusUnauthorized},
+		{"wrong token → 401", opsToken, "Bearer nope", http.StatusUnauthorized},
+		{"not configured, fail-closed → 401", "", "Bearer " + opsToken, http.StatusUnauthorized},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := &Server{rehearsalOpsToken: tc.configured}
+			r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
+			if tc.authHeader != "" {
+				r.Header.Set("Authorization", tc.authHeader)
+			}
+			w := httptest.NewRecorder()
+			srv.requireOps(ok)(w, r)
+			assert.Equal(t, tc.wantStatus, w.Code, "body: %s", w.Body.String())
+		})
+	}
+}

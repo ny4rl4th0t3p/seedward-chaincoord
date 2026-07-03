@@ -78,6 +78,9 @@ func deriveCosmosAddress(compressedPub []byte) string {
 
 // newActor generates a random secp256k1 keypair and derives the corresponding
 // Cosmos bech32 address, ensuring the address and key are always consistent.
+// e2eOpsToken is the rehearsal-bridge ops credential the e2e server is configured with.
+const e2eOpsToken = "e2e-ops-token"
+
 func newActor(t *testing.T) actor {
 	t.Helper()
 	priv, err := secp.GeneratePrivateKey()
@@ -365,6 +368,7 @@ func buildTestServer(t *testing.T, admins []string) *testServer {
 		authSvc, launchSvc, joinReqSvc, proposalSvc, readinessSvc,
 		sessionStore, sseBroker, genesisStore, allocationStore, al,
 		al.PubKey(), allowlistRepo, "open", true, 64<<20, true,
+		e2eOpsToken,
 	)
 
 	ts := httptest.NewServer(apiServer.Handler())

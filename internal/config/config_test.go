@@ -413,3 +413,29 @@ func TestLoad_JWTPrivateKeyFromFile(t *testing.T) {
 		t.Errorf("JWTPrivKeyB64 from file: got %q, want %q", cfg.JWTPrivKeyB64, testJWTKey)
 	}
 }
+
+func TestLoad_RehearsalOpsTokenFromFile(t *testing.T) {
+	const opsToken = "rehearsal-ops-token-abc123"
+	dir := t.TempDir()
+	tokenFile := filepath.Join(dir, "ops.token")
+	if err := os.WriteFile(tokenFile, []byte(opsToken+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	v := newViper()
+	v.Set("db_path", "/tmp/coord.db")
+	v.Set("audit_log_path", "/tmp/audit.jsonl")
+	v.Set("audit_private_key", testAuditKey)
+	v.Set("jwt_private_key", testJWTKey)
+	v.Set("files_path", "/tmp/genesis")
+	v.Set("rehearsal_ops_token_file", tokenFile)
+	// rehearsal_ops_token intentionally absent — should be loaded from file (trimmed).
+
+	cfg, err := config.Load(v, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.RehearsalOpsToken != opsToken {
+		t.Errorf("RehearsalOpsToken from file: got %q, want %q", cfg.RehearsalOpsToken, opsToken)
+	}
+}

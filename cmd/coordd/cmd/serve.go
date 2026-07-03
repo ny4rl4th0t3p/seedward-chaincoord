@@ -271,6 +271,7 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		cfg.GenesisHostMode,
 		cfg.GenesisMaxBytes,
 		cfg.InsecureNoRateLimit,
+		cfg.RehearsalOpsToken,
 	)
 	httpServer := &http.Server{
 		Addr:              cfg.ListenAddr,

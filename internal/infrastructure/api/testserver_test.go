@@ -36,10 +36,11 @@ import (
 // ---- test constants ---------------------------------------------------------
 
 const (
-	testAddr1 = "cosmos1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5lzv7xu"
-	testAddr2 = "cosmos1yy3zxfp9ycnjs2f29vkz6t30xqcnyve5j4ep6w"
-	testAddr3 = "cosmos1g9pyx3z9ger5sj22fdxy6nj02pg4y5657yq8y0"
-	testSig   = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+	testOpsToken = "test-ops-token" // shared rehearsal-bridge ops credential the harness configures
+	testAddr1    = "cosmos1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5lzv7xu"
+	testAddr2    = "cosmos1yy3zxfp9ycnjs2f29vkz6t30xqcnyve5j4ep6w"
+	testAddr3    = "cosmos1g9pyx3z9ger5sj22fdxy6nj02pg4y5657yq8y0"
+	testSig      = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
 )
 
 func mustAddr(s string) launch.OperatorAddress { return launch.MustNewOperatorAddress(s) }
@@ -171,7 +172,7 @@ func newHarness(t *testing.T) *harness {
 	allowlistRepo := &thinCoordinatorAllowlist{data: make(map[string]*ports.CoordinatorAllowlistEntry)}
 	srv := api.NewServer(zerolog.Nop(), "", nil, authSvc, launchSvc, jrSvc, propSvc, readinessSvc,
 		sessions, &thinSSEBroker{}, genesisStore, allocationStore, auditLogReader, nil, allowlistRepo,
-		config.LaunchPolicyOpen, false, 32<<20, false)
+		config.LaunchPolicyOpen, false, 32<<20, false, testOpsToken)
 
 	return &harness{
 		server:     srv,
@@ -226,7 +227,7 @@ func newHarnessConfig(t *testing.T, adminAddrs []string, launchPolicy string) *h
 
 	allowlistRepo := &thinCoordinatorAllowlist{data: make(map[string]*ports.CoordinatorAllowlistEntry)}
 	srv := api.NewServer(zerolog.Nop(), "", adminAddrs, authSvc, launchSvc, jrSvc, propSvc, readinessSvc,
-		sessions, &thinSSEBroker{}, genesisStore, allocationStore, auditLogReader, nil, allowlistRepo, launchPolicy, false, 32<<20, false)
+		sessions, &thinSSEBroker{}, genesisStore, allocationStore, auditLogReader, nil, allowlistRepo, launchPolicy, false, 32<<20, false, testOpsToken)
 
 	return &harness{
 		server:     srv,
@@ -271,7 +272,7 @@ func newHarnessRateLimitDisabled(t *testing.T) *harness {
 	allowlistRepo := &thinCoordinatorAllowlist{data: make(map[string]*ports.CoordinatorAllowlistEntry)}
 	srv := api.NewServer(zerolog.Nop(), "", nil, authSvc, launchSvc, jrSvc, propSvc, readinessSvc,
 		sessions, &thinSSEBroker{}, genesisStore, allocationStore, auditLogReader, nil, allowlistRepo,
-		config.LaunchPolicyOpen, false, 32<<20, true)
+		config.LaunchPolicyOpen, false, 32<<20, true, testOpsToken)
 
 	return &harness{
 		server:     srv,
@@ -316,7 +317,7 @@ func newHarnessHostMode(t *testing.T, maxBytes int64) *harness {
 	allowlistRepo := &thinCoordinatorAllowlist{data: make(map[string]*ports.CoordinatorAllowlistEntry)}
 	srv := api.NewServer(zerolog.Nop(), "", nil, authSvc, launchSvc, jrSvc, propSvc, readinessSvc,
 		sessions, &thinSSEBroker{}, genesisStore, allocationStore, auditLogReader, nil, allowlistRepo,
-		config.LaunchPolicyOpen, true, maxBytes, false)
+		config.LaunchPolicyOpen, true, maxBytes, false, testOpsToken)
 
 	return &harness{
 		server:     srv,

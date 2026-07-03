@@ -42,6 +42,9 @@ type Server struct {
 	auditLog             ports.AuditLogReader
 	auditPubKey          ed25519.PublicKey // nil if no audit signing key is configured
 	coordinatorAllowlist ports.CoordinatorAllowlistRepository
+	// rehearsalOpsToken is the shared ops-plane bearer token for the /bridge/* endpoints
+	// (bridge contract D6). Empty → the bridge is disabled (requireOps fails closed).
+	rehearsalOpsToken string
 }
 
 // sseSubscriber is the subset of the SSE broker the server needs.
@@ -78,6 +81,7 @@ func NewServer(
 	genesisHostMode bool,
 	genesisMaxBytes int64,
 	disableRateLimit bool,
+	rehearsalOpsToken string,
 ) *Server {
 	var origins []string
 	if corsOriginsCSV != "" {
@@ -113,6 +117,7 @@ func NewServer(
 		auditLog:             auditLog,
 		auditPubKey:          auditPubKey,
 		coordinatorAllowlist: coordinatorAllowlist,
+		rehearsalOpsToken:    rehearsalOpsToken,
 	}
 	return s
 }

@@ -72,6 +72,13 @@ type Config struct {
 	// Can also be provided via a file path using jwt_private_key_file.
 	JWTPrivKeyB64  string `mapstructure:"jwt_private_key"`
 	JWTPrivKeyFile string `mapstructure:"jwt_private_key_file"`
+
+	// RehearsalOpsToken is the shared bearer token authenticating the ops plane on the
+	// rehearsal bridge endpoints (/bridge/*) — deployment-wide, not per-launch (bridge
+	// contract D6). Prefer the _file variant so the secret is never a plain env var.
+	// Empty disables the bridge (requireOps fails closed).
+	RehearsalOpsToken     string `mapstructure:"rehearsal_ops_token"`
+	RehearsalOpsTokenFile string `mapstructure:"rehearsal_ops_token_file"`
 }
 
 // Load reads configuration into a Config from the provided Viper instance.
@@ -119,6 +126,8 @@ func Load(v *viper.Viper, cfgFile string) (*Config, error) {
 	_ = v.BindEnv("genesis_max_bytes", "COORD_GENESIS_MAX_BYTES")
 	_ = v.BindEnv("jwt_private_key", "COORD_JWT_PRIVATE_KEY")
 	_ = v.BindEnv("jwt_private_key_file", "COORD_JWT_PRIVATE_KEY_FILE")
+	_ = v.BindEnv("rehearsal_ops_token", "COORD_REHEARSAL_OPS_TOKEN")
+	_ = v.BindEnv("rehearsal_ops_token_file", "COORD_REHEARSAL_OPS_TOKEN_FILE")
 
 	if err := v.ReadInConfig(); err != nil {
 		var notFound viper.ConfigFileNotFoundError
@@ -165,6 +174,13 @@ func (c *Config) loadKeyFiles() error {
 			return fmt.Errorf("config: reading jwt_private_key_file: %w", err)
 		}
 		c.JWTPrivKeyB64 = strings.TrimSpace(string(data))
+	}
+	if c.RehearsalOpsToken == "" && c.RehearsalOpsTokenFile != "" {
+		data, err := os.ReadFile(c.RehearsalOpsTokenFile)
+		if err != nil {
+			return fmt.Errorf("config: reading rehearsal_ops_token_file: %w", err)
+		}
+		c.RehearsalOpsToken = strings.TrimSpace(string(data))
 	}
 	return nil
 }
