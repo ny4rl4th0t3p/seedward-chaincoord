@@ -76,7 +76,7 @@ func genesisReadyLaunch() *launch.Launch {
 	l := testLaunch()
 	l.Status = launch.StatusGenesisReady
 	l.FinalGenesisSHA256 = "final-genesis-hash"
-	// BinarySHA256 is "abc123" from testLaunch's chain record
+	// BinarySHA256 is testLaunch's chain-record value (a valid 64-hex SHA-256).
 	return l
 }
 
@@ -125,7 +125,7 @@ func validLaunchBody() []byte {
 	return []byte(`{
 		"record":{
 			"chain_id":"newchain-1","chain_name":"New Chain","bech32_prefix":"cosmos",
-			"binary_name":"newchaind","binary_version":"v1.0.0","binary_sha256":"abc",
+			"binary_name":"newchaind","binary_version":"v1.0.0","binary_sha256":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 			"denom":"unew","min_self_delegation":"1000000",
 			"max_commission_rate":"0.20","max_commission_change_rate":"0.01",
 			"gentx_deadline":"2026-12-01T00:00:00Z",
@@ -1122,7 +1122,7 @@ func TestHandleReadinessConfirm_BadJSON(t *testing.T) {
 func TestHandleReadinessConfirm_Success(t *testing.T) {
 	h := newHarness(t)
 	// GENESIS_READY launch; hashes set.
-	l := genesisReadyLaunch() // FinalGenesisSHA256="final-genesis-hash", BinarySHA256="abc123"
+	l := genesisReadyLaunch() // FinalGenesisSHA256="final-genesis-hash", BinarySHA256=valid 64-hex
 	h.launches.data[l.ID] = l
 	// Approved join request for testAddr2.
 	jr := testApprovedJoinRequest(l.ID, testAddr2)
@@ -1131,7 +1131,7 @@ func TestHandleReadinessConfirm_Success(t *testing.T) {
 	body := []byte(`{
 		"operator_address":"` + testAddr2 + `",
 		"genesis_hash_confirmed":"final-genesis-hash",
-		"binary_hash_confirmed":"abc123",
+		"binary_hash_confirmed":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 		"nonce":"nonce-rc1","timestamp":"` + nowTS() + `","signature":"` + testSig + `"
 	}`)
 	w := h.doAuthJSON("POST", "/launch/"+l.ID.String()+"/ready", body, tok)

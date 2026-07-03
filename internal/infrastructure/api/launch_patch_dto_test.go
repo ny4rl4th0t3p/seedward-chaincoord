@@ -30,15 +30,18 @@ const validOperatorAddr = "cosmos1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5lzv7xu"
 // pointing you at exactly what to reconcile.
 func TestPatchLaunchRequestCoversCommand(t *testing.T) {
 	req := patchLaunchRequest{
-		ChainName:         ptrTo("newchain"),
-		BinaryVersion:     ptrTo("v2.0.0"),
-		BinarySHA256:      ptrTo("abc123"),
-		RepoURL:           ptrTo("https://example.com/repo"),
-		RepoCommit:        ptrTo("deadbeef"),
-		MonitorRPCURL:     ptrTo("https://rpc.example.com"),
-		GenesisTime:       ptrTo(time.Now().UTC()),
-		MinValidatorCount: ptrTo(4),
-		Allowlist:         []string{validOperatorAddr},
+		ChainName:              ptrTo("newchain"),
+		BinaryVersion:          ptrTo("v2.0.0"),
+		BinarySHA256:           ptrTo("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"),
+		RepoURL:                ptrTo("https://example.com/repo"),
+		RepoCommit:             ptrTo("deadbeef"),
+		MonitorRPCURL:          ptrTo("https://rpc.example.com"),
+		GenesisTime:            ptrTo(time.Now().UTC()),
+		MinValidatorCount:      ptrTo(4),
+		TotalSupply:            ptrTo("1000000"),
+		Allowlist:              []string{validOperatorAddr},
+		RehearsalServicePubKey: ptrTo("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="),
+		RehearsalEndpoint:      ptrTo("https://rehearsal.example.com"),
 	}
 
 	body, err := json.Marshal(req)

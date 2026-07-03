@@ -2,7 +2,9 @@ package services
 
 import (
 	"context"
+	"crypto/ed25519"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -390,6 +392,22 @@ func mapLaunchDomainErr(op string, err error) error {
 	}
 }
 
+// validateEd25519PubKeyB64 accepts an empty string (clearing the trusted key) or a base64
+// standard-encoded 32-byte Ed25519 public key. Used for the rehearsal bridge's trusted key (D2).
+func validateEd25519PubKeyB64(s string) error {
+	if s == "" {
+		return nil
+	}
+	raw, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		return fmt.Errorf("not valid base64: %w", err)
+	}
+	if len(raw) != ed25519.PublicKeySize {
+		return fmt.Errorf("must decode to %d bytes, got %d", ed25519.PublicKeySize, len(raw))
+	}
+	return nil
+}
+
 // sha256HexLen is the number of hex characters in a SHA-256 digest.
 const sha256HexLen = 64
 
@@ -501,8 +519,12 @@ type PatchLaunchInput struct {
 	RepoCommit        *string
 	GenesisTime       *time.Time
 	MinValidatorCount *int
+	TotalSupply       *string                  // draft-only chain-record field (bigint string)
 	Allowlist         []launch.OperatorAddress // nil = no change; empty slice = clear
 	MonitorRPCURL     *string                  // settable in any status
+	// RehearsalServicePubKey/RehearsalEndpoint are operational (bridge D2), settable in any status.
+	RehearsalServicePubKey *string
+	RehearsalEndpoint      *string
 }
 
 // PatchLaunch applies a partial update to mutable fields of a launch.
@@ -528,12 +550,34 @@ func (s *LaunchService) PatchLaunch(
 		l.MonitorRPCURL = *input.MonitorRPCURL
 	}
 
+	// Rehearsal bridge fields (D2) are operational, also status-independent. Empty clears.
+	// rehearsal_endpoint is advertised metadata coordd never dials (DEC-7), so it gets a
+	// format-only check — NOT the SSRF/DNS-resolving validator used for MonitorRPCURL (which
+	// coordd polls). The endpoint may be an internal host or not yet resolvable at patch time.
+	if input.RehearsalEndpoint != nil {
+		if *input.RehearsalEndpoint != "" && !launch.IsValidHTTPURL(*input.RehearsalEndpoint) {
+			return nil, fmt.Errorf("patch launch: rehearsal_endpoint must be a valid http(s) URL: %w", ports.ErrBadRequest)
+		}
+		l.RehearsalEndpoint = *input.RehearsalEndpoint
+	}
+	if input.RehearsalServicePubKey != nil {
+		if err := validateEd25519PubKeyB64(*input.RehearsalServicePubKey); err != nil {
+			return nil, fmt.Errorf("patch launch: rehearsal_service_pubkey: %w: %w", err, ports.ErrBadRequest)
+		}
+		l.RehearsalServicePubKey = *input.RehearsalServicePubKey
+	}
+
 	if hasDraftFields(input) {
 		if l.Status != launch.StatusDraft {
 			// Launch-STATE gate (not authz) → 409 Conflict. The committee check above is the 403.
 			return nil, fmt.Errorf("patch launch: only DRAFT launches may have chain fields updated: %w", ports.ErrConflict)
 		}
 		applyDraftFields(l, input)
+		// Re-validate the whole chain record: it is an invariant that passed validation at
+		// creation and must stay valid after the patch (covers every chain-record field guard).
+		if err := l.Record.Validate(); err != nil {
+			return nil, fmt.Errorf("patch launch: %w: %w", err, ports.ErrBadRequest)
+		}
 	}
 
 	if err := s.launches.Save(ctx, l); err != nil {
@@ -547,7 +591,7 @@ func hasDraftFields(input PatchLaunchInput) bool {
 	return input.ChainName != nil || input.BinaryVersion != nil ||
 		input.BinarySHA256 != nil || input.RepoURL != nil || input.RepoCommit != nil ||
 		input.GenesisTime != nil || input.MinValidatorCount != nil ||
-		input.Allowlist != nil
+		input.TotalSupply != nil || input.Allowlist != nil
 }
 
 // applyDraftFields writes all draft-only optional fields from input onto l.
@@ -573,6 +617,9 @@ func applyDraftFields(l *launch.Launch, input PatchLaunchInput) {
 	}
 	if input.MinValidatorCount != nil {
 		l.Record.MinValidatorCount = *input.MinValidatorCount
+	}
+	if input.TotalSupply != nil {
+		l.Record.TotalSupply = *input.TotalSupply
 	}
 	if input.Allowlist != nil {
 		l.Allowlist = launch.NewAllowlist(input.Allowlist)

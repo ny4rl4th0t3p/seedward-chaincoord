@@ -91,6 +91,7 @@ linters:
         - '3'
         - '5'       # bech32 ConvertBits to-bits
         - '8'       # bech32 ConvertBits from-bits
+        - '10'      # base for big.Int
         - '1023'    # bech32 max encoded length
         - '0o600'   # standard file permission: owner read/write
         - '0o700'   # standard file permission: owner rwx

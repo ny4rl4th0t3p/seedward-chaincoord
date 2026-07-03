@@ -526,7 +526,7 @@ func TestLaunchService_PatchLaunch_AllDraftFields(t *testing.T) {
 
 	name := "chain-x"
 	binVer := "v2.3.4"
-	binHash := "cafebabe"
+	binHash := "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 	repoURL := "https://github.com/example/chain"
 	repoCommit := "abc123def"
 	gt := time.Now().Add(72 * time.Hour).UTC()
@@ -566,6 +566,53 @@ func TestLaunchService_UploadFinalGenesis_GentxNoMessages(t *testing.T) {
 	noMsgs := []byte(`{"chain_id":"` + l.Record.ChainID + `","genesis_time":"2030-01-01T00:00:00Z","app_state":{"genutil":{"gen_txs":[{"body":{"messages":[]}}]}}}`)
 	_, err := svc.UploadFinalGenesis(context.Background(), l.ID, noMsgs, testAddr1)
 	require.ErrorIs(t, err, ports.ErrBadRequest, "a gentx with no messages is a 400")
+}
+
+// --- PatchLaunch bridge fields (B0) ---
+
+func TestLaunchService_PatchLaunch_RehearsalFields(t *testing.T) {
+	l := testLaunch()
+	l.Status = launch.StatusWindowOpen // operational fields settable at any status
+	repo := newFakeLaunchRepo(l)
+	svc := newLaunchSvc(repo, newFakeGenesisStore())
+
+	pk := osmosisPubKey // a valid 32-byte ed25519 key, base64
+	ep := "https://rehearsal.example.com"
+	updated, err := svc.PatchLaunch(context.Background(), l.ID, PatchLaunchInput{
+		RehearsalServicePubKey: &pk,
+		RehearsalEndpoint:      &ep,
+	}, testAddr1)
+	require.NoError(t, err)
+	assert.Equal(t, osmosisPubKey, updated.RehearsalServicePubKey)
+	assert.Equal(t, ep, updated.RehearsalEndpoint)
+}
+
+func TestLaunchService_PatchLaunch_BadRehearsalPubKey(t *testing.T) {
+	l := testLaunch()
+	svc := newLaunchSvc(newFakeLaunchRepo(l), newFakeGenesisStore())
+	bad := "not-valid-base64!!!"
+	_, err := svc.PatchLaunch(context.Background(), l.ID,
+		PatchLaunchInput{RehearsalServicePubKey: &bad}, testAddr1)
+	require.ErrorIs(t, err, ports.ErrBadRequest, "a malformed trusted pubkey is a 400")
+}
+
+func TestLaunchService_PatchLaunch_BadTotalSupply(t *testing.T) {
+	l := testLaunch() // DRAFT — total_supply is a draft-only field
+	svc := newLaunchSvc(newFakeLaunchRepo(l), newFakeGenesisStore())
+	bad := "-5"
+	_, err := svc.PatchLaunch(context.Background(), l.ID,
+		PatchLaunchInput{TotalSupply: &bad}, testAddr1)
+	require.ErrorIs(t, err, ports.ErrBadRequest, "a negative total_supply is a 400")
+}
+
+func TestLaunchService_PatchLaunch_RevalidatesRecord(t *testing.T) {
+	// Patching any chain field to an invalid value re-validates the whole record → 400.
+	l := testLaunch() // DRAFT
+	svc := newLaunchSvc(newFakeLaunchRepo(l), newFakeGenesisStore())
+	badHash := "not-a-64-char-hex"
+	_, err := svc.PatchLaunch(context.Background(), l.ID,
+		PatchLaunchInput{BinarySHA256: &badHash}, testAddr1)
+	require.ErrorIs(t, err, ports.ErrBadRequest, "patching binary_sha256 to garbage must 400")
 }
 
 // --- SetCommittee ---

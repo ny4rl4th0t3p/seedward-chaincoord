@@ -28,6 +28,7 @@ type chainRecordJSON struct {
 	GenesisTime             *time.Time `json:"genesis_time,omitempty"`
 	Denom                   string     `json:"denom"`
 	MinSelfDelegation       string     `json:"min_self_delegation"`
+	TotalSupply             string     `json:"total_supply,omitempty"`
 	MaxCommissionRate       string     `json:"max_commission_rate"`
 	MaxCommissionChangeRate string     `json:"max_commission_change_rate"`
 	GentxDeadline           time.Time  `json:"gentx_deadline"`
@@ -44,8 +45,11 @@ type launchJSON struct {
 	InitialGenesisSHA256 string          `json:"initial_genesis_sha256,omitempty"`
 	FinalGenesisSHA256   string          `json:"final_genesis_sha256,omitempty"`
 	MonitorRPCURL        string          `json:"monitor_rpc_url,omitempty"`
-	CreatedAt            time.Time       `json:"created_at"`
-	UpdatedAt            time.Time       `json:"updated_at"`
+	// RehearsalServicePubKey/RehearsalEndpoint are the bridge fields (not secret).
+	RehearsalServicePubKey string    `json:"rehearsal_service_pubkey,omitempty"`
+	RehearsalEndpoint      string    `json:"rehearsal_endpoint,omitempty"`
+	CreatedAt              time.Time `json:"created_at"`
+	UpdatedAt              time.Time `json:"updated_at"`
 }
 
 func launchToJSON(l *launch.Launch) launchJSON {
@@ -64,19 +68,22 @@ func launchToJSON(l *launch.Launch) launchJSON {
 			GenesisTime:             r.GenesisTime,
 			Denom:                   r.Denom,
 			MinSelfDelegation:       r.MinSelfDelegation,
+			TotalSupply:             r.TotalSupply,
 			MaxCommissionRate:       r.MaxCommissionRate.String(),
 			MaxCommissionChangeRate: r.MaxCommissionChangeRate.String(),
 			GentxDeadline:           r.GentxDeadline,
 			ApplicationWindowOpen:   r.ApplicationWindowOpen,
 			MinValidatorCount:       r.MinValidatorCount,
 		},
-		LaunchType:           string(l.LaunchType),
-		Status:               string(l.Status),
-		InitialGenesisSHA256: l.InitialGenesisSHA256,
-		FinalGenesisSHA256:   l.FinalGenesisSHA256,
-		MonitorRPCURL:        l.MonitorRPCURL,
-		CreatedAt:            l.CreatedAt,
-		UpdatedAt:            l.UpdatedAt,
+		LaunchType:             string(l.LaunchType),
+		Status:                 string(l.Status),
+		InitialGenesisSHA256:   l.InitialGenesisSHA256,
+		FinalGenesisSHA256:     l.FinalGenesisSHA256,
+		MonitorRPCURL:          l.MonitorRPCURL,
+		RehearsalServicePubKey: l.RehearsalServicePubKey,
+		RehearsalEndpoint:      l.RehearsalEndpoint,
+		CreatedAt:              l.CreatedAt,
+		UpdatedAt:              l.UpdatedAt,
 	}
 }
 
@@ -238,7 +245,11 @@ type patchLaunchRequest struct {
 	MonitorRPCURL     *string    `json:"monitor_rpc_url,omitempty"`
 	GenesisTime       *time.Time `json:"genesis_time,omitempty"`
 	MinValidatorCount *int       `json:"min_validator_count,omitempty"`
+	TotalSupply       *string    `json:"total_supply,omitempty"`
 	Allowlist         []string   `json:"allowlist,omitempty"`
+	// Bridge D2 fields — operational, settable at any status.
+	RehearsalServicePubKey *string `json:"rehearsal_service_pubkey,omitempty"`
+	RehearsalEndpoint      *string `json:"rehearsal_endpoint,omitempty"`
 }
 
 // PATCH /launch/{id}
@@ -324,6 +335,15 @@ func parsePatchInput(raw map[string]json.RawMessage) (services.PatchLaunchInput,
 		return input, err
 	}
 	if input.MonitorRPCURL, err = parseStringField(raw, "monitor_rpc_url"); err != nil {
+		return input, err
+	}
+	if input.TotalSupply, err = parseStringField(raw, "total_supply"); err != nil {
+		return input, err
+	}
+	if input.RehearsalServicePubKey, err = parseStringField(raw, "rehearsal_service_pubkey"); err != nil {
+		return input, err
+	}
+	if input.RehearsalEndpoint, err = parseStringField(raw, "rehearsal_endpoint"); err != nil {
 		return input, err
 	}
 
@@ -480,6 +500,7 @@ func parseChainRecord(r chainRecordJSON) (launch.ChainRecord, error) {
 		GenesisTime:             r.GenesisTime,
 		Denom:                   r.Denom,
 		MinSelfDelegation:       r.MinSelfDelegation,
+		TotalSupply:             r.TotalSupply,
 		MaxCommissionRate:       maxComm,
 		MaxCommissionChangeRate: maxCommChange,
 		GentxDeadline:           r.GentxDeadline,

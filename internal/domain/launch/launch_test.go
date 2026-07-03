@@ -194,6 +194,64 @@ func TestNewLaunch_ZeroGentxDeadline(t *testing.T) {
 	require.Error(t, err, "expected error for zero gentx_deadline")
 }
 
+func TestNewLaunch_BadBinarySHA256(t *testing.T) {
+	r := testRecord()
+	r.BinarySHA256 = "not-a-64-char-hex"
+	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
+	require.Error(t, err, "expected error for malformed binary_sha256")
+}
+
+func TestNewLaunch_ValidBinarySHA256(t *testing.T) {
+	r := testRecord()
+	r.BinarySHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
+	require.NoError(t, err, "a valid 64-hex binary_sha256 must be accepted")
+}
+
+func TestNewLaunch_BadMinSelfDelegation(t *testing.T) {
+	r := testRecord()
+	r.MinSelfDelegation = "-1"
+	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
+	require.Error(t, err, "expected error for negative min_self_delegation")
+}
+
+func TestNewLaunch_BadTotalSupply(t *testing.T) {
+	r := testRecord()
+	r.TotalSupply = "not-a-number"
+	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
+	require.Error(t, err, "expected error for non-numeric total_supply")
+}
+
+func TestNewLaunch_BadRepoURL(t *testing.T) {
+	r := testRecord()
+	r.RepoURL = "not a url"
+	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
+	require.Error(t, err, "expected error for a malformed repo_url")
+}
+
+func TestChainRecord_Validate_ExportedMatchesNew(t *testing.T) {
+	r := testRecord()
+	require.NoError(t, r.Validate(), "a valid record validates")
+	r.RepoURL = "://bad"
+	require.Error(t, r.Validate(), "an invalid record fails Validate")
+}
+
+func TestNewLaunch_WindowAfterDeadline(t *testing.T) {
+	r := testRecord()
+	r.GentxDeadline = time.Now().Add(24 * time.Hour)
+	r.ApplicationWindowOpen = time.Now().Add(48 * time.Hour) // opens after the deadline
+	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
+	require.Error(t, err, "expected error when the window opens after the gentx deadline")
+}
+
+func TestNewLaunch_ChangeRateExceedsMaxRate(t *testing.T) {
+	r := testRecord()
+	r.MaxCommissionRate, _ = launch.NewCommissionRate("0.10")
+	r.MaxCommissionChangeRate, _ = launch.NewCommissionRate("0.20") // change > max
+	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
+	require.Error(t, err, "expected error when max_commission_change_rate exceeds max_commission_rate")
+}
+
 // ---- Publish error paths ----------------------------------------------------
 
 func TestPublish_NotFromDraft(t *testing.T) {

@@ -38,6 +38,7 @@ func (r *LaunchRepository) Save(ctx context.Context, l *launch.Launch) error {
 			launch_type=?, status=?,
 			initial_genesis_sha256=?, final_genesis_sha256=?,
 			monitor_rpc_url=?,
+			total_supply=?, rehearsal_service_pubkey=?, rehearsal_endpoint=?,
 			updated_at=?, version=version+1
 		WHERE id=? AND version=?`,
 		l.Record.ChainID, l.Record.ChainName, l.Record.Bech32Prefix, l.Record.BinaryName,
@@ -51,6 +52,7 @@ func (r *LaunchRepository) Save(ctx context.Context, l *launch.Launch) error {
 		string(l.LaunchType), string(l.Status),
 		l.InitialGenesisSHA256, l.FinalGenesisSHA256,
 		l.MonitorRPCURL,
+		l.Record.TotalSupply, l.RehearsalServicePubKey, l.RehearsalEndpoint,
 		timeToStr(l.UpdatedAt),
 		uuidToStr(l.ID), l.Version,
 	)
@@ -92,8 +94,9 @@ func (r *LaunchRepository) insert(ctx context.Context, l *launch.Launch) error {
 			launch_type, status,
 			initial_genesis_sha256, final_genesis_sha256,
 			monitor_rpc_url,
+			total_supply, rehearsal_service_pubkey, rehearsal_endpoint,
 			created_at, updated_at, version
-		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)`,
+		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)`,
 		uuidToStr(l.ID),
 		l.Record.ChainID, l.Record.ChainName, l.Record.Bech32Prefix, l.Record.BinaryName,
 		l.Record.BinaryVersion, l.Record.BinarySHA256,
@@ -106,6 +109,7 @@ func (r *LaunchRepository) insert(ctx context.Context, l *launch.Launch) error {
 		string(l.LaunchType), string(l.Status),
 		l.InitialGenesisSHA256, l.FinalGenesisSHA256,
 		l.MonitorRPCURL,
+		l.Record.TotalSupply, l.RehearsalServicePubKey, l.RehearsalEndpoint,
 		timeToStr(l.CreatedAt), timeToStr(l.UpdatedAt),
 	)
 	return err
@@ -505,7 +509,8 @@ func scanLaunchCols(scan func(dest ...any) error) (*launch.Launch, error) {
 		monitorRPCURL                                                      string
 		createdAt, updatedAt                                               string
 		version                                                            int
-		bech32Prefix                                                       string // added by migration 0002; scanned last
+		bech32Prefix                                                       string // added by migration 0002
+		totalSupply, rehearsalServicePubKey, rehearsalEndpoint             string // added by migration 0011
 	)
 	err := scan(
 		&idStr, &chainID, &chainName, &binaryName, &binaryVersion, &binarySHA256,
@@ -517,6 +522,7 @@ func scanLaunchCols(scan func(dest ...any) error) (*launch.Launch, error) {
 		&monitorRPCURL,
 		&createdAt, &updatedAt, &version,
 		&bech32Prefix,
+		&totalSupply, &rehearsalServicePubKey, &rehearsalEndpoint,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ports.ErrNotFound
@@ -572,20 +578,23 @@ func scanLaunchCols(scan func(dest ...any) error) (*launch.Launch, error) {
 			GenesisTime:             gt,
 			Denom:                   denom,
 			MinSelfDelegation:       minSelfDelegation,
+			TotalSupply:             totalSupply,
 			MaxCommissionRate:       maxComm,
 			MaxCommissionChangeRate: maxCommChange,
 			GentxDeadline:           gentxDL,
 			ApplicationWindowOpen:   appWO,
 			MinValidatorCount:       minValCount,
 		},
-		LaunchType:           launch.LaunchType(launchType),
-		Status:               launch.Status(status),
-		InitialGenesisSHA256: initialGenesisSHA256,
-		FinalGenesisSHA256:   finalGenesisSHA256,
-		MonitorRPCURL:        monitorRPCURL,
-		CreatedAt:            ca,
-		UpdatedAt:            ua,
-		Version:              version,
+		LaunchType:             launch.LaunchType(launchType),
+		Status:                 launch.Status(status),
+		InitialGenesisSHA256:   initialGenesisSHA256,
+		FinalGenesisSHA256:     finalGenesisSHA256,
+		MonitorRPCURL:          monitorRPCURL,
+		RehearsalServicePubKey: rehearsalServicePubKey,
+		RehearsalEndpoint:      rehearsalEndpoint,
+		CreatedAt:              ca,
+		UpdatedAt:              ua,
+		Version:                version,
 	}
 	return l, nil
 }

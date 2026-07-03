@@ -94,6 +94,8 @@ definitions:
         type: string
       repo_url:
         type: string
+      total_supply:
+        type: string
     type: object
   api.challengeRequest:
     properties:
@@ -306,6 +308,12 @@ definitions:
         type: string
       record:
         $ref: '#/definitions/api.chainRecordJSON'
+      rehearsal_endpoint:
+        type: string
+      rehearsal_service_pubkey:
+        description: RehearsalServicePubKey/RehearsalEndpoint are the bridge fields
+          (not secret).
+        type: string
       status:
         type: string
       updated_at:
@@ -392,9 +400,16 @@ definitions:
         type: integer
       monitor_rpc_url:
         type: string
+      rehearsal_endpoint:
+        type: string
+      rehearsal_service_pubkey:
+        description: Bridge D2 fields — operational, settable at any status.
+        type: string
       repo_commit:
         type: string
       repo_url:
+        type: string
+      total_supply:
         type: string
     type: object
   api.peerJSON:

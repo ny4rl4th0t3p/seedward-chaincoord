@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"net/url"
 	"time"
 
 	"github.com/google/uuid"
@@ -94,17 +95,21 @@ func (c Committee) HasMember(addr OperatorAddress) bool {
 
 // ChainRecord holds the immutable and mutable parameters declared by the coordinator.
 type ChainRecord struct {
-	ChainID                 string
-	ChainName               string
-	Bech32Prefix            string
-	BinaryName              string
-	BinaryVersion           string
-	BinarySHA256            string
-	RepoURL                 string
-	RepoCommit              string
-	GenesisTime             *time.Time // nullable until set
-	Denom                   string
-	MinSelfDelegation       string // bigint string in base denom
+	ChainID           string
+	ChainName         string
+	Bech32Prefix      string
+	BinaryName        string
+	BinaryVersion     string
+	BinarySHA256      string
+	RepoURL           string
+	RepoCommit        string
+	GenesisTime       *time.Time // nullable until set
+	Denom             string
+	MinSelfDelegation string // bigint string in base denom
+	// TotalSupply is the genesis supply anchor in base denom (bigint string). Optional at
+	// creation; required by the rehearsal bridge's genesis.Build. Empty when
+	// the launch does not use the bridge.
+	TotalSupply             string
 	MaxCommissionRate       CommissionRate
 	MaxCommissionChangeRate CommissionRate
 	GentxDeadline           time.Time
@@ -132,6 +137,13 @@ type Launch struct {
 	// MonitorRPCURL is the CometBFT RPC endpoint polled by the block monitoring job.
 	// Set by the coordinator via PATCH /launch/:id; empty disables monitoring.
 	MonitorRPCURL string
+
+	// RehearsalServicePubKey is the base64 Ed25519 public key coordd trusts for this launch's
+	// rehearsal result facts (bridge contract D2). RehearsalEndpoint is the advertised URL of
+	// the rehearsal service for this launch. Both are operational config, set by the coordinator
+	// via PATCH /launch/:id at any status (like MonitorRPCURL); empty when the bridge is unused.
+	RehearsalServicePubKey string
+	RehearsalEndpoint      string
 
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -604,5 +616,56 @@ func validateChainRecord(r ChainRecord) error {
 	if r.GentxDeadline.IsZero() {
 		return fmt.Errorf("gentx_deadline is required")
 	}
+	if !r.ApplicationWindowOpen.IsZero() && r.ApplicationWindowOpen.After(r.GentxDeadline) {
+		return fmt.Errorf("application_window_open must not be after gentx_deadline")
+	}
+	if !r.MaxCommissionChangeRate.LessThanOrEqual(r.MaxCommissionRate) {
+		return fmt.Errorf("max_commission_change_rate must not exceed max_commission_rate")
+	}
+	if r.RepoURL != "" && !IsValidHTTPURL(r.RepoURL) {
+		return fmt.Errorf("repo_url must be a valid http(s) URL")
+	}
+	if r.BinarySHA256 != "" && !isSHA256HexLower(r.BinarySHA256) {
+		return fmt.Errorf("binary_sha256 must be a 64-character lowercase hex SHA-256 digest")
+	}
+	if r.MinSelfDelegation != "" {
+		if n, ok := new(big.Int).SetString(r.MinSelfDelegation, 10); !ok || n.Sign() < 0 {
+			return fmt.Errorf("min_self_delegation must be a non-negative integer in base denom")
+		}
+	}
+	if r.TotalSupply != "" {
+		if n, ok := new(big.Int).SetString(r.TotalSupply, 10); !ok || n.Sign() < 0 {
+			return fmt.Errorf("total_supply must be a non-negative integer in base denom")
+		}
+	}
 	return nil
+}
+
+// Validate reports whether the chain record satisfies all field invariants. New runs it at
+// creation; the application layer re-runs it after patching draft fields so a launch's record
+// stays a valid invariant.
+func (r ChainRecord) Validate() error { return validateChainRecord(r) }
+
+// IsValidHTTPURL reports whether s parses as an absolute http(s) URL with a host. It is a
+// format-only check (no DNS/SSRF resolution) — used for advertised URLs coordd never dials
+// (repo_url, the rehearsal endpoint), unlike the SSRF-checking validator for URLs coordd polls.
+func IsValidHTTPURL(s string) bool {
+	u, err := url.Parse(s)
+	if err != nil {
+		return false
+	}
+	return (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
+}
+
+// isSHA256HexLower reports whether s is a 64-character lowercase hexadecimal string.
+func isSHA256HexLower(s string) bool {
+	if len(s) != sha256HexLen {
+		return false
+	}
+	for _, c := range s {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
 }

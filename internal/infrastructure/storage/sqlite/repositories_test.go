@@ -135,6 +135,23 @@ func TestLaunchRepository_Save(t *testing.T) {
 				assert.True(t, members[0].AddedAt.Equal(added), "added_at round-trips")
 			},
 		},
+		{
+			name: "round-trips bridge fields — total_supply + rehearsal pubkey/endpoint",
+			run: func(t *testing.T, repo *LaunchRepository) {
+				ctx := context.Background()
+				l := testLaunch(t)
+				l.Record.TotalSupply = "1000000000"
+				l.RehearsalServicePubKey = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+				l.RehearsalEndpoint = "https://rehearsal.example.com"
+				require.NoError(t, repo.Save(ctx, l))
+
+				got, err := repo.FindByID(ctx, l.ID)
+				require.NoError(t, err)
+				assert.Equal(t, "1000000000", got.Record.TotalSupply)
+				assert.Equal(t, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=", got.RehearsalServicePubKey)
+				assert.Equal(t, "https://rehearsal.example.com", got.RehearsalEndpoint)
+			},
+		},
 	}
 
 	for _, tc := range tests {

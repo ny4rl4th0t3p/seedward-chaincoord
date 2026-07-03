@@ -29,7 +29,7 @@ func genesisReadyLaunch() *launch.Launch {
 	l := testLaunch()
 	l.Status = launch.StatusGenesisReady
 	l.FinalGenesisSHA256 = "finalhash"
-	l.Record.BinarySHA256 = "abc123"
+	l.Record.BinarySHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 	return l
 }
 

@@ -414,7 +414,7 @@ func TestE2E_HappyPath(t *testing.T) {
 			"bech32_prefix":              "cosmos",
 			"binary_name":                "testchaind",
 			"binary_version":             "v1.0.0",
-			"binary_sha256":              "abc123",
+			"binary_sha256":              "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 			"denom":                      "utest",
 			"min_self_delegation":        "1000000",
 			"max_commission_rate":        maxCommRate,
@@ -663,10 +663,10 @@ func TestE2E_HappyPath(t *testing.T) {
 	}
 
 	// 13. All validators confirm readiness.
-	confirmReadiness(t, val1Client, launchID, val1, finalGenesisHash, "abc123")
-	confirmReadiness(t, val2Client, launchID, val2, finalGenesisHash, "abc123")
-	confirmReadiness(t, val3Client, launchID, val3, finalGenesisHash, "abc123")
-	confirmReadiness(t, val4Client, launchID, val4, finalGenesisHash, "abc123")
+	confirmReadiness(t, val1Client, launchID, val1, finalGenesisHash, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+	confirmReadiness(t, val2Client, launchID, val2, finalGenesisHash, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+	confirmReadiness(t, val3Client, launchID, val3, finalGenesisHash, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+	confirmReadiness(t, val4Client, launchID, val4, finalGenesisHash, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
 
 	// 15. Start mock CometBFT RPC that responds to GET /block?height=1.
 	mockRPC := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -796,7 +796,7 @@ func createLaunch(t *testing.T, c *testClient, lead actor, members []map[string]
 			"bech32_prefix":              "cosmos",
 			"binary_name":                "testchaind",
 			"binary_version":             "v1.0.0",
-			"binary_sha256":              "abc123",
+			"binary_sha256":              "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 			"denom":                      "utest",
 			"min_self_delegation":        "1000000",
 			"max_commission_rate":        "0.20",
@@ -1197,7 +1197,7 @@ func TestE2E_PrivateLaunch(t *testing.T) {
 			"bech32_prefix":              "cosmos",
 			"binary_name":                "privatechaind",
 			"binary_version":             "v1.0.0",
-			"binary_sha256":              "abc123",
+			"binary_sha256":              "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 			"denom":                      "upriv",
 			"min_self_delegation":        "1000000",
 			"max_commission_rate":        "0.20",
@@ -1286,7 +1286,7 @@ func TestE2E_MembersManagement(t *testing.T) {
 			"bech32_prefix":              "cosmos",
 			"binary_name":                "memberschaind",
 			"binary_version":             "v1.0.0",
-			"binary_sha256":              "abc123",
+			"binary_sha256":              "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 			"denom":                      "umem",
 			"min_self_delegation":        "1000000",
 			"max_commission_rate":        "0.20",
