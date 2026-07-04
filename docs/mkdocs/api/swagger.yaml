@@ -460,6 +460,91 @@ definitions:
       launch_id:
         type: string
     type: object
+  api.rehearsalAllocJSON:
+    properties:
+      approved_by_proposal:
+        type: string
+      sha256:
+        type: string
+      url:
+        description: |-
+          URL is where the daemon streams the file — coordd's ops-gated per-file stream endpoint
+          (host bytes) or, for attestor-mode files, a 302 to the external URL. Relative to coordd's
+          base URL. The bytes are NOT inlined, so airdrop-scale files never buffer in memory.
+        type: string
+    type: object
+  api.rehearsalBinaryJSON:
+    properties:
+      name:
+        type: string
+      repo_commit:
+        type: string
+      repo_url:
+        type: string
+      sha256:
+        type: string
+      version:
+        type: string
+    type: object
+  api.rehearsalChainJSON:
+    properties:
+      bech32_prefix:
+        type: string
+      binary:
+        $ref: '#/definitions/api.rehearsalBinaryJSON'
+      chain_id:
+        type: string
+      denom:
+        type: string
+      genesis_time:
+        type: string
+      max_commission_change_rate:
+        type: string
+      max_commission_rate:
+        type: string
+      min_self_delegation:
+        type: string
+      min_validator_count:
+        type: integer
+      total_supply:
+        type: string
+    type: object
+  api.rehearsalGentxJSON:
+    properties:
+      consensus_pubkey:
+        type: string
+      gentx:
+        type: object
+      moniker:
+        type: string
+      operator_address:
+        type: string
+      self_delegation:
+        type: string
+    type: object
+  api.rehearsalInputJSON:
+    properties:
+      allocations:
+        additionalProperties:
+          $ref: '#/definitions/api.rehearsalAllocJSON'
+        type: object
+      chain:
+        $ref: '#/definitions/api.rehearsalChainJSON'
+      generated_at:
+        type: string
+      gentxs:
+        items:
+          $ref: '#/definitions/api.rehearsalGentxJSON'
+        type: array
+      input_set_hash:
+        type: string
+      launch_id:
+        type: string
+      schema_version:
+        type: integer
+      status:
+        type: string
+    type: object
   api.sessionInfoJSON:
     properties:
       expires_at:
@@ -944,6 +1029,86 @@ paths:
       summary: Verify a signed challenge
       tags:
       - auth
+  /bridge/launches/{id}/allocations/{type}:
+    get:
+      description: |-
+        Streams a launch's allocation file (host mode → raw bytes; attestor mode → 302 to the
+        external URL). Ops-credential only. Streamed, not buffered — safe for airdrop-scale files.
+      parameters:
+      - description: Launch UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Allocation type (accounts/claims/grants/authz/feegrant)
+        in: path
+        name: type
+        required: true
+        type: string
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: Raw file bytes (host mode)
+          schema:
+            type: string
+        "302":
+          description: Redirect to external URL (attestor mode)
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+      summary: Rehearsal allocation file (bridge)
+      tags:
+      - bridge
+  /bridge/launches/{id}/rehearsal-input:
+    get:
+      description: |-
+        Returns the launch's approved rehearsal build input (chain + approved gentxs + approved
+        host-mode allocation files) plus input_set_hash. Ops-credential only. 422 if an approved
+        allocation is attestor-mode (run the rehearsal standalone instead).
+      parameters:
+      - description: Launch UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.rehearsalInputJSON'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+      summary: Rehearsal input (bridge)
+      tags:
+      - bridge
   /committee/{launch_id}:
     get:
       parameters:

@@ -250,7 +250,15 @@ func (s *Server) Handler() http.Handler {
 		r.Post("/launch/{id}/ready", s.jsonPOST(s.handleReadinessConfirm))
 	})
 
-	// Read endpoints — no rate limiting.
+	s.registerBridgeRoutes(r)
+	s.registerLaunchReadRoutes(r)
+
+	return r
+}
+
+// registerLaunchReadRoutes mounts the non-rate-limited launch read endpoints (committee/coordinator
+// or optional-auth GETs). Grouped out of Handler to keep it under the statement limit.
+func (s *Server) registerLaunchReadRoutes(r chi.Router) {
 	r.Get("/launch/{id}/join", s.requireAuth(s.handleJoinList))
 	r.Get("/launch/{id}/join/grouped", s.requireAuth(s.handleJoinGrouped))
 	r.Get("/launch/{id}/join/{req_id}", s.requireAuth(s.handleJoinGet))
@@ -261,8 +269,17 @@ func (s *Server) Handler() http.Handler {
 	r.Get("/launch/{id}/peers", s.optionalAuth(s.handlePeers))
 	r.Get("/launch/{id}/audit", s.optionalAuth(s.handleAudit))
 	r.Get("/launch/{id}/events", s.optionalAuth(s.handleEvents))
+}
 
-	return r
+// registerBridgeRoutes mounts the rehearsal-bridge (ops-plane) endpoints under /bridge, so a
+// devop can restrict the whole prefix to an internal VNet (cut internet access).
+// requireOps gates every endpoint on the shared rehearsal ops token; the bridge is disabled
+// (fail-closed) when the token is unconfigured. coordd never dials the rehearsal service.
+func (s *Server) registerBridgeRoutes(r chi.Router) {
+	r.Route("/bridge", func(r chi.Router) {
+		r.Get("/launches/{id}/rehearsal-input", s.requireOps(s.handleRehearsalInput))
+		r.Get("/launches/{id}/allocations/{type}", s.requireOps(s.handleBridgeAllocationGet))
+	})
 }
 
 // handleHealthz responds 200 OK with a minimal JSON body.

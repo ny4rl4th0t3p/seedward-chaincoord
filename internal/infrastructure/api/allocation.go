@@ -216,7 +216,14 @@ func (s *Server) handleAllocationGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ref, err := s.allocationStore.GetRef(r.Context(), id.String(), allocType)
+	s.serveAllocationRef(w, r, id.String(), allocType)
+}
+
+// serveAllocationRef streams a host-mode allocation file (io.Copy, constant memory) or
+// 302-redirects to its attestor URL. Callers MUST apply their own auth/visibility gate first
+// (governance visibility for handleAllocationGet; ops-cred for the bridge stream endpoint).
+func (s *Server) serveAllocationRef(w http.ResponseWriter, r *http.Request, launchID, allocType string) {
+	ref, err := s.allocationStore.GetRef(r.Context(), launchID, allocType)
 	if err != nil {
 		writeServiceError(w, r, err)
 		return
