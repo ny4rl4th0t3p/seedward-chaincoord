@@ -574,6 +574,52 @@ definitions:
       stale:
         type: boolean
     type: object
+  api.rehearsalResultJSON:
+    properties:
+      attempt_id:
+        type: string
+      binary_name:
+        type: string
+      binary_sha256:
+        type: string
+      binary_version:
+        type: string
+      blocks_advanced:
+        type: integer
+      engine_version:
+        type: string
+      failed_step:
+        type: string
+      finished_at:
+        type: string
+      input_set_hash:
+        type: string
+      outcome:
+        type: string
+      recorded_at:
+        type: string
+      stale:
+        type: boolean
+      started_at:
+        type: string
+      steps:
+        items:
+          $ref: '#/definitions/api.rehearsalResultStepJSON'
+        type: array
+      summary:
+        type: string
+      validators:
+        type: integer
+    type: object
+  api.rehearsalResultStepJSON:
+    properties:
+      detail:
+        type: string
+      name:
+        type: string
+      status:
+        type: string
+    type: object
   api.sessionInfoJSON:
     properties:
       expires_at:
@@ -2032,7 +2078,7 @@ paths:
     get:
       description: |-
         Returns join requests grouped by the submitting hot actor, each group carrying the member label
-        and per-actor aggregates (count, total self-delegation). Committee members only.
+        and per-actor aggregates (count, total self-delegation). Coordinator-only.
       parameters:
       - description: Launch UUID
         in: path
@@ -2483,6 +2529,46 @@ paths:
       summary: Confirm readiness
       tags:
       - readiness
+  /launch/{id}/rehearsal:
+    get:
+      description: |-
+        Returns the launch's recorded rehearsal results — outcome, which step failed, the
+        input-set hash the run consumed, and a `stale` flag (the approved inputs changed
+        since the run) — newest first. Committee members only.
+      parameters:
+      - description: Launch UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/api.rehearsalResultJSON'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+      summary: Rehearsal results (committee read-back)
+      tags:
+      - rehearsal
   /launch/{id}/rehearsal/{attempt_id}/reset:
     post:
       description: |-

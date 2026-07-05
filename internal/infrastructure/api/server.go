@@ -270,6 +270,7 @@ func (s *Server) registerLaunchReadRoutes(r chi.Router) {
 	r.Get("/launch/{id}/peers", s.optionalAuth(s.handlePeers))
 	r.Get("/launch/{id}/audit", s.optionalAuth(s.handleAudit))
 	r.Get("/launch/{id}/events", s.optionalAuth(s.handleEvents))
+	r.Get("/launch/{id}/rehearsal", s.requireAuth(s.handleRehearsalResultsList))
 }
 
 // registerBridgeRoutes mounts the rehearsal-bridge (ops-plane) endpoints under /bridge, so a

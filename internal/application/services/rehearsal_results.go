@@ -235,6 +235,21 @@ func factToResult(
 	}
 }
 
+// ListRehearsalResults returns a launch's recorded rehearsal results, newest first — the committee
+// read-back (governance plane). Committee members only: 404 if the launch does not exist, 403 if the
+// caller is authenticated but not a committee member.
+func (s *LaunchService) ListRehearsalResults(
+	ctx context.Context,
+	launchID uuid.UUID,
+	callerAddr string,
+) ([]*launch.RehearsalResult, error) {
+	const op = "list rehearsal results"
+	if _, err := s.requireCommittee(ctx, launchID, callerAddr, op); err != nil {
+		return nil, err
+	}
+	return s.results.FindByLaunch(ctx, launchID)
+}
+
 // ResetRehearsalAttempt force-releases a stuck run lease back to OPEN — a coordinator override for
 // when a runner crashed mid-run (before the lease TTL expires). Committee-gated (governance plane).
 func (s *LaunchService) ResetRehearsalAttempt(ctx context.Context, launchID, attemptID uuid.UUID, callerAddr string) error {

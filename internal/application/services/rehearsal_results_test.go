@@ -174,6 +174,33 @@ func TestRecordRehearsalResult_NoTrustedKey(t *testing.T) {
 	require.ErrorIs(t, err, ports.ErrConflict)
 }
 
+func TestListRehearsalResults_CommitteeOnly(t *testing.T) {
+	l := testLaunch()
+	l.Committee = testCommittee(1, 1) // sole member: testAddr1
+	svc, _, priv := resultSvc(t, l)
+
+	// Record one result through the flow.
+	in, err := svc.ClaimRehearsalRun(context.Background(), l.ID, "runner-1")
+	require.NoError(t, err)
+	fact := signedFact(t, l.ID.String(), in.InputSetHash, in.AttemptID.String(), launch.OutcomePass, priv)
+	_, err = svc.RecordRehearsalResult(context.Background(), l.ID, fact)
+	require.NoError(t, err)
+
+	// Committee member sees it.
+	got, err := svc.ListRehearsalResults(context.Background(), l.ID, testAddr1)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, launch.OutcomePass, got[0].Outcome)
+
+	// Non-member is forbidden.
+	_, err = svc.ListRehearsalResults(context.Background(), l.ID, testAddr2)
+	require.ErrorIs(t, err, ports.ErrForbidden)
+
+	// Unknown launch is 404.
+	_, err = svc.ListRehearsalResults(context.Background(), uuid.New(), testAddr1)
+	require.ErrorIs(t, err, ports.ErrNotFound)
+}
+
 func TestRecordRehearsalResult_LaunchNotFound(t *testing.T) {
 	l := testLaunch()
 	svc, _, priv := resultSvc(t, l)
