@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/spf13/viper"
 
@@ -11,6 +12,24 @@ import (
 )
 
 func newViper() *viper.Viper { return viper.New() }
+
+func TestLoad_RehearsalLeaseTTL(t *testing.T) {
+	v := newViper()
+	v.Set("db_path", "/tmp/coord.db")
+	v.Set("audit_log_path", "/tmp/audit.jsonl")
+	v.Set("audit_private_key", testAuditKey)
+	v.Set("jwt_private_key", testJWTKey)
+	v.Set("files_path", "/tmp/genesis")
+	v.Set("rehearsal_lease_ttl", "30m")
+
+	cfg, err := config.Load(v, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.RehearsalLeaseTTL != 30*time.Minute {
+		t.Errorf("RehearsalLeaseTTL: got %v, want 30m", cfg.RehearsalLeaseTTL)
+	}
+}
 
 // testAuditKey is a valid base64-encoded 32-byte Ed25519 seed for use in tests.
 const testAuditKey = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="

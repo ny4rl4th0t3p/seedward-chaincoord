@@ -48,6 +48,11 @@ func (f *fakeRehearsalAttemptRepo) FindByID(_ context.Context, id uuid.UUID) (*l
 	return nil, ports.ErrNotFound
 }
 
+func (f *fakeRehearsalAttemptRepo) Save(_ context.Context, a *launch.RehearsalAttempt) error {
+	f.byID[a.ID] = a
+	return nil
+}
+
 type fakeRehearsalResultRepo struct {
 	byLaunch map[uuid.UUID][]*launch.RehearsalResult
 	sigs     map[string]bool

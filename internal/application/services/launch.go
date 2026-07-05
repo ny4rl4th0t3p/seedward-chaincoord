@@ -22,17 +22,23 @@ import (
 
 // LaunchService handles use cases related to the Launch aggregate lifecycle.
 type LaunchService struct {
-	launches     ports.LaunchRepository
-	joinRequests ports.JoinRequestRepository
-	readiness    ports.ReadinessRepository
-	genesis      ports.GenesisStore
-	allocations  ports.AllocationStore
-	events       ports.EventPublisher
-	audit        ports.AuditLogWriter
-	attempts     ports.RehearsalAttemptRepository
-	results      ports.RehearsalResultRepository
-	urlValidator func(string) error
+	launches          ports.LaunchRepository
+	joinRequests      ports.JoinRequestRepository
+	readiness         ports.ReadinessRepository
+	genesis           ports.GenesisStore
+	allocations       ports.AllocationStore
+	events            ports.EventPublisher
+	audit             ports.AuditLogWriter
+	attempts          ports.RehearsalAttemptRepository
+	results           ports.RehearsalResultRepository
+	rehearsalLeaseTTL time.Duration
+	urlValidator      func(string) error
 }
+
+// defaultRehearsalLeaseTTL bounds how long a claimed rehearsal run holds its lease before it is
+// considered stale and re-claimable (a crashed runner self-heals after this). Override via
+// WithRehearsalLeaseTTL.
+const defaultRehearsalLeaseTTL = 45 * time.Minute
 
 func NewLaunchService(
 	launches ports.LaunchRepository,
@@ -46,17 +52,25 @@ func NewLaunchService(
 	results ports.RehearsalResultRepository,
 ) *LaunchService {
 	return &LaunchService{
-		launches:     launches,
-		joinRequests: joinRequests,
-		readiness:    readiness,
-		genesis:      genesis,
-		allocations:  allocations,
-		events:       events,
-		audit:        audit,
-		attempts:     attempts,
-		results:      results,
-		urlValidator: netutil.ValidateRPCURL,
+		launches:          launches,
+		joinRequests:      joinRequests,
+		readiness:         readiness,
+		genesis:           genesis,
+		allocations:       allocations,
+		events:            events,
+		audit:             audit,
+		attempts:          attempts,
+		results:           results,
+		rehearsalLeaseTTL: defaultRehearsalLeaseTTL,
+		urlValidator:      netutil.ValidateRPCURL,
 	}
+}
+
+// WithRehearsalLeaseTTL returns a copy of the service using the given claim-lease TTL.
+func (s *LaunchService) WithRehearsalLeaseTTL(d time.Duration) *LaunchService {
+	cp := *s
+	cp.rehearsalLeaseTTL = d
+	return &cp
 }
 
 // WithURLValidator returns a copy of the service using fn instead of the

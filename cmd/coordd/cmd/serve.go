@@ -179,6 +179,18 @@ func openFileStores(path string) (*fs.GenesisStore, *fs.AllocationStore, error) 
 	return genesisStore, allocationStore, nil
 }
 
+// configureLaunchService applies config-driven overrides to the launch service: the SSRF-check
+// bypass (trusted networks) and the rehearsal claim-lease TTL (empty config keeps the built-in default).
+func configureLaunchService(svc *services.LaunchService, cfg *config.Config) *services.LaunchService {
+	if cfg.InsecureNoSSRFCheck {
+		svc = svc.WithURLValidator(netutil.ValidateRPCURLFormat)
+	}
+	if cfg.RehearsalLeaseTTL > 0 {
+		svc = svc.WithRehearsalLeaseTTL(cfg.RehearsalLeaseTTL)
+	}
+	return svc
+}
+
 // startBackgroundJobs launches the proposal-expiry and launch-monitor goroutines on a fresh
 // context and returns its cancel func for graceful shutdown.
 func startBackgroundJobs(
@@ -275,9 +287,7 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		rehearsalAttemptRepo,
 		rehearsalResultRepo,
 	)
-	if cfg.InsecureNoSSRFCheck {
-		launchSvc = launchSvc.WithURLValidator(netutil.ValidateRPCURLFormat)
-	}
+	launchSvc = configureLaunchService(launchSvc, cfg)
 	joinReqSvc := services.NewJoinRequestService(launchRepo, joinReqRepo, nonceStore, verifier, gentxvalidation.New())
 	proposalSvc := services.NewProposalService(
 		launchRepo, joinReqRepo, proposalRepo, readinessRepo,

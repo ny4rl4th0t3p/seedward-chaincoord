@@ -22,10 +22,6 @@ func resultsPath(launchID string) string {
 	return "/bridge/launches/" + launchID + "/rehearsal-results"
 }
 
-func opsHeader() map[string]string {
-	return map[string]string{"Authorization": "Bearer " + testOpsToken}
-}
-
 func opsJSONHeader() map[string]string {
 	return map[string]string{"Authorization": "Bearer " + testOpsToken, "Content-Type": "application/json"}
 }
@@ -41,10 +37,12 @@ func seedRehearsalLaunch(t *testing.T, h *harness) (*launch.Launch, ed25519.Priv
 	return l, priv
 }
 
-// fetchAttempt runs GET rehearsal-input (which mints the attempt) and returns (attempt_id, hash).
+// fetchAttempt claims a run (POST rehearsal-claim, which mints and leases the attempt) and returns
+// (attempt_id, hash).
 func fetchAttempt(t *testing.T, h *harness, launchID string) (attemptID, hash string) {
 	t.Helper()
-	w := h.do("GET", "/bridge/launches/"+launchID+"/rehearsal-input", nil, opsHeader())
+	body := []byte(`{"runner_id":"runner-1"}`)
+	w := h.do("POST", "/bridge/launches/"+launchID+"/rehearsal-claim", body, opsJSONHeader())
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	var in struct {
 		AttemptID    string `json:"attempt_id"`

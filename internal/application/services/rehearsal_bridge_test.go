@@ -13,12 +13,12 @@ import (
 )
 
 // newBridgeSvc wires a LaunchService with the given launch repo, join-request repo, and
-// allocation store — the deps BuildRehearsalInput reads from.
+// allocation store — the deps PreviewRehearsalInput / ClaimRehearsalRun read from.
 func newBridgeSvc(lRepo *fakeLaunchRepo, jrRepo *fakeJoinRequestRepo, alloc *fakeAllocationStore) *LaunchService {
 	return NewLaunchService(lRepo, jrRepo, newFakeReadinessRepo(), newFakeGenesisStore(), alloc, &fakeEventPublisher{}, &fakeAuditLogWriter{}, newFakeRehearsalAttemptRepo(), newFakeRehearsalResultRepo())
 }
 
-func TestBuildRehearsalInput_HappyPath(t *testing.T) {
+func TestPreviewRehearsalInput_HappyPath(t *testing.T) {
 	l := testLaunch()
 	l.Record.TotalSupply = "1000000000"
 	propID := uuid.New()
@@ -33,7 +33,7 @@ func TestBuildRehearsalInput_HappyPath(t *testing.T) {
 
 	svc := newBridgeSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(jr1, jr2), newFakeAllocationStore())
 
-	in, err := svc.BuildRehearsalInput(context.Background(), l.ID)
+	in, err := svc.PreviewRehearsalInput(context.Background(), l.ID)
 	require.NoError(t, err)
 
 	assert.Equal(t, l.ID, in.LaunchID)
@@ -53,7 +53,7 @@ func TestBuildRehearsalInput_HappyPath(t *testing.T) {
 	assert.Len(t, in.InputSetHash, 64, "sha256 hex")
 }
 
-func TestBuildRehearsalInput_ApprovedGentxsOnly(t *testing.T) {
+func TestPreviewRehearsalInput_ApprovedGentxsOnly(t *testing.T) {
 	l := testLaunch()
 	approved := makeJoinRequestSplit(t, l.ID, testAddr2, testAddr1)
 	require.NoError(t, approved.Approve(uuid.New()))
@@ -61,36 +61,36 @@ func TestBuildRehearsalInput_ApprovedGentxsOnly(t *testing.T) {
 
 	svc := newBridgeSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(approved, pending), newFakeAllocationStore())
 
-	in, err := svc.BuildRehearsalInput(context.Background(), l.ID)
+	in, err := svc.PreviewRehearsalInput(context.Background(), l.ID)
 	require.NoError(t, err)
 	require.Len(t, in.Gentxs, 1, "only APPROVED join requests appear")
 	assert.Equal(t, testAddr2, in.Gentxs[0].OperatorAddress)
 }
 
-func TestBuildRehearsalInput_LaunchNotFound(t *testing.T) {
+func TestPreviewRehearsalInput_LaunchNotFound(t *testing.T) {
 	svc := newBridgeSvc(newFakeLaunchRepo(), newFakeJoinRequestRepo(), newFakeAllocationStore())
-	_, err := svc.BuildRehearsalInput(context.Background(), uuid.New())
+	_, err := svc.PreviewRehearsalInput(context.Background(), uuid.New())
 	require.ErrorIs(t, err, ports.ErrNotFound)
 }
 
-func TestBuildRehearsalInput_HashDeterministicAndStatusIndependent(t *testing.T) {
+func TestPreviewRehearsalInput_HashDeterministicAndStatusIndependent(t *testing.T) {
 	l := testLaunch()
 	jr := makeJoinRequestSplit(t, l.ID, testAddr2, testAddr1)
 	require.NoError(t, jr.Approve(uuid.New()))
 	jrRepo := newFakeJoinRequestRepo(jr)
 	svc := newBridgeSvc(newFakeLaunchRepo(l), jrRepo, newFakeAllocationStore())
 
-	first, err := svc.BuildRehearsalInput(context.Background(), l.ID)
+	first, err := svc.PreviewRehearsalInput(context.Background(), l.ID)
 	require.NoError(t, err)
 
 	// Same inputs → same hash (generated_at differs but is excluded).
-	again, err := svc.BuildRehearsalInput(context.Background(), l.ID)
+	again, err := svc.PreviewRehearsalInput(context.Background(), l.ID)
 	require.NoError(t, err)
 	assert.Equal(t, first.InputSetHash, again.InputSetHash, "hash is deterministic")
 
 	// Status change → SAME hash (status is excluded, D7).
 	l.Status = launch.StatusWindowClosed
-	afterStatus, err := svc.BuildRehearsalInput(context.Background(), l.ID)
+	afterStatus, err := svc.PreviewRehearsalInput(context.Background(), l.ID)
 	require.NoError(t, err)
 	assert.Equal(t, first.InputSetHash, afterStatus.InputSetHash, "status is not part of input_set_hash")
 
@@ -98,7 +98,7 @@ func TestBuildRehearsalInput_HashDeterministicAndStatusIndependent(t *testing.T)
 	jr2 := makeJoinRequestSplit(t, l.ID, testAddr3, testAddr1)
 	require.NoError(t, jr2.Approve(uuid.New()))
 	jrRepo.data[jr2.ID] = jr2
-	afterGentx, err := svc.BuildRehearsalInput(context.Background(), l.ID)
+	afterGentx, err := svc.PreviewRehearsalInput(context.Background(), l.ID)
 	require.NoError(t, err)
 	assert.NotEqual(t, first.InputSetHash, afterGentx.InputSetHash, "a new gentx changes the hash")
 }

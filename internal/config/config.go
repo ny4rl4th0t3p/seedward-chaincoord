@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/spf13/viper"
 )
@@ -79,6 +80,11 @@ type Config struct {
 	// Empty disables the bridge (requireOps fails closed).
 	RehearsalOpsToken     string `mapstructure:"rehearsal_ops_token"`
 	RehearsalOpsTokenFile string `mapstructure:"rehearsal_ops_token_file"`
+
+	// RehearsalLeaseTTL bounds how long a claimed rehearsal run holds its single-writer lease before
+	// it is considered stale and re-claimable (a crashed runner self-heals). Accepts a Go duration
+	// string, e.g. "45m", "1h". Empty/zero uses the built-in default (45m).
+	RehearsalLeaseTTL time.Duration `mapstructure:"rehearsal_lease_ttl"`
 }
 
 // Load reads configuration into a Config from the provided Viper instance.
@@ -128,6 +134,7 @@ func Load(v *viper.Viper, cfgFile string) (*Config, error) {
 	_ = v.BindEnv("jwt_private_key_file", "COORD_JWT_PRIVATE_KEY_FILE")
 	_ = v.BindEnv("rehearsal_ops_token", "COORD_REHEARSAL_OPS_TOKEN")
 	_ = v.BindEnv("rehearsal_ops_token_file", "COORD_REHEARSAL_OPS_TOKEN_FILE")
+	_ = v.BindEnv("rehearsal_lease_ttl", "COORD_REHEARSAL_LEASE_TTL")
 
 	if err := v.ReadInConfig(); err != nil {
 		var notFound viper.ConfigFileNotFoundError

@@ -270,3 +270,18 @@ func (e RehearsalResultRecorded) WithTime(t time.Time) RehearsalResultRecorded {
 	e.base = e.withTime(t)
 	return e
 }
+
+// RehearsalAttemptReset is emitted when a coordinator force-releases a stuck rehearsal run lease.
+type RehearsalAttemptReset struct {
+	base
+	LaunchID  uuid.UUID
+	AttemptID uuid.UUID
+	ResetBy   string
+}
+
+func (RehearsalAttemptReset) EventName() string        { return "RehearsalAttemptReset" }
+func (e RehearsalAttemptReset) GetLaunchID() uuid.UUID { return e.LaunchID }
+func (e RehearsalAttemptReset) WithTime(t time.Time) RehearsalAttemptReset {
+	e.base = e.withTime(t)
+	return e
+}

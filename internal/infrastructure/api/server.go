@@ -219,6 +219,7 @@ func (s *Server) Handler() http.Handler {
 	// gate (409). These grant/revoke the hot-address see+submit membership.
 	r.Post("/launch/{id}/members", s.jsonPOST(s.handleMemberAdd))
 	r.Delete("/launch/{id}/members/{address}", s.requireAuth(s.handleMemberRemove))
+	r.Post("/launch/{id}/rehearsal/{attempt_id}/reset", s.requireAuth(s.handleRehearsalReset))
 	r.Get("/launch/{id}/members", s.requireAuth(s.handleMemberList))
 
 	// Unauthenticated chain metadata — bypasses allowlist so validators can add
@@ -278,6 +279,7 @@ func (s *Server) registerLaunchReadRoutes(r chi.Router) {
 func (s *Server) registerBridgeRoutes(r chi.Router) {
 	r.Route("/bridge", func(r chi.Router) {
 		r.Get("/launches/{id}/rehearsal-input", s.requireOps(s.handleRehearsalInput))
+		r.Post("/launches/{id}/rehearsal-claim", s.requireOps(requireJSONBody(s.handleRehearsalClaim)))
 		r.Get("/launches/{id}/allocations/{type}", s.requireOps(s.handleBridgeAllocationGet))
 		r.Post("/launches/{id}/rehearsal-results", s.requireOps(requireJSONBody(s.handleRehearsalResults)))
 	})

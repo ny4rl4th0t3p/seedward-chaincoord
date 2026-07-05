@@ -57,6 +57,20 @@ func (r *RehearsalAttemptRepository) FindByID(ctx context.Context, id uuid.UUID)
 	return a, nil
 }
 
+func (r *RehearsalAttemptRepository) Save(ctx context.Context, a *launch.RehearsalAttempt) error {
+	q := conn(ctx, r.db)
+	_, err := q.ExecContext(ctx, `
+		UPDATE rehearsal_attempts
+		SET status=?, claimed_at=?, lease_expires_at=?, runner_id=?
+		WHERE id=?`,
+		string(a.Status), nullTimeToStr(a.ClaimedAt), nullTimeToStr(a.LeaseExpiresAt), a.RunnerID,
+		uuidToStr(a.ID))
+	if err != nil {
+		return fmt.Errorf("rehearsal attempt save: %w", err)
+	}
+	return nil
+}
+
 func scanAttempt(scan func(dest ...any) error) (*launch.RehearsalAttempt, error) {
 	var (
 		idStr, launchIDStr, hash, issuedAt, status, runnerID string

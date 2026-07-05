@@ -113,6 +113,12 @@ func (s *LaunchService) RecordRehearsalResult(
 		return nil, fmt.Errorf("%s: save: %w", op, err)
 	}
 
+	// Recording the result finishes the run — release the claim lease.
+	attempt.Release()
+	if err := s.attempts.Save(ctx, attempt); err != nil {
+		return nil, fmt.Errorf("%s: release attempt: %w", op, err)
+	}
+
 	ev := domain.RehearsalResultRecorded{
 		LaunchID:     launchID,
 		AttemptID:    attempt.ID,
@@ -227,6 +233,31 @@ func factToResult(
 		Stale:          stale,
 		RecordedAt:     recordedAt,
 	}
+}
+
+// ResetRehearsalAttempt force-releases a stuck run lease back to OPEN — a coordinator override for
+// when a runner crashed mid-run (before the lease TTL expires). Committee-gated (governance plane).
+func (s *LaunchService) ResetRehearsalAttempt(ctx context.Context, launchID, attemptID uuid.UUID, callerAddr string) error {
+	const op = "reset rehearsal attempt"
+	l, err := s.requireCommittee(ctx, launchID, callerAddr, op)
+	if err != nil {
+		return err
+	}
+	attempt, err := s.attempts.FindByID(ctx, attemptID)
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+	if attempt.LaunchID != l.ID {
+		return fmt.Errorf("%s: attempt belongs to a different launch: %w", op, ports.ErrNotFound)
+	}
+	attempt.Reset()
+	if err := s.attempts.Save(ctx, attempt); err != nil {
+		return fmt.Errorf("%s: save: %w", op, err)
+	}
+	ev := domain.RehearsalAttemptReset{LaunchID: l.ID, AttemptID: attemptID, ResetBy: callerAddr}.WithTime(time.Now().UTC())
+	s.events.Publish(ev)
+	_ = s.writeAudit(ctx, l.ID.String(), ev)
+	return nil
 }
 
 func parseRFC3339OrZero(s string) time.Time {

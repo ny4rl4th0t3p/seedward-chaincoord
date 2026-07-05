@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
@@ -96,8 +97,70 @@ func (s *Server) handleRehearsalInput(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_id", "launch id must be a valid UUID")
 		return
 	}
-	in, err := s.launches.BuildRehearsalInput(r.Context(), launchID)
+	in, err := s.launches.PreviewRehearsalInput(r.Context(), launchID)
 	if err != nil {
+		writeServiceError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, rehearsalInputToJSON(in))
+}
+
+// rehearsalClaimRequest is the POST rehearsal-claim body.
+type rehearsalClaimRequest struct {
+	RunnerID string `json:"runner_id"`
+}
+
+// rehearsalLeaseConflictJSON is the 409 body when another runner holds the run lease.
+type rehearsalLeaseConflictJSON struct {
+	ClaimedBy      string `json:"claimed_by"`
+	ClaimedAt      string `json:"claimed_at"`
+	LeaseExpiresAt string `json:"lease_expires_at"`
+}
+
+// POST /bridge/launches/{id}/rehearsal-claim
+// Claim the run lease for a launch's current input set and return the build input. Ops-plane.
+//
+// @Summary      Claim a rehearsal run (bridge)
+// @Description  Acquires the single-writer run lease for the launch's current input set and returns the
+// @Description  full build input (chain + gentxs + allocation URLs + attempt_id). 409 if another runner
+// @Description  already holds an unexpired lease. Ops-credential only.
+// @Tags         bridge
+// @Accept       json
+// @Produce      json
+// @Param        id       path  string                  true  "Launch UUID"
+// @Param        request  body  rehearsalClaimRequest   true  "Runner identity"
+// @Success      200  {object}  rehearsalInputJSON
+// @Failure      400  {object}  errorEnvelope
+// @Failure      401  {object}  errorEnvelope
+// @Failure      404  {object}  errorEnvelope
+// @Failure      409  {object}  rehearsalLeaseConflictJSON
+// @Router       /bridge/launches/{id}/rehearsal-claim [post]
+func (s *Server) handleRehearsalClaim(w http.ResponseWriter, r *http.Request) {
+	launchID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_id", "launch id must be a valid UUID")
+		return
+	}
+	var req rehearsalClaimRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_body", "claim request must be valid JSON")
+		return
+	}
+	if req.RunnerID == "" {
+		writeError(w, http.StatusBadRequest, "invalid_body", "runner_id is required")
+		return
+	}
+	in, err := s.launches.ClaimRehearsalRun(r.Context(), launchID, req.RunnerID)
+	if err != nil {
+		var leased *services.RehearsalLeasedError
+		if errors.As(err, &leased) {
+			writeJSON(w, http.StatusConflict, rehearsalLeaseConflictJSON{
+				ClaimedBy:      leased.RunnerID,
+				ClaimedAt:      leased.ClaimedAt.UTC().Format(time.RFC3339),
+				LeaseExpiresAt: leased.LeaseExpiresAt.UTC().Format(time.RFC3339),
+			})
+			return
+		}
 		writeServiceError(w, r, err)
 		return
 	}

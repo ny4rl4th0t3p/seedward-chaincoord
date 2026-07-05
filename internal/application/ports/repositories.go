@@ -131,6 +131,8 @@ type RehearsalAttemptRepository interface {
 	GetOrCreate(ctx context.Context, launchID uuid.UUID, inputSetHash string, issuedAt time.Time) (*launch.RehearsalAttempt, error)
 	// FindByID returns the attempt, or ErrNotFound.
 	FindByID(ctx context.Context, id uuid.UUID) (*launch.RehearsalAttempt, error)
+	// Save persists lease-state changes (claim / release / reset) to an existing attempt.
+	Save(ctx context.Context, a *launch.RehearsalAttempt) error
 }
 
 // RehearsalResultRepository persists signature-verified rehearsal result facts.

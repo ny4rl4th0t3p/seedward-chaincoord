@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -43,6 +44,32 @@ func TestRehearsalAttemptRepo_FindByID(t *testing.T) {
 
 	_, err = repo.FindByID(ctx, uuid.New())
 	require.ErrorIs(t, err, ports.ErrNotFound)
+}
+
+func TestRehearsalAttemptRepo_SaveLease(t *testing.T) {
+	repo := NewRehearsalAttemptRepository(openTestDB(t))
+	ctx := context.Background()
+
+	a, err := repo.GetOrCreate(ctx, uuid.New(), "h", nowUTC())
+	require.NoError(t, err)
+	now := nowUTC()
+	require.NoError(t, a.Claim("runner-1", now, now.Add(time.Hour)))
+	require.NoError(t, repo.Save(ctx, a))
+
+	got, err := repo.FindByID(ctx, a.ID)
+	require.NoError(t, err)
+	assert.Equal(t, launch.AttemptRunning, got.Status)
+	assert.Equal(t, "runner-1", got.RunnerID)
+	require.NotNil(t, got.LeaseExpiresAt)
+
+	// Reset clears the lease back to OPEN.
+	got.Reset()
+	require.NoError(t, repo.Save(ctx, got))
+	after, err := repo.FindByID(ctx, a.ID)
+	require.NoError(t, err)
+	assert.Equal(t, launch.AttemptOpen, after.Status)
+	assert.Nil(t, after.LeaseExpiresAt)
+	assert.Empty(t, after.RunnerID)
 }
 
 func TestRehearsalResultRepo_SaveAndFind(t *testing.T) {

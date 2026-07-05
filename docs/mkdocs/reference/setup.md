@@ -178,6 +178,7 @@ Plain HTTP on loopback (`127.0.0.1` or `::1`) suppresses the warning automatical
 | `insecure_no_ssrf_check`   | `COORD_INSECURE_NO_SSRF_CHECK`   | —                          | `false`               | No       |
 | `rehearsal_ops_token`      | `COORD_REHEARSAL_OPS_TOKEN`      | —                          | *(bridge disabled)*   | No       |
 | `rehearsal_ops_token_file` | `COORD_REHEARSAL_OPS_TOKEN_FILE` | —                          | *(bridge disabled)*   | No       |
+| `rehearsal_lease_ttl`      | `COORD_REHEARSAL_LEASE_TTL`      | —                          | `45m`                 | No       |
 
 ¹ Exactly one of `audit_private_key` (inline base64) or `audit_private_key_file` (path) must be set.  
 ² Exactly one of `jwt_private_key` (inline base64) or `jwt_private_key_file` (path) must be set.
@@ -266,6 +267,14 @@ disable the bridge** (all `/bridge/*` requests are rejected, fail-closed). Deplo
 prefer the `_file` variant (secret manager) over the plain env var. Rotation is "swap the secret + reload."
 Deploy the `/bridge/*` endpoints on an **internal network only** (e.g. an ingress rule restricting the
 prefix), since the ops plane must not be internet-reachable.
+
+### `rehearsal_lease_ttl`
+
+How long a claimed rehearsal run (`POST /bridge/launches/{id}/rehearsal-claim`) holds its single-writer
+lease before it is treated as stale and re-claimable. A crashed runner self-heals after this window without
+operator intervention; set it comfortably above your longest rehearsal. Accepts a Go duration string
+(`45m`, `1h`, `90m`). Defaults to **45m** when unset. For an immediate override of a stuck lease, a committee
+coordinator can call `POST /launch/{id}/rehearsal/{attempt_id}/reset` instead of waiting for expiry.
 
 ### `log_level`
 

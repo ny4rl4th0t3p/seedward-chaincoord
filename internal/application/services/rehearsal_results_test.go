@@ -62,7 +62,7 @@ func TestRecordRehearsalResult_HappyPathNotStale(t *testing.T) {
 	l := testLaunch()
 	svc, results, priv := resultSvc(t, l)
 
-	in, err := svc.BuildRehearsalInput(context.Background(), l.ID)
+	in, err := svc.ClaimRehearsalRun(context.Background(), l.ID, "runner-1")
 	require.NoError(t, err)
 
 	fact := signedFact(t, l.ID.String(), in.InputSetHash, in.AttemptID.String(), launch.OutcomePass, priv)
@@ -79,7 +79,7 @@ func TestRecordRehearsalResult_Stale(t *testing.T) {
 	l := testLaunch()
 	svc, _, priv := resultSvc(t, l)
 
-	in, err := svc.BuildRehearsalInput(context.Background(), l.ID)
+	in, err := svc.ClaimRehearsalRun(context.Background(), l.ID, "runner-1")
 	require.NoError(t, err)
 	fact := signedFact(t, l.ID.String(), in.InputSetHash, in.AttemptID.String(), launch.OutcomePass, priv)
 
@@ -98,7 +98,7 @@ func TestRecordRehearsalResult_Stale(t *testing.T) {
 func TestRecordRehearsalResult_Skipped(t *testing.T) {
 	l := testLaunch()
 	svc, _, priv := resultSvc(t, l)
-	in, err := svc.BuildRehearsalInput(context.Background(), l.ID)
+	in, err := svc.ClaimRehearsalRun(context.Background(), l.ID, "runner-1")
 	require.NoError(t, err)
 
 	fact := signedFact(t, l.ID.String(), in.InputSetHash, in.AttemptID.String(), launch.OutcomeSkipped, priv)
@@ -110,7 +110,7 @@ func TestRecordRehearsalResult_Skipped(t *testing.T) {
 func TestRecordRehearsalResult_Idempotent(t *testing.T) {
 	l := testLaunch()
 	svc, results, priv := resultSvc(t, l)
-	in, err := svc.BuildRehearsalInput(context.Background(), l.ID)
+	in, err := svc.ClaimRehearsalRun(context.Background(), l.ID, "runner-1")
 	require.NoError(t, err)
 	fact := signedFact(t, l.ID.String(), in.InputSetHash, in.AttemptID.String(), launch.OutcomePass, priv)
 
@@ -126,7 +126,7 @@ func TestRecordRehearsalResult_Idempotent(t *testing.T) {
 func TestRecordRehearsalResult_FabricatedAttempt(t *testing.T) {
 	l := testLaunch()
 	svc, _, priv := resultSvc(t, l)
-	in, err := svc.BuildRehearsalInput(context.Background(), l.ID)
+	in, err := svc.ClaimRehearsalRun(context.Background(), l.ID, "runner-1")
 	require.NoError(t, err)
 
 	// A random attempt_id coordd never minted → rejected.
@@ -138,7 +138,7 @@ func TestRecordRehearsalResult_FabricatedAttempt(t *testing.T) {
 func TestRecordRehearsalResult_HashMismatch(t *testing.T) {
 	l := testLaunch()
 	svc, _, priv := resultSvc(t, l)
-	in, err := svc.BuildRehearsalInput(context.Background(), l.ID)
+	in, err := svc.ClaimRehearsalRun(context.Background(), l.ID, "runner-1")
 	require.NoError(t, err)
 
 	// Correct attempt, but a hash that does not match it → rejected (signed, but inconsistent).
@@ -150,7 +150,7 @@ func TestRecordRehearsalResult_HashMismatch(t *testing.T) {
 func TestRecordRehearsalResult_BadSignature(t *testing.T) {
 	l := testLaunch()
 	svc, _, _ := resultSvc(t, l)
-	in, err := svc.BuildRehearsalInput(context.Background(), l.ID)
+	in, err := svc.ClaimRehearsalRun(context.Background(), l.ID, "runner-1")
 	require.NoError(t, err)
 
 	// Sign with a DIFFERENT key than the launch trusts.
@@ -165,7 +165,7 @@ func TestRecordRehearsalResult_BadSignature(t *testing.T) {
 func TestRecordRehearsalResult_NoTrustedKey(t *testing.T) {
 	l := testLaunch()
 	svc, _, priv := resultSvc(t, l)
-	in, err := svc.BuildRehearsalInput(context.Background(), l.ID)
+	in, err := svc.ClaimRehearsalRun(context.Background(), l.ID, "runner-1")
 	require.NoError(t, err)
 	fact := signedFact(t, l.ID.String(), in.InputSetHash, in.AttemptID.String(), launch.OutcomePass, priv)
 
