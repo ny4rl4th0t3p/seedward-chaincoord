@@ -162,9 +162,11 @@ func newHarness(t *testing.T) *harness {
 	jrRepo := &thinJoinRequestRepo{data: make(map[uuid.UUID]*joinrequest.JoinRequest)}
 	propRepo := &thinProposalRepo{data: make(map[uuid.UUID]*proposal.Proposal)}
 	readinessRepo := &thinReadinessRepo{data: make(map[uuid.UUID]*launch.ReadinessConfirmation)}
+	attemptRepo := newThinRehearsalAttemptRepo()
+	resultRepo := newThinRehearsalResultRepo()
 
 	authSvc := services.NewAuthService(challenges, sessions, nonces, verifier)
-	launchSvc := services.NewLaunchService(launchRepo, jrRepo, readinessRepo, genesisStore, allocationStore, events, auditLogWriter)
+	launchSvc := services.NewLaunchService(launchRepo, jrRepo, readinessRepo, genesisStore, allocationStore, events, auditLogWriter, attemptRepo, resultRepo)
 	jrSvc := services.NewJoinRequestService(launchRepo, jrRepo, nonces, verifier, thinGentxValidator{})
 	propSvc := services.NewProposalService(launchRepo, jrRepo, propRepo, readinessRepo, nonces, verifier, events, auditLogWriter, tx)
 	readinessSvc := services.NewReadinessService(launchRepo, jrRepo, readinessRepo, nonces, verifier)
@@ -218,9 +220,11 @@ func newHarnessConfig(t *testing.T, adminAddrs []string, launchPolicy string) *h
 	jrRepo := &thinJoinRequestRepo{data: make(map[uuid.UUID]*joinrequest.JoinRequest)}
 	propRepo := &thinProposalRepo{data: make(map[uuid.UUID]*proposal.Proposal)}
 	readinessRepo := &thinReadinessRepo{data: make(map[uuid.UUID]*launch.ReadinessConfirmation)}
+	attemptRepo := newThinRehearsalAttemptRepo()
+	resultRepo := newThinRehearsalResultRepo()
 
 	authSvc := services.NewAuthService(challenges, sessions, nonces, verifier)
-	launchSvc := services.NewLaunchService(launchRepo, jrRepo, readinessRepo, genesisStore, allocationStore, events, auditLogWriter)
+	launchSvc := services.NewLaunchService(launchRepo, jrRepo, readinessRepo, genesisStore, allocationStore, events, auditLogWriter, attemptRepo, resultRepo)
 	jrSvc := services.NewJoinRequestService(launchRepo, jrRepo, nonces, verifier, thinGentxValidator{})
 	propSvc := services.NewProposalService(launchRepo, jrRepo, propRepo, readinessRepo, nonces, verifier, events, auditLogWriter, tx)
 	readinessSvc := services.NewReadinessService(launchRepo, jrRepo, readinessRepo, nonces, verifier)
@@ -262,9 +266,11 @@ func newHarnessRateLimitDisabled(t *testing.T) *harness {
 	jrRepo := &thinJoinRequestRepo{data: make(map[uuid.UUID]*joinrequest.JoinRequest)}
 	propRepo := &thinProposalRepo{data: make(map[uuid.UUID]*proposal.Proposal)}
 	readinessRepo := &thinReadinessRepo{data: make(map[uuid.UUID]*launch.ReadinessConfirmation)}
+	attemptRepo := newThinRehearsalAttemptRepo()
+	resultRepo := newThinRehearsalResultRepo()
 
 	authSvc := services.NewAuthService(challenges, sessions, nonces, verifier)
-	launchSvc := services.NewLaunchService(launchRepo, jrRepo, readinessRepo, genesisStore, allocationStore, events, auditLogWriter)
+	launchSvc := services.NewLaunchService(launchRepo, jrRepo, readinessRepo, genesisStore, allocationStore, events, auditLogWriter, attemptRepo, resultRepo)
 	jrSvc := services.NewJoinRequestService(launchRepo, jrRepo, nonces, verifier, thinGentxValidator{})
 	propSvc := services.NewProposalService(launchRepo, jrRepo, propRepo, readinessRepo, nonces, verifier, events, auditLogWriter, tx)
 	readinessSvc := services.NewReadinessService(launchRepo, jrRepo, readinessRepo, nonces, verifier)
@@ -307,9 +313,11 @@ func newHarnessHostMode(t *testing.T, maxBytes int64) *harness {
 	jrRepo := &thinJoinRequestRepo{data: make(map[uuid.UUID]*joinrequest.JoinRequest)}
 	propRepo := &thinProposalRepo{data: make(map[uuid.UUID]*proposal.Proposal)}
 	readinessRepo := &thinReadinessRepo{data: make(map[uuid.UUID]*launch.ReadinessConfirmation)}
+	attemptRepo := newThinRehearsalAttemptRepo()
+	resultRepo := newThinRehearsalResultRepo()
 
 	authSvc := services.NewAuthService(challenges, sessions, nonces, verifier)
-	launchSvc := services.NewLaunchService(launchRepo, jrRepo, readinessRepo, genesisStore, allocationStore, events, auditLogWriter)
+	launchSvc := services.NewLaunchService(launchRepo, jrRepo, readinessRepo, genesisStore, allocationStore, events, auditLogWriter, attemptRepo, resultRepo)
 	jrSvc := services.NewJoinRequestService(launchRepo, jrRepo, nonces, verifier, thinGentxValidator{})
 	propSvc := services.NewProposalService(launchRepo, jrRepo, propRepo, readinessRepo, nonces, verifier, events, auditLogWriter, tx)
 	readinessSvc := services.NewReadinessService(launchRepo, jrRepo, readinessRepo, nonces, verifier)

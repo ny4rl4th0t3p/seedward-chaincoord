@@ -528,6 +528,8 @@ definitions:
         additionalProperties:
           $ref: '#/definitions/api.rehearsalAllocJSON'
         type: object
+      attempt_id:
+        type: string
       chain:
         $ref: '#/definitions/api.rehearsalChainJSON'
       generated_at:
@@ -544,6 +546,19 @@ definitions:
         type: integer
       status:
         type: string
+    type: object
+  api.rehearsalResultAckJSON:
+    properties:
+      attempt_id:
+        type: string
+      launch_id:
+        type: string
+      outcome:
+        type: string
+      recorded_at:
+        type: string
+      stale:
+        type: boolean
     type: object
   api.sessionInfoJSON:
     properties:
@@ -699,6 +714,61 @@ definitions:
       signature:
         type: string
       timestamp:
+        type: string
+    type: object
+  services.RehearsalResultFact:
+    properties:
+      attempt_id:
+        type: string
+      failed_step:
+        type: string
+      finished_at:
+        type: string
+      input_set_hash:
+        type: string
+      launch_id:
+        type: string
+      outcome:
+        type: string
+      rehearsal:
+        $ref: '#/definitions/services.RehearsalResultFactMeta'
+      schema_version:
+        type: integer
+      service_pubkey:
+        type: string
+      signature:
+        type: string
+      started_at:
+        type: string
+      steps:
+        items:
+          $ref: '#/definitions/services.RehearsalResultFactStep'
+        type: array
+      summary:
+        type: string
+    type: object
+  services.RehearsalResultFactMeta:
+    properties:
+      binary_name:
+        type: string
+      binary_sha256:
+        type: string
+      binary_version:
+        type: string
+      blocks_advanced:
+        type: integer
+      engine_version:
+        type: string
+      validators:
+        type: integer
+    type: object
+  services.RehearsalResultFactStep:
+    properties:
+      detail:
+        type: string
+      name:
+        type: string
+      status:
         type: string
     type: object
   services.SignInput:
@@ -1107,6 +1177,52 @@ paths:
           schema:
             $ref: '#/definitions/api.errorEnvelope'
       summary: Rehearsal input (bridge)
+      tags:
+      - bridge
+  /bridge/launches/{id}/rehearsal-results:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Verifies the fact's Ed25519 signature against the launch's trusted service pubkey and
+        that it references an attempt coordd minted (anti-fabrication), then stores it —
+        flagged stale if the approved input set has since changed. Ops-credential only.
+      parameters:
+      - description: Launch UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Signed result fact
+        in: body
+        name: fact
+        required: true
+        schema:
+          $ref: '#/definitions/services.RehearsalResultFact'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.rehearsalResultAckJSON'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+      summary: Rehearsal result write-back (bridge)
       tags:
       - bridge
   /committee/{launch_id}:

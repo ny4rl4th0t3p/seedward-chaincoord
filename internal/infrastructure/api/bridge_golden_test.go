@@ -21,6 +21,7 @@ import (
 const bridgeWireGolden = `{
   "schema_version": 1,
   "launch_id": "11111111-1111-1111-1111-111111111111",
+  "attempt_id": "33333333-3333-3333-3333-333333333333",
   "generated_at": "2026-01-02T03:04:05Z",
   "status": "WINDOW_OPEN",
   "chain": {
@@ -55,6 +56,7 @@ func TestRehearsalInputJSON_WireGolden(t *testing.T) {
 	genesisTime := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
 	in := &services.RehearsalInput{
 		LaunchID:    uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+		AttemptID:   uuid.MustParse("33333333-3333-3333-3333-333333333333"),
 		GeneratedAt: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC),
 		Status:      launch.StatusWindowOpen,
 		Chain: services.RehearsalChain{

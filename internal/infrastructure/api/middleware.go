@@ -124,7 +124,7 @@ func (s *Server) requireOps(next http.HandlerFunc) http.HandlerFunc {
 //
 // Do not apply this to the genesis upload endpoint, which accepts raw bytes
 // with its own size cap.
-func requireJSONBody(maxBytes int64, next http.HandlerFunc) http.HandlerFunc {
+func requireJSONBody(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ct := r.Header.Get("Content-Type")
 		if !strings.HasPrefix(ct, "application/json") {
@@ -132,7 +132,7 @@ func requireJSONBody(maxBytes int64, next http.HandlerFunc) http.HandlerFunc {
 				"Content-Type must be application/json")
 			return
 		}
-		r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
+		r.Body = http.MaxBytesReader(w, r.Body, maxJSONBody)
 		next(w, r)
 	}
 }

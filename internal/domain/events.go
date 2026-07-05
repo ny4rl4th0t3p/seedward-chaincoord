@@ -252,3 +252,21 @@ func (e LaunchDetected) WithTime(t time.Time) LaunchDetected {
 	e.base = e.withTime(t)
 	return e
 }
+
+// RehearsalResultRecorded is emitted when coordd stores a signature-verified rehearsal result fact
+// (bridge write-back). Stale marks that the attempt's input set is no longer the launch's current one.
+type RehearsalResultRecorded struct {
+	base
+	LaunchID     uuid.UUID
+	AttemptID    uuid.UUID
+	InputSetHash string
+	Outcome      string
+	Stale        bool
+}
+
+func (RehearsalResultRecorded) EventName() string        { return "RehearsalResultRecorded" }
+func (e RehearsalResultRecorded) GetLaunchID() uuid.UUID { return e.LaunchID }
+func (e RehearsalResultRecorded) WithTime(t time.Time) RehearsalResultRecorded {
+	e.base = e.withTime(t)
+	return e
+}

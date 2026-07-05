@@ -179,6 +179,21 @@ func openFileStores(path string) (*fs.GenesisStore, *fs.AllocationStore, error) 
 	return genesisStore, allocationStore, nil
 }
 
+// startBackgroundJobs launches the proposal-expiry and launch-monitor goroutines on a fresh
+// context and returns its cancel func for graceful shutdown.
+func startBackgroundJobs(
+	proposalSvc *services.ProposalService,
+	launchRepo *sqlite.LaunchRepository,
+	sseBroker *sse.Broker,
+	logger zerolog.Logger,
+	validateURL func(string) error,
+) context.CancelFunc {
+	jobCtx, stopJobs := context.WithCancel(context.Background())
+	go jobs.RunProposalExpiry(jobCtx, proposalSvc, logger, time.Minute)
+	go jobs.RunLaunchMonitor(jobCtx, launchRepo, sseBroker, logger, time.Minute, validateURL)
+	return stopJobs
+}
+
 func runServe(cmd *cobra.Command, _ []string) error {
 	// --- Config ----------------------------------------------------------
 	cfg, err := loadServeConfig(cmd)
@@ -206,6 +221,8 @@ func runServe(cmd *cobra.Command, _ []string) error {
 	joinReqRepo := sqlite.NewJoinRequestRepository(db)
 	proposalRepo := sqlite.NewProposalRepository(db)
 	readinessRepo := sqlite.NewReadinessRepository(db)
+	rehearsalAttemptRepo := sqlite.NewRehearsalAttemptRepository(db)
+	rehearsalResultRepo := sqlite.NewRehearsalResultRepository(db)
 	sessionStore, err := auth.NewJWTSessionStore(cfg.JWTPrivKeyB64, db)
 	if err != nil {
 		return fmt.Errorf("initializing JWT session store: %w", err)
@@ -247,7 +264,17 @@ func runServe(cmd *cobra.Command, _ []string) error {
 
 	// --- Application services --------------------------------------------
 	authSvc := services.NewAuthService(challengeStore, sessionStore, nonceStore, verifier)
-	launchSvc := services.NewLaunchService(launchRepo, joinReqRepo, readinessRepo, genesisStore, allocationStore, sseBroker, auditLog)
+	launchSvc := services.NewLaunchService(
+		launchRepo,
+		joinReqRepo,
+		readinessRepo,
+		genesisStore,
+		allocationStore,
+		sseBroker,
+		auditLog,
+		rehearsalAttemptRepo,
+		rehearsalResultRepo,
+	)
 	if cfg.InsecureNoSSRFCheck {
 		launchSvc = launchSvc.WithURLValidator(netutil.ValidateRPCURLFormat)
 	}
@@ -280,10 +307,8 @@ func runServe(cmd *cobra.Command, _ []string) error {
 	}
 
 	// --- Background jobs -------------------------------------------------
-	jobCtx, stopJobs := context.WithCancel(context.Background())
+	stopJobs := startBackgroundJobs(proposalSvc, launchRepo, sseBroker, logger, monitorURLValidatorFor(cfg.InsecureNoSSRFCheck))
 	defer stopJobs()
-	go jobs.RunProposalExpiry(jobCtx, proposalSvc, logger, time.Minute)
-	go jobs.RunLaunchMonitor(jobCtx, launchRepo, sseBroker, logger, time.Minute, monitorURLValidatorFor(cfg.InsecureNoSSRFCheck))
 
 	// --- Start + graceful shutdown ---------------------------------------
 	return serveAndWait(httpServer, cfg, logger, stopJobs)

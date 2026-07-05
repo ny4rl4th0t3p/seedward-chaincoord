@@ -343,6 +343,8 @@ func buildTestServer(t *testing.T, admins []string) *testServer {
 	joinReqRepo := sqlite.NewJoinRequestRepository(db)
 	proposalRepo := sqlite.NewProposalRepository(db)
 	readinessRepo := sqlite.NewReadinessRepository(db)
+	attemptRepo := sqlite.NewRehearsalAttemptRepository(db)
+	resultRepo := sqlite.NewRehearsalResultRepository(db)
 	// Use a fixed test key (32 zero bytes, base64-encoded) — safe for e2e tests only.
 	const e2eJWTKey = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 	sessionStore, err := auth.NewJWTSessionStore(e2eJWTKey, db)
@@ -354,7 +356,7 @@ func buildTestServer(t *testing.T, admins []string) *testServer {
 	allowlistRepo := sqlite.NewCoordinatorAllowlistRepo(db)
 
 	authSvc := services.NewAuthService(challengeStore, sessionStore, nonceStore, verifier)
-	launchSvc := services.NewLaunchService(launchRepo, joinReqRepo, readinessRepo, genesisStore, allocationStore, sseBroker, al).
+	launchSvc := services.NewLaunchService(launchRepo, joinReqRepo, readinessRepo, genesisStore, allocationStore, sseBroker, al, attemptRepo, resultRepo).
 		WithURLValidator(netutil.ValidateRPCURLFormat)
 	joinReqSvc := services.NewJoinRequestService(launchRepo, joinReqRepo, nonceStore, verifier, e2eGentxValidator{})
 	proposalSvc := services.NewProposalService(

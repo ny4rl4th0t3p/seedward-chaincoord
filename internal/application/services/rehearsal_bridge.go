@@ -22,6 +22,7 @@ import (
 // allocation files appear. Wire serialization is the API layer's concern.
 type RehearsalInput struct {
 	LaunchID     uuid.UUID
+	AttemptID    uuid.UUID // coordd-minted attempt for (launch, input_set_hash); anti-fabrication anchor
 	GeneratedAt  time.Time
 	Status       launch.Status
 	Chain        RehearsalChain
@@ -66,16 +67,43 @@ type RehearsalAllocation struct {
 	ApprovedByProposal string
 }
 
-// BuildRehearsalInput assembles the rehearsal input for a launch from an authoritative state
-// (bridge contract). Returns ErrNotFound if the launch does not exist. Serves the
-// approved set as-is — no status/min-gentx gate. Refuses with ErrBridgeAttestorUnsupported
-// (422) if any approved allocation file is attestor-mode, since coordd cannot inline its bytes.
+// BuildRehearsalInput assembles the rehearsal input for a launch and mints (get-or-create) the
+// attempt for its input_set_hash — the anti-fabrication anchor a later result must reference.
+// Returns ErrNotFound if the launch does not exist. Serves the approved set as-is (no status/
+// min-gentx gate); the lease is inert here (claim-before-run enforcement is next).
 func (s *LaunchService) BuildRehearsalInput(ctx context.Context, launchID uuid.UUID) (*RehearsalInput, error) {
-	const op = "build rehearsal input"
 	l, err := s.launches.FindByID(ctx, launchID)
 	if err != nil {
 		return nil, err
 	}
+	in, err := s.assembleRehearsalInput(ctx, l)
+	if err != nil {
+		return nil, err
+	}
+	attempt, err := s.attempts.GetOrCreate(ctx, l.ID, in.InputSetHash, time.Now().UTC())
+	if err != nil {
+		return nil, fmt.Errorf("build rehearsal input: attempt: %w", err)
+	}
+	in.AttemptID = attempt.ID
+	return in, nil
+}
+
+// currentInputSetHash computes the launch's current input_set_hash without minting an attempt —
+// used to decide whether an incoming result is stale.
+func (s *LaunchService) currentInputSetHash(ctx context.Context, l *launch.Launch) (string, error) {
+	in, err := s.assembleRehearsalInput(ctx, l)
+	if err != nil {
+		return "", err
+	}
+	return in.InputSetHash, nil
+}
+
+// assembleRehearsalInput gathers the approved input set (chain + gentxs + allocation metadata) and
+// computes input_set_hash. It is pure — no attempt minting, no lease — so both the serve path and
+// the staleness check can call it.
+func (s *LaunchService) assembleRehearsalInput(ctx context.Context, l *launch.Launch) (*RehearsalInput, error) {
+	const op = "build rehearsal input"
+	launchID := l.ID
 
 	approved, err := s.joinRequests.FindApprovedByLaunch(ctx, launchID)
 	if err != nil {

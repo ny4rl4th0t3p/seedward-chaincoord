@@ -5,6 +5,7 @@ package ports
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -120,4 +121,23 @@ type ReadinessRepository interface {
 	// InvalidateByLaunch marks all confirmations for a launch as invalidated.
 	// Called when genesis time is updated.
 	InvalidateByLaunch(ctx context.Context, launchID uuid.UUID) error
+}
+
+// RehearsalAttemptRepository persists rehearsal attempts — coordd's record that it served a given
+// approved input set for a launch. Attempts are the anti-fabrication anchor for result write-back.
+type RehearsalAttemptRepository interface {
+	// GetOrCreate returns the attempt for (launchID, inputSetHash), minting a fresh OPEN one at
+	// issuedAt if none exists. Identity is (launch, hash), so repeated calls are idempotent.
+	GetOrCreate(ctx context.Context, launchID uuid.UUID, inputSetHash string, issuedAt time.Time) (*launch.RehearsalAttempt, error)
+	// FindByID returns the attempt, or ErrNotFound.
+	FindByID(ctx context.Context, id uuid.UUID) (*launch.RehearsalAttempt, error)
+}
+
+// RehearsalResultRepository persists signature-verified rehearsal result facts.
+type RehearsalResultRepository interface {
+	// Save stores a result. It is idempotent on the fact signature — re-submitting the same signed
+	// fact must not create a duplicate.
+	Save(ctx context.Context, res *launch.RehearsalResult) error
+	// FindByLaunch returns a launch's results, newest first (committee read-back, B4).
+	FindByLaunch(ctx context.Context, launchID uuid.UUID) ([]*launch.RehearsalResult, error)
 }

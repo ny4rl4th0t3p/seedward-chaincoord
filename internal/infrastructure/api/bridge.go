@@ -27,6 +27,7 @@ const rehearsalInputSchemaVersion = 1
 type rehearsalInputJSON struct {
 	SchemaVersion int                           `json:"schema_version"`
 	LaunchID      string                        `json:"launch_id"`
+	AttemptID     string                        `json:"attempt_id"`
 	GeneratedAt   string                        `json:"generated_at"`
 	Status        string                        `json:"status"`
 	Chain         rehearsalChainJSON            `json:"chain"`
@@ -129,6 +130,58 @@ func (s *Server) handleBridgeAllocationGet(w http.ResponseWriter, r *http.Reques
 	s.serveAllocationRef(w, r, id.String(), chi.URLParam(r, "type"))
 }
 
+// rehearsalResultAckJSON is coordd's acknowledgement of a stored result fact.
+type rehearsalResultAckJSON struct {
+	LaunchID   string `json:"launch_id"`
+	AttemptID  string `json:"attempt_id"`
+	Outcome    string `json:"outcome"`
+	Stale      bool   `json:"stale"`
+	RecordedAt string `json:"recorded_at"`
+}
+
+// POST /bridge/launches/{id}/rehearsal-results
+// Store a signed rehearsal result fact. Ops-plane (requireOps).
+//
+// @Summary      Rehearsal result write-back (bridge)
+// @Description  Verifies the fact's Ed25519 signature against the launch's trusted service pubkey and
+// @Description  that it references an attempt coordd minted (anti-fabrication), then stores it —
+// @Description  flagged stale if the approved input set has since changed. Ops-credential only.
+// @Tags         bridge
+// @Accept       json
+// @Produce      json
+// @Param        id      path  string                    true  "Launch UUID"
+// @Param        fact    body  services.RehearsalResultFact  true  "Signed result fact"
+// @Success      200  {object}  rehearsalResultAckJSON
+// @Failure      400  {object}  errorEnvelope
+// @Failure      401  {object}  errorEnvelope
+// @Failure      404  {object}  errorEnvelope
+// @Failure      409  {object}  errorEnvelope
+// @Router       /bridge/launches/{id}/rehearsal-results [post]
+func (s *Server) handleRehearsalResults(w http.ResponseWriter, r *http.Request) {
+	launchID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_id", "launch id must be a valid UUID")
+		return
+	}
+	var fact services.RehearsalResultFact
+	if err := json.NewDecoder(r.Body).Decode(&fact); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_body", "result fact must be valid JSON")
+		return
+	}
+	res, err := s.launches.RecordRehearsalResult(r.Context(), launchID, fact)
+	if err != nil {
+		writeServiceError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, rehearsalResultAckJSON{
+		LaunchID:   res.LaunchID.String(),
+		AttemptID:  res.AttemptID.String(),
+		Outcome:    string(res.Outcome),
+		Stale:      res.Stale,
+		RecordedAt: res.RecordedAt.UTC().Format(time.RFC3339),
+	})
+}
+
 func rehearsalInputToJSON(in *services.RehearsalInput) rehearsalInputJSON {
 	gentxs := make([]rehearsalGentxJSON, len(in.Gentxs))
 	for i, g := range in.Gentxs {
@@ -156,6 +209,7 @@ func rehearsalInputToJSON(in *services.RehearsalInput) rehearsalInputJSON {
 	return rehearsalInputJSON{
 		SchemaVersion: rehearsalInputSchemaVersion,
 		LaunchID:      in.LaunchID.String(),
+		AttemptID:     in.AttemptID.String(),
 		GeneratedAt:   in.GeneratedAt.UTC().Format(time.RFC3339),
 		Status:        string(in.Status),
 		Chain: rehearsalChainJSON{

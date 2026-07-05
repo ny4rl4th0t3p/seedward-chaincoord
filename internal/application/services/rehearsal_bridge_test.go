@@ -15,7 +15,7 @@ import (
 // newBridgeSvc wires a LaunchService with the given launch repo, join-request repo, and
 // allocation store — the deps BuildRehearsalInput reads from.
 func newBridgeSvc(lRepo *fakeLaunchRepo, jrRepo *fakeJoinRequestRepo, alloc *fakeAllocationStore) *LaunchService {
-	return NewLaunchService(lRepo, jrRepo, newFakeReadinessRepo(), newFakeGenesisStore(), alloc, &fakeEventPublisher{}, &fakeAuditLogWriter{})
+	return NewLaunchService(lRepo, jrRepo, newFakeReadinessRepo(), newFakeGenesisStore(), alloc, &fakeEventPublisher{}, &fakeAuditLogWriter{}, newFakeRehearsalAttemptRepo(), newFakeRehearsalResultRepo())
 }
 
 func TestBuildRehearsalInput_HappyPath(t *testing.T) {

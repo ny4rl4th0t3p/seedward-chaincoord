@@ -29,6 +29,8 @@ type LaunchService struct {
 	allocations  ports.AllocationStore
 	events       ports.EventPublisher
 	audit        ports.AuditLogWriter
+	attempts     ports.RehearsalAttemptRepository
+	results      ports.RehearsalResultRepository
 	urlValidator func(string) error
 }
 
@@ -40,6 +42,8 @@ func NewLaunchService(
 	allocations ports.AllocationStore,
 	events ports.EventPublisher,
 	audit ports.AuditLogWriter,
+	attempts ports.RehearsalAttemptRepository,
+	results ports.RehearsalResultRepository,
 ) *LaunchService {
 	return &LaunchService{
 		launches:     launches,
@@ -49,6 +53,8 @@ func NewLaunchService(
 		allocations:  allocations,
 		events:       events,
 		audit:        audit,
+		attempts:     attempts,
+		results:      results,
 		urlValidator: netutil.ValidateRPCURL,
 	}
 }

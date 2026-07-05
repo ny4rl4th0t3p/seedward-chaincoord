@@ -132,17 +132,17 @@ const (
 
 // jsonPOST composes requireJSONBody with requireAuth for authenticated JSON endpoints.
 func (s *Server) jsonPOST(h http.HandlerFunc) http.HandlerFunc {
-	return s.requireAuth(requireJSONBody(maxJSONBody, h))
+	return s.requireAuth(requireJSONBody(h))
 }
 
 // jsonAdminPOST composes requireJSONBody with requireAdmin for admin-only JSON endpoints.
 func (s *Server) jsonAdminPOST(h http.HandlerFunc) http.HandlerFunc {
-	return s.requireAdmin(requireJSONBody(maxJSONBody, h))
+	return s.requireAdmin(requireJSONBody(h))
 }
 
 // jsonPOSTPublic composes requireJSONBody for unauthenticated JSON endpoints.
 func requireJSONPOST(h http.HandlerFunc) http.HandlerFunc {
-	return requireJSONBody(maxJSONBody, h)
+	return requireJSONBody(h)
 }
 
 // Handler builds and returns the configured Chi router.
@@ -279,6 +279,7 @@ func (s *Server) registerBridgeRoutes(r chi.Router) {
 	r.Route("/bridge", func(r chi.Router) {
 		r.Get("/launches/{id}/rehearsal-input", s.requireOps(s.handleRehearsalInput))
 		r.Get("/launches/{id}/allocations/{type}", s.requireOps(s.handleBridgeAllocationGet))
+		r.Post("/launches/{id}/rehearsal-results", s.requireOps(requireJSONBody(s.handleRehearsalResults)))
 	})
 }
 
