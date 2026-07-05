@@ -395,7 +395,7 @@ func TestJoinRequestService_GetByID_ForbiddenForOtherValidator(t *testing.T) {
 	jrRepo.data[jr.ID] = jr
 	svc := newJoinReqSvc(newFakeLaunchRepo(l), jrRepo)
 
-	// Caller is testAddr2 (not the owner), not a coordinator.
+	// Caller is testAddr2 (not the owner), not a committee member.
 	_, err := svc.GetByID(context.Background(), jr.ID, testAddr2, false)
 	require.ErrorIs(t, err, ports.ErrForbidden)
 }
@@ -412,14 +412,14 @@ func TestJoinRequestService_GetByID_AllowedForOwner(t *testing.T) {
 	assert.Equal(t, jr.ID, got.ID)
 }
 
-func TestJoinRequestService_GetByID_AllowedForCoordinator(t *testing.T) {
+func TestJoinRequestService_GetByID_AllowedForCommitteeMember(t *testing.T) {
 	l := testLaunch()
 	jrRepo := newFakeJoinRequestRepo()
 	jr := makeJoinRequest(t, l.ID, testAddr1)
 	jrRepo.data[jr.ID] = jr
 	svc := newJoinReqSvc(newFakeLaunchRepo(l), jrRepo)
 
-	// Coordinator (isCoordinator=true) can see anyone's request.
+	// Committee member (isCommitteeMember=true) can see anyone's request.
 	got, err := svc.GetByID(context.Background(), jr.ID, testAddr2, true)
 	require.NoError(t, err)
 	assert.Equal(t, jr.ID, got.ID)

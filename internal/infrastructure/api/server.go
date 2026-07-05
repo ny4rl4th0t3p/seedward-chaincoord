@@ -257,7 +257,7 @@ func (s *Server) Handler() http.Handler {
 	return r
 }
 
-// registerLaunchReadRoutes mounts the non-rate-limited launch read endpoints (committee/coordinator
+// registerLaunchReadRoutes mounts the non-rate-limited launch read endpoints (committee-member
 // or optional-auth GETs). Grouped out of Handler to keep it under the statement limit.
 func (s *Server) registerLaunchReadRoutes(r chi.Router) {
 	r.Get("/launch/{id}/join", s.requireAuth(s.handleJoinList))

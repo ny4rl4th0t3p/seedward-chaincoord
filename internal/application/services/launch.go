@@ -652,7 +652,7 @@ const maxMemberLabelLen = 128
 
 // requireCommittee loads a launch and asserts the caller is one of its committee members.
 // Returns the launch on success; ErrNotFound if the launch does not exist (existence is
-// not hidden further here — this matches the coordinator-only convention, IsCoordinator);
+// not hidden further here — this matches the committee-only convention, IsCommitteeMember);
 // ErrForbidden if the caller is authenticated but not a committee member.
 func (s *LaunchService) requireCommittee(ctx context.Context, launchID uuid.UUID, callerAddr, op string) (*launch.Launch, error) {
 	l, err := s.launches.FindByID(ctx, launchID)
@@ -717,7 +717,7 @@ func (s *LaunchService) RemoveMember(ctx context.Context, launchID uuid.UUID, ad
 
 // ListMembers returns the launch's members (address + label + provenance), sorted by
 // address. Committee members only (403); a non-committee caller — member or not — is
-// forbidden, matching the coordinator-only read convention.
+// forbidden, matching the committee-only read convention.
 func (s *LaunchService) ListMembers(ctx context.Context, launchID uuid.UUID, callerAddr string) ([]launch.Member, error) {
 	l, err := s.requireCommittee(ctx, launchID, callerAddr, "list members")
 	if err != nil {
@@ -755,8 +755,10 @@ func (s *LaunchService) SetCommittee(ctx context.Context, launchID uuid.UUID, co
 	return nil
 }
 
-// IsCoordinator reports whether callerAddr is a committee member of the given launch.
-func (s *LaunchService) IsCoordinator(ctx context.Context, launchID uuid.UUID, callerAddr string) (bool, error) {
+// IsCommitteeMember reports whether callerAddr is a committee member of the given launch. (At the
+// launch level, "committee member" is what earlier prose called a per-launch "coordinator"; the
+// global coordinator allowlist — who may create launches — is a separate concept, see admin.go.)
+func (s *LaunchService) IsCommitteeMember(ctx context.Context, launchID uuid.UUID, callerAddr string) (bool, error) {
 	l, err := s.launches.FindByID(ctx, launchID)
 	if err != nil {
 		return false, err

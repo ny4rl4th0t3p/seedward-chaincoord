@@ -815,30 +815,30 @@ func TestLaunchService_ListLaunches_DelegatesToRepo(t *testing.T) {
 	assert.Len(t, launches, 2)
 }
 
-// --- IsCoordinator ---
+// --- IsCommitteeMember ---
 
-func TestLaunchService_IsCoordinator_True(t *testing.T) {
+func TestLaunchService_IsCommitteeMember_True(t *testing.T) {
 	l := testLaunch() // committee has testAddr1
 	svc := newLaunchSvc(newFakeLaunchRepo(l), newFakeGenesisStore())
 
-	ok, err := svc.IsCoordinator(context.Background(), l.ID, testAddr1)
+	ok, err := svc.IsCommitteeMember(context.Background(), l.ID, testAddr1)
 	require.NoError(t, err)
 	assert.True(t, ok, "testAddr1 should be a coordinator")
 }
 
-func TestLaunchService_IsCoordinator_False(t *testing.T) {
+func TestLaunchService_IsCommitteeMember_False(t *testing.T) {
 	l := testLaunch()
 	l.Committee = testCommittee(1, 1) // only testAddr1
 	svc := newLaunchSvc(newFakeLaunchRepo(l), newFakeGenesisStore())
 
-	ok, err := svc.IsCoordinator(context.Background(), l.ID, testAddr2)
+	ok, err := svc.IsCommitteeMember(context.Background(), l.ID, testAddr2)
 	require.NoError(t, err)
 	assert.False(t, ok, "testAddr2 should not be a coordinator in a 1-member committee")
 }
 
-func TestLaunchService_IsCoordinator_NotFound(t *testing.T) {
+func TestLaunchService_IsCommitteeMember_NotFound(t *testing.T) {
 	svc := newLaunchSvc(newFakeLaunchRepo(), newFakeGenesisStore())
-	_, err := svc.IsCoordinator(context.Background(), uuid.New(), testAddr1)
+	_, err := svc.IsCommitteeMember(context.Background(), uuid.New(), testAddr1)
 	require.ErrorIs(t, err, ports.ErrNotFound)
 }
 

@@ -292,7 +292,7 @@ func (s *JoinRequestService) Submit(ctx context.Context, launchID uuid.UUID, inp
 	return jr, nil
 }
 
-// GetByID returns a single join request. Coordinators can see any; otherwise the
+// GetByID returns a single join request. Committee members can see any; otherwise the
 // caller must be a party to the request — either the validator (OperatorAddress)
 // or the submitter who signed it (SubmitterAddress), since the two may differ
 // (an ops/company account may submit on a validator's behalf).
@@ -300,13 +300,13 @@ func (s *JoinRequestService) GetByID(
 	ctx context.Context,
 	id uuid.UUID,
 	callerAddr string,
-	isCoordinator bool,
+	isCommitteeMember bool,
 ) (*joinrequest.JoinRequest, error) {
 	jr, err := s.joinRequests.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	if !isCoordinator &&
+	if !isCommitteeMember &&
 		jr.OperatorAddress.String() != callerAddr &&
 		jr.SubmitterAddress.String() != callerAddr {
 		return nil, ports.ErrForbidden
@@ -314,7 +314,7 @@ func (s *JoinRequestService) GetByID(
 	return jr, nil
 }
 
-// ListForLaunch returns all join requests for a launch. Coordinator only.
+// ListForLaunch returns all join requests for a launch. Committee members only.
 func (s *JoinRequestService) ListForLaunch(
 	ctx context.Context,
 	launchID uuid.UUID,
@@ -338,7 +338,7 @@ type SubmitterGroup struct {
 // exposes labels + operator/self-delegation detail used to vet identity. Loading by actor is
 // what surfaces anomalies (e.g. a second unexpected large self-delegation under one submitter).
 //
-// Authorization mirrors the coordinator-only convention: 404 if the launch does not exist,
+// Authorization mirrors the committee-only convention: 404 if the launch does not exist,
 // 403 if the caller is authenticated but not a committee member.
 func (s *JoinRequestService) ListGroupedBySubmitter(
 	ctx context.Context, launchID uuid.UUID, callerAddr string,

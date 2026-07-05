@@ -54,7 +54,7 @@ func windowOpenLaunch() *launch.Launch {
 }
 
 // soloCommitteeLaunch returns a DRAFT launch with a 1-of-1 committee (testAddr1 only).
-// Used to verify that testAddr2 is NOT a coordinator.
+// Used to verify that testAddr2 is NOT a committee member.
 func soloCommitteeLaunch() *launch.Launch {
 	l := testLaunch()
 	l.Committee = launch.Committee{
@@ -836,7 +836,7 @@ func TestHandleJoinList_BadUUID(t *testing.T) {
 
 func TestHandleJoinList_NotCoordinator(t *testing.T) {
 	h := newHarness(t)
-	// Solo committee: only testAddr1. testAddr2 is not a coordinator.
+	// Solo committee: only testAddr1. testAddr2 is not a committee member.
 	l := soloCommitteeLaunch()
 	h.launches.data[l.ID] = l
 	tok := h.seedSession(testAddr2)

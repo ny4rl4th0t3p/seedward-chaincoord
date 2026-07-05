@@ -139,12 +139,12 @@ func (s *Server) handleJoinList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	callerAddr := operatorFromContext(r.Context())
-	isCoord, err := s.launches.IsCoordinator(r.Context(), launchID, callerAddr)
+	isCommitteeMember, err := s.launches.IsCommitteeMember(r.Context(), launchID, callerAddr)
 	if err != nil {
 		writeServiceError(w, r, err)
 		return
 	}
-	if !isCoord {
+	if !isCommitteeMember {
 		writeError(w, http.StatusForbidden, "forbidden", "only committee members may list join requests")
 		return
 	}
@@ -193,7 +193,7 @@ type submitterGroupJSON struct {
 //
 // @Summary      List join requests grouped by submitter
 // @Description  Returns join requests grouped by the submitting hot actor, each group carrying the member label
-// @Description  and per-actor aggregates (count, total self-delegation). Committee members only.
+// @Description  and per-actor aggregates (count, total self-delegation). Coordinator-only.
 // @Tags         join
 // @Security     BearerAuth
 // @Produce      json
@@ -260,12 +260,12 @@ func (s *Server) handleGentxsGet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	callerAddr := operatorFromContext(r.Context())
-	isCoord, err := s.launches.IsCoordinator(r.Context(), launchID, callerAddr)
+	isCommitteeMember, err := s.launches.IsCommitteeMember(r.Context(), launchID, callerAddr)
 	if err != nil {
 		writeServiceError(w, r, err)
 		return
 	}
-	if !isCoord {
+	if !isCommitteeMember {
 		writeError(w, http.StatusForbidden, "forbidden", "only committee members may download gentxs")
 		return
 	}
@@ -318,13 +318,13 @@ func (s *Server) handleJoinGet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	callerAddr := operatorFromContext(r.Context())
-	isCoord, err := s.launches.IsCoordinator(r.Context(), launchID, callerAddr)
+	isCommitteeMember, err := s.launches.IsCommitteeMember(r.Context(), launchID, callerAddr)
 	if err != nil {
 		writeServiceError(w, r, err)
 		return
 	}
 
-	jr, err := s.joinReqs.GetByID(r.Context(), reqID, callerAddr, isCoord)
+	jr, err := s.joinReqs.GetByID(r.Context(), reqID, callerAddr, isCommitteeMember)
 	if err != nil {
 		writeServiceError(w, r, err)
 		return
