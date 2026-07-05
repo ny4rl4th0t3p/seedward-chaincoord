@@ -411,8 +411,6 @@ func TestE2E_HappyPath(t *testing.T) {
 	maxCommRate := "0.20"
 	maxCommChange := "0.01"
 	gentxDeadline := time.Now().Add(48 * time.Hour).UTC().Format(time.RFC3339)
-	windowOpen := time.Now().UTC().Format(time.RFC3339)
-
 	launchBody := map[string]any{
 		"record": map[string]any{
 			"chain_id":                   "testchain-1",
@@ -426,7 +424,6 @@ func TestE2E_HappyPath(t *testing.T) {
 			"max_commission_rate":        maxCommRate,
 			"max_commission_change_rate": maxCommChange,
 			"gentx_deadline":             gentxDeadline,
-			"application_window_open":    windowOpen,
 			"min_validator_count":        4,
 		},
 		"launch_type": "TESTNET",
@@ -793,8 +790,6 @@ func makeCommitteeMember(a actor, moniker string) map[string]any {
 func createLaunch(t *testing.T, c *testClient, lead actor, members []map[string]any, thresholdM, totalN int, allowlist ...string) string {
 	t.Helper()
 	gentxDeadline := time.Now().Add(48 * time.Hour).UTC().Format(time.RFC3339)
-	windowOpen := time.Now().UTC().Format(time.RFC3339)
-
 	body := map[string]any{
 		"record": map[string]any{
 			"chain_id":                   "testchain-1",
@@ -807,9 +802,7 @@ func createLaunch(t *testing.T, c *testClient, lead actor, members []map[string]
 			"min_self_delegation":        "1000000",
 			"max_commission_rate":        "0.20",
 			"max_commission_change_rate": "0.01",
-			"gentx_deadline":             gentxDeadline,
-			"application_window_open":    windowOpen,
-			"min_validator_count":        1,
+			"gentx_deadline":             gentxDeadline, "min_validator_count": 1,
 		},
 		"launch_type": "TESTNET",
 		"allowlist":   allowlist,
@@ -1195,7 +1188,6 @@ func TestE2E_PrivateLaunch(t *testing.T) {
 
 	// Create ALLOWLIST launch.
 	gentxDeadline := time.Now().Add(48 * time.Hour).UTC().Format(time.RFC3339)
-	windowOpen := time.Now().UTC().Format(time.RFC3339)
 	launchBody := map[string]any{
 		"record": map[string]any{
 			"chain_id":                   "private-1",
@@ -1209,7 +1201,6 @@ func TestE2E_PrivateLaunch(t *testing.T) {
 			"max_commission_rate":        "0.20",
 			"max_commission_change_rate": "0.01",
 			"gentx_deadline":             gentxDeadline,
-			"application_window_open":    windowOpen,
 			"min_validator_count":        1,
 		},
 		"launch_type": "TESTNET",
@@ -1284,7 +1275,6 @@ func TestE2E_MembersManagement(t *testing.T) {
 	memberClient := c.withToken(authenticate(t, c, member))
 
 	gentxDeadline := time.Now().Add(48 * time.Hour).UTC().Format(time.RFC3339)
-	windowOpen := time.Now().UTC().Format(time.RFC3339)
 	launchBody := map[string]any{
 		"record": map[string]any{
 			"chain_id":                   "members-1",
@@ -1298,7 +1288,6 @@ func TestE2E_MembersManagement(t *testing.T) {
 			"max_commission_rate":        "0.20",
 			"max_commission_change_rate": "0.01",
 			"gentx_deadline":             gentxDeadline,
-			"application_window_open":    windowOpen,
 			"min_validator_count":        1,
 		},
 		"launch_type": "TESTNET",

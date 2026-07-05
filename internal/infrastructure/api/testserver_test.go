@@ -70,7 +70,6 @@ func testLaunch() *launch.Launch {
 		MaxCommissionRate:       maxComm,
 		MaxCommissionChangeRate: maxCommChange,
 		GentxDeadline:           time.Now().Add(24 * time.Hour).UTC(),
-		ApplicationWindowOpen:   time.Now().UTC(),
 		MinValidatorCount:       1,
 	}
 	committee := launch.Committee{

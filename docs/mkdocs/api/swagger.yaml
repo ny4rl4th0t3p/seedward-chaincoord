@@ -62,8 +62,6 @@ definitions:
     type: object
   api.chainRecordJSON:
     properties:
-      application_window_open:
-        type: string
       bech32_prefix:
         type: string
       binary_name:

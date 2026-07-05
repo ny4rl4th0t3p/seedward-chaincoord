@@ -129,7 +129,6 @@ func validLaunchBody() []byte {
 			"denom":"unew","min_self_delegation":"1000000",
 			"max_commission_rate":"0.20","max_commission_change_rate":"0.01",
 			"gentx_deadline":"2026-12-01T00:00:00Z",
-			"application_window_open":"2026-04-01T00:00:00Z",
 			"min_validator_count":1
 		},
 		"launch_type":"TESTNET",

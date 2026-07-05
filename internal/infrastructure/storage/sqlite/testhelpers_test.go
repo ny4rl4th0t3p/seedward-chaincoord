@@ -64,17 +64,16 @@ func testCommittee() launch.Committee {
 
 func testChainRecord() launch.ChainRecord {
 	return launch.ChainRecord{
-		ChainID:               "testchain-1",
-		ChainName:             "Test Chain",
-		Bech32Prefix:          "cosmos",
-		BinaryName:            "testchaind",
-		BinaryVersion:         "v1.0.0",
-		BinarySHA256:          "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-		Denom:                 "utest",
-		MinSelfDelegation:     "1000000",
-		GentxDeadline:         time.Now().UTC().Add(24 * time.Hour),
-		ApplicationWindowOpen: time.Now().UTC(),
-		MinValidatorCount:     2,
+		ChainID:           "testchain-1",
+		ChainName:         "Test Chain",
+		Bech32Prefix:      "cosmos",
+		BinaryName:        "testchaind",
+		BinaryVersion:     "v1.0.0",
+		BinarySHA256:      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+		Denom:             "utest",
+		MinSelfDelegation: "1000000",
+		GentxDeadline:     time.Now().UTC().Add(24 * time.Hour),
+		MinValidatorCount: 2,
 	}
 }
 

@@ -32,7 +32,6 @@ type chainRecordJSON struct {
 	MaxCommissionRate       string     `json:"max_commission_rate"`
 	MaxCommissionChangeRate string     `json:"max_commission_change_rate"`
 	GentxDeadline           time.Time  `json:"gentx_deadline"`
-	ApplicationWindowOpen   time.Time  `json:"application_window_open"`
 	MinValidatorCount       int        `json:"min_validator_count"`
 }
 
@@ -72,7 +71,6 @@ func launchToJSON(l *launch.Launch) launchJSON {
 			MaxCommissionRate:       r.MaxCommissionRate.String(),
 			MaxCommissionChangeRate: r.MaxCommissionChangeRate.String(),
 			GentxDeadline:           r.GentxDeadline,
-			ApplicationWindowOpen:   r.ApplicationWindowOpen,
 			MinValidatorCount:       r.MinValidatorCount,
 		},
 		LaunchType:             string(l.LaunchType),
@@ -504,7 +502,6 @@ func parseChainRecord(r chainRecordJSON) (launch.ChainRecord, error) {
 		MaxCommissionRate:       maxComm,
 		MaxCommissionChangeRate: maxCommChange,
 		GentxDeadline:           r.GentxDeadline,
-		ApplicationWindowOpen:   r.ApplicationWindowOpen,
 		MinValidatorCount:       r.MinValidatorCount,
 	}, nil
 }

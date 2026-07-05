@@ -22,8 +22,7 @@ const minimalLaunchBody = `{
 		"min_self_delegation": "1",
 		"max_commission_rate": "0.10",
 		"max_commission_change_rate": "0.01",
-		"gentx_deadline": "2099-01-01T00:00:00Z",
-		"application_window_open": "2099-01-01T00:00:00Z"
+		"gentx_deadline": "2099-01-01T00:00:00Z"
 	},
 	"launch_type": "MAINNET",
 	"committee": {

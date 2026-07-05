@@ -22,15 +22,14 @@ const (
 
 func testRecord() launch.ChainRecord {
 	return launch.ChainRecord{
-		ChainID:               "testchain-1",
-		ChainName:             "Test Chain",
-		Bech32Prefix:          "cosmos",
-		BinaryName:            "testchaind",
-		BinaryVersion:         "v1.0.0",
-		Denom:                 "utest",
-		GentxDeadline:         time.Now().Add(24 * time.Hour),
-		ApplicationWindowOpen: time.Now(),
-		MinValidatorCount:     4,
+		ChainID:           "testchain-1",
+		ChainName:         "Test Chain",
+		Bech32Prefix:      "cosmos",
+		BinaryName:        "testchaind",
+		BinaryVersion:     "v1.0.0",
+		Denom:             "utest",
+		GentxDeadline:     time.Now().Add(24 * time.Hour),
+		MinValidatorCount: 4,
 	}
 }
 
@@ -234,14 +233,6 @@ func TestChainRecord_Validate_ExportedMatchesNew(t *testing.T) {
 	require.NoError(t, r.Validate(), "a valid record validates")
 	r.RepoURL = "://bad"
 	require.Error(t, r.Validate(), "an invalid record fails Validate")
-}
-
-func TestNewLaunch_WindowAfterDeadline(t *testing.T) {
-	r := testRecord()
-	r.GentxDeadline = time.Now().Add(24 * time.Hour)
-	r.ApplicationWindowOpen = time.Now().Add(48 * time.Hour) // opens after the deadline
-	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
-	require.Error(t, err, "expected error when the window opens after the gentx deadline")
 }
 
 func TestNewLaunch_ChangeRateExceedsMaxRate(t *testing.T) {

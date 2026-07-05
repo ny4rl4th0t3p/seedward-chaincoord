@@ -34,7 +34,7 @@ func (r *LaunchRepository) Save(ctx context.Context, l *launch.Launch) error {
 			chain_id=?, chain_name=?, bech32_prefix=?, binary_name=?, binary_version=?, binary_sha256=?,
 			repo_url=?, repo_commit=?, genesis_time=?, denom=?, min_self_delegation=?,
 			max_commission_rate=?, max_commission_change_rate=?,
-			gentx_deadline=?, application_window_open=?, min_validator_count=?,
+			gentx_deadline=?, min_validator_count=?,
 			launch_type=?, status=?,
 			initial_genesis_sha256=?, final_genesis_sha256=?,
 			monitor_rpc_url=?,
@@ -47,7 +47,7 @@ func (r *LaunchRepository) Save(ctx context.Context, l *launch.Launch) error {
 		nullTimeToStr(l.Record.GenesisTime),
 		l.Record.Denom, l.Record.MinSelfDelegation,
 		l.Record.MaxCommissionRate.String(), l.Record.MaxCommissionChangeRate.String(),
-		timeToStr(l.Record.GentxDeadline), timeToStr(l.Record.ApplicationWindowOpen),
+		timeToStr(l.Record.GentxDeadline),
 		l.Record.MinValidatorCount,
 		string(l.LaunchType), string(l.Status),
 		l.InitialGenesisSHA256, l.FinalGenesisSHA256,
@@ -90,13 +90,13 @@ func (r *LaunchRepository) insert(ctx context.Context, l *launch.Launch) error {
 			id, chain_id, chain_name, bech32_prefix, binary_name, binary_version, binary_sha256,
 			repo_url, repo_commit, genesis_time, denom, min_self_delegation,
 			max_commission_rate, max_commission_change_rate,
-			gentx_deadline, application_window_open, min_validator_count,
+			gentx_deadline, min_validator_count,
 			launch_type, status,
 			initial_genesis_sha256, final_genesis_sha256,
 			monitor_rpc_url,
 			total_supply, rehearsal_service_pubkey, rehearsal_endpoint,
 			created_at, updated_at, version
-		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)`,
+		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)`,
 		uuidToStr(l.ID),
 		l.Record.ChainID, l.Record.ChainName, l.Record.Bech32Prefix, l.Record.BinaryName,
 		l.Record.BinaryVersion, l.Record.BinarySHA256,
@@ -104,7 +104,7 @@ func (r *LaunchRepository) insert(ctx context.Context, l *launch.Launch) error {
 		nullTimeToStr(l.Record.GenesisTime),
 		l.Record.Denom, l.Record.MinSelfDelegation,
 		l.Record.MaxCommissionRate.String(), l.Record.MaxCommissionChangeRate.String(),
-		timeToStr(l.Record.GentxDeadline), timeToStr(l.Record.ApplicationWindowOpen),
+		timeToStr(l.Record.GentxDeadline),
 		l.Record.MinValidatorCount,
 		string(l.LaunchType), string(l.Status),
 		l.InitialGenesisSHA256, l.FinalGenesisSHA256,
@@ -502,7 +502,7 @@ func scanLaunchCols(scan func(dest ...any) error) (*launch.Launch, error) {
 		genesisTime                                                        *string
 		denom, minSelfDelegation                                           string
 		maxCommRate, maxCommChangeRate                                     string
-		gentxDeadline, appWindowOpen                                       string
+		gentxDeadline                                                      string
 		minValCount                                                        int
 		launchType, status                                                 string
 		initialGenesisSHA256, finalGenesisSHA256                           string
@@ -516,7 +516,7 @@ func scanLaunchCols(scan func(dest ...any) error) (*launch.Launch, error) {
 		&idStr, &chainID, &chainName, &binaryName, &binaryVersion, &binarySHA256,
 		&repoURL, &repoCommit, &genesisTime, &denom, &minSelfDelegation,
 		&maxCommRate, &maxCommChangeRate,
-		&gentxDeadline, &appWindowOpen, &minValCount,
+		&gentxDeadline, &minValCount,
 		&launchType, &status,
 		&initialGenesisSHA256, &finalGenesisSHA256,
 		&monitorRPCURL,
@@ -540,10 +540,6 @@ func scanLaunchCols(scan func(dest ...any) error) (*launch.Launch, error) {
 		return nil, err
 	}
 	gentxDL, err := strToTime(gentxDeadline)
-	if err != nil {
-		return nil, err
-	}
-	appWO, err := strToTime(appWindowOpen)
 	if err != nil {
 		return nil, err
 	}
@@ -582,7 +578,6 @@ func scanLaunchCols(scan func(dest ...any) error) (*launch.Launch, error) {
 			MaxCommissionRate:       maxComm,
 			MaxCommissionChangeRate: maxCommChange,
 			GentxDeadline:           gentxDL,
-			ApplicationWindowOpen:   appWO,
 			MinValidatorCount:       minValCount,
 		},
 		LaunchType:             launch.LaunchType(launchType),

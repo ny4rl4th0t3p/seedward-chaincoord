@@ -113,7 +113,6 @@ type ChainRecord struct {
 	MaxCommissionRate       CommissionRate
 	MaxCommissionChangeRate CommissionRate
 	GentxDeadline           time.Time
-	ApplicationWindowOpen   time.Time
 	MinValidatorCount       int
 }
 
@@ -615,9 +614,6 @@ func validateChainRecord(r ChainRecord) error {
 	}
 	if r.GentxDeadline.IsZero() {
 		return fmt.Errorf("gentx_deadline is required")
-	}
-	if !r.ApplicationWindowOpen.IsZero() && r.ApplicationWindowOpen.After(r.GentxDeadline) {
-		return fmt.Errorf("application_window_open must not be after gentx_deadline")
 	}
 	if !r.MaxCommissionChangeRate.LessThanOrEqual(r.MaxCommissionRate) {
 		return fmt.Errorf("max_commission_change_rate must not exceed max_commission_rate")
