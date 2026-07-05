@@ -723,7 +723,7 @@ func TestHandleAllocationList_BadUUID(t *testing.T) {
 func TestHandleAllocationList_Success(t *testing.T) {
 	h := newHarness(t)
 	l := testLaunch()
-	require.NoError(t, l.UploadAllocationFile(launch.AllocationClaims, "deadbeefclaims"))
+	require.NoError(t, l.UploadAllocationFile(launch.AllocationClaims, "1111111111111111111111111111111111111111111111111111111111111111"))
 	h.launches.data[l.ID] = l
 	w := h.getAsMember("/launch/" + l.ID.String() + "/allocations")
 	assertStatusCode(t, w, http.StatusOK)

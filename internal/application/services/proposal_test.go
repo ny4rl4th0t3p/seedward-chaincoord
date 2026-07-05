@@ -19,8 +19,8 @@ import (
 
 // allocation file content hashes for the APPROVE_ALLOCATION_FILE tests.
 const (
-	allocHashA = "a1b5c3d4a5"
-	allocHashB = "f6a5d2c3b2"
+	allocHashA = "3333333333333333333333333333333333333333333333333333333333333333"
+	allocHashB = "4444444444444444444444444444444444444444444444444444444444444444"
 )
 
 func newProposalSvc(
@@ -553,7 +553,7 @@ func TestProposalService_applyPublishGenesis_WrongStatus(t *testing.T) {
 	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
 
 	_, err := raiseWith(t, svc, l.ID, proposal.ActionPublishGenesis, proposal.PublishGenesisPayload{
-		GenesisHash: "deadbeef1234567890abcdef",
+		GenesisHash: "1111111111111111111111111111111111111111111111111111111111111111",
 	})
 	require.ErrorIs(t, err, ports.ErrConflict, "publishing genesis from the wrong status is a state conflict")
 	assert.ErrorIs(t, err, launch.ErrInvalidStatusTransition, "and preserves the domain sentinel")
@@ -568,7 +568,7 @@ func TestProposalService_applyProposal_SaveLaunchFails(t *testing.T) {
 	svc := newProposalSvc(lRepo, newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
 
 	_, err := raiseWith(t, svc, l.ID, proposal.ActionPublishGenesis, proposal.PublishGenesisPayload{
-		GenesisHash: "deadbeef1234567890abcdef",
+		GenesisHash: "1111111111111111111111111111111111111111111111111111111111111111",
 	})
 	require.Error(t, err, "a launch save failure must surface")
 	assert.ErrorContains(t, err, "save launch")
@@ -580,7 +580,7 @@ func TestProposalService_applyPublishGenesis_Success(t *testing.T) {
 	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
 
 	p, err := raiseWith(t, svc, l.ID, proposal.ActionPublishGenesis, proposal.PublishGenesisPayload{
-		GenesisHash: "deadbeef1234567890abcdef",
+		GenesisHash: "1111111111111111111111111111111111111111111111111111111111111111",
 	})
 	require.NoError(t, err)
 	require.Equal(t, proposal.StatusExecuted, p.Status)
@@ -589,11 +589,11 @@ func TestProposalService_applyPublishGenesis_Success(t *testing.T) {
 
 func TestProposalService_applyPublishChainRecord_Success(t *testing.T) {
 	l := test1of1Launch()
-	l.InitialGenesisSHA256 = "deadbeef01"
+	l.InitialGenesisSHA256 = "1111111111111111111111111111111111111111111111111111111111111111"
 	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
 
 	p, err := raiseWith(t, svc, l.ID, proposal.ActionPublishChainRecord, proposal.PublishChainRecordPayload{
-		InitialGenesisHash: "deadbeef01",
+		InitialGenesisHash: "1111111111111111111111111111111111111111111111111111111111111111",
 	})
 	require.NoError(t, err)
 	require.Equal(t, proposal.StatusExecuted, p.Status)
@@ -602,7 +602,7 @@ func TestProposalService_applyPublishChainRecord_Success(t *testing.T) {
 
 func TestProposalService_applyPublishChainRecord_HashMismatch(t *testing.T) {
 	l := test1of1Launch()
-	l.InitialGenesisSHA256 = "deadbeef01"
+	l.InitialGenesisSHA256 = "1111111111111111111111111111111111111111111111111111111111111111"
 	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
 
 	_, err := raiseWith(t, svc, l.ID, proposal.ActionPublishChainRecord, proposal.PublishChainRecordPayload{
@@ -616,7 +616,7 @@ func TestProposalService_applyPublishChainRecord_NoGenesisUploaded(t *testing.T)
 	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
 
 	_, err := raiseWith(t, svc, l.ID, proposal.ActionPublishChainRecord, proposal.PublishChainRecordPayload{
-		InitialGenesisHash: "somehash",
+		InitialGenesisHash: "1111111111111111111111111111111111111111111111111111111111111111",
 	})
 	require.ErrorIs(t, err, ports.ErrConflict, "publishing before genesis upload is a state conflict")
 }

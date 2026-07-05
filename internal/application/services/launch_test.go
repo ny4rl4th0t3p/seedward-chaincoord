@@ -756,7 +756,7 @@ func TestLaunchService_GetDashboard_NoGenesisTime(t *testing.T) {
 
 func TestLaunchService_OpenWindow_Success(t *testing.T) {
 	l := testLaunch()
-	require.NoError(t, l.Publish("abc123"))
+	require.NoError(t, l.Publish("1111111111111111111111111111111111111111111111111111111111111111"))
 	repo := newFakeLaunchRepo(l)
 	svc := newLaunchSvc(repo, newFakeGenesisStore())
 
@@ -788,7 +788,7 @@ func TestLaunchService_OpenWindow_WrongStatus(t *testing.T) {
 
 func TestLaunchService_OpenWindow_AutoPublishFromDraft(t *testing.T) {
 	l := testLaunch() // DRAFT
-	l.InitialGenesisSHA256 = "abc123"
+	l.InitialGenesisSHA256 = "1111111111111111111111111111111111111111111111111111111111111111"
 	repo := newFakeLaunchRepo(l)
 	svc := newLaunchSvc(repo, newFakeGenesisStore())
 
@@ -961,7 +961,7 @@ func TestLaunchService_CancelLaunch_AuditEvent(t *testing.T) {
 
 func TestLaunchService_OpenWindow_AuditEvent(t *testing.T) {
 	l := testLaunch()
-	require.NoError(t, l.Publish("abc123"))
+	require.NoError(t, l.Publish("1111111111111111111111111111111111111111111111111111111111111111"))
 	audit := &fakeAuditLogWriter{}
 	svc := newLaunchSvcWithAudit(newFakeLaunchRepo(l), newFakeGenesisStore(), audit)
 

@@ -79,7 +79,7 @@ func TestNewLaunch_InvalidCommitteeThreshold(t *testing.T) {
 func TestStateMachine_HappyPath(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 
-	require.NoError(t, l.Publish("abc123"))
+	require.NoError(t, l.Publish("1111111111111111111111111111111111111111111111111111111111111111"))
 	assert.Equal(t, launch.StatusPublished, l.Status)
 
 	require.NoError(t, l.OpenWindow())
@@ -96,7 +96,7 @@ func TestStateMachine_InvalidTransitions(t *testing.T) {
 
 func TestCloseWindow_MinValidatorCount(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
-	_ = l.Publish("abc123")
+	_ = l.Publish("1111111111111111111111111111111111111111111111111111111111111111")
 	_ = l.OpenWindow()
 
 	require.ErrorIs(t, l.CloseWindow(3), launch.ErrInsufficientValidators, "below min_validator_count (4)")
@@ -127,7 +127,7 @@ func TestVotingPowerWarning_NoWarningBelow33(t *testing.T) {
 
 func TestCloseWindow_DominantVotingPowerBlocked(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
-	_ = l.Publish("abc123")
+	_ = l.Publish("1111111111111111111111111111111111111111111111111111111111111111")
 	_ = l.OpenWindow()
 
 	l.RecordValidatorApproval(launch.MustNewOperatorAddress(testAddr1), 100) // 100% voting power
@@ -256,8 +256,8 @@ func TestNewLaunch_ChangeRateExceedsMaxRate(t *testing.T) {
 
 func TestPublish_NotFromDraft(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
-	_ = l.Publish("abc123") // now PUBLISHED
-	require.ErrorIs(t, l.Publish("def456"), launch.ErrInvalidStatusTransition, "cannot publish from PUBLISHED")
+	_ = l.Publish("1111111111111111111111111111111111111111111111111111111111111111") // now PUBLISHED
+	require.ErrorIs(t, l.Publish("1111111111111111111111111111111111111111111111111111111111111111"), launch.ErrInvalidStatusTransition, "cannot publish from PUBLISHED")
 }
 
 func TestPublish_EmptyGenesisHash(t *testing.T) {
@@ -272,7 +272,7 @@ func TestOpenWindow_NotFromPublished(t *testing.T) {
 	// Still in DRAFT — OpenWindow should fail.
 	require.ErrorIs(t, l.OpenWindow(), launch.ErrInvalidStatusTransition, "cannot open window from DRAFT")
 	// Advance to WINDOW_OPEN and confirm it cannot be re-opened.
-	_ = l.Publish("abc123")
+	_ = l.Publish("1111111111111111111111111111111111111111111111111111111111111111")
 	_ = l.OpenWindow()
 	require.ErrorIs(t, l.OpenWindow(), launch.ErrInvalidStatusTransition, "cannot open window from WINDOW_OPEN")
 }
@@ -289,7 +289,7 @@ func TestCloseWindow_DominantVotingPower_JustAboveThreshold(t *testing.T) {
 	r := testRecord()
 	r.MinValidatorCount = 1
 	l, _ := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
-	_ = l.Publish("abc123")
+	_ = l.Publish("1111111111111111111111111111111111111111111111111111111111111111")
 	_ = l.OpenWindow()
 	l.RecordValidatorApproval(launch.MustNewOperatorAddress(testAddr1), 34) // 34/100 = 34%
 	l.RecordValidatorApproval(launch.MustNewOperatorAddress(testAddr2), 66)
@@ -301,7 +301,7 @@ func TestCloseWindow_DominantVotingPower_JustBelowThreshold(t *testing.T) {
 	r := testRecord()
 	r.MinValidatorCount = 1
 	l, _ := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
-	_ = l.Publish("abc123")
+	_ = l.Publish("1111111111111111111111111111111111111111111111111111111111111111")
 	_ = l.OpenWindow()
 	for _, a := range []string{testAddr1, testAddr2, testAddr3, testAddr4} {
 		l.RecordValidatorApproval(launch.MustNewOperatorAddress(a), 25)
@@ -314,7 +314,7 @@ func TestCloseWindow_DominantVotingPower_JustBelowThreshold(t *testing.T) {
 func TestPublishGenesis_NotFromWindowClosed(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	require.ErrorIs(t, l.PublishGenesis("abc"), launch.ErrInvalidStatusTransition, "cannot publish genesis from DRAFT")
-	_ = l.Publish("abc123")
+	_ = l.Publish("1111111111111111111111111111111111111111111111111111111111111111")
 	require.ErrorIs(t, l.PublishGenesis("abc"), launch.ErrInvalidStatusTransition, "cannot publish genesis from PUBLISHED")
 }
 
@@ -322,7 +322,7 @@ func TestPublishGenesis_EmptyHash(t *testing.T) {
 	r := testRecord()
 	r.MinValidatorCount = 1
 	l, _ := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
-	_ = l.Publish("abc123")
+	_ = l.Publish("1111111111111111111111111111111111111111111111111111111111111111")
 	_ = l.OpenWindow()
 	_ = l.CloseWindow(1)
 	require.ErrorIs(t, l.PublishGenesis(""), launch.ErrGenesisHashRequired, "empty final genesis hash")
@@ -334,10 +334,10 @@ func TestMarkLaunched_Success(t *testing.T) {
 	r := testRecord()
 	r.MinValidatorCount = 1
 	l, _ := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
-	_ = l.Publish("abc123")
+	_ = l.Publish("1111111111111111111111111111111111111111111111111111111111111111")
 	_ = l.OpenWindow()
 	_ = l.CloseWindow(1)
-	_ = l.PublishGenesis("def456")
+	_ = l.PublishGenesis("1111111111111111111111111111111111111111111111111111111111111111")
 	require.NoError(t, l.MarkLaunched())
 	assert.Equal(t, launch.StatusLaunched, l.Status)
 }
@@ -359,10 +359,12 @@ func TestStateMachine_FullPath(t *testing.T) {
 		fn   func() error
 		want launch.Status
 	}{
-		{"Publish", func() error { return l.Publish("hash1") }, launch.StatusPublished},
+		{"Publish", func() error { return l.Publish("1111111111111111111111111111111111111111111111111111111111111111") }, launch.StatusPublished},
 		{"OpenWindow", l.OpenWindow, launch.StatusWindowOpen},
 		{"CloseWindow", func() error { return l.CloseWindow(1) }, launch.StatusWindowClosed},
-		{"PublishGenesis", func() error { return l.PublishGenesis("hash2") }, launch.StatusGenesisReady},
+		{"PublishGenesis", func() error {
+			return l.PublishGenesis("1111111111111111111111111111111111111111111111111111111111111111")
+		}, launch.StatusGenesisReady},
 		{"MarkLaunched", l.MarkLaunched, launch.StatusLaunched},
 	}
 	for _, s := range steps {
@@ -380,13 +382,13 @@ func TestEnsureOpenForApplications_NotWindowOpen(t *testing.T) {
 	// DRAFT
 	require.ErrorIs(t, l.EnsureOpenForApplications(), launch.ErrWindowNotOpen, "window not open (DRAFT)")
 	// PUBLISHED
-	_ = l.Publish("abc123")
+	_ = l.Publish("1111111111111111111111111111111111111111111111111111111111111111")
 	require.ErrorIs(t, l.EnsureOpenForApplications(), launch.ErrWindowNotOpen, "window not open (PUBLISHED)")
 }
 
 func TestEnsureOpenForApplications_WindowOpen(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
-	_ = l.Publish("abc123")
+	_ = l.Publish("1111111111111111111111111111111111111111111111111111111111111111")
 	_ = l.OpenWindow()
 	assert.NoError(t, l.EnsureOpenForApplications())
 }
@@ -715,12 +717,12 @@ func TestCancel_FromAllNonTerminalStatuses(t *testing.T) {
 		}},
 		{"PUBLISHED", func() *launch.Launch {
 			l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
-			_ = l.Publish("hash")
+			_ = l.Publish("1111111111111111111111111111111111111111111111111111111111111111")
 			return l
 		}},
 		{"WINDOW_OPEN", func() *launch.Launch {
 			l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
-			_ = l.Publish("hash")
+			_ = l.Publish("1111111111111111111111111111111111111111111111111111111111111111")
 			_ = l.OpenWindow()
 			return l
 		}},
@@ -728,7 +730,7 @@ func TestCancel_FromAllNonTerminalStatuses(t *testing.T) {
 			r := testRecord()
 			r.MinValidatorCount = 1
 			l, _ := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
-			_ = l.Publish("hash")
+			_ = l.Publish("1111111111111111111111111111111111111111111111111111111111111111")
 			_ = l.OpenWindow()
 			_ = l.CloseWindow(1)
 			return l
@@ -769,10 +771,10 @@ func advanceToGenesisReady(t *testing.T) *launch.Launch {
 	r.MinValidatorCount = 1
 	l, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
 	require.NoError(t, err)
-	_ = l.Publish("initial-hash")
+	_ = l.Publish("1111111111111111111111111111111111111111111111111111111111111111")
 	_ = l.OpenWindow()
 	_ = l.CloseWindow(1)
-	_ = l.PublishGenesis("final-hash")
+	_ = l.PublishGenesis("1111111111111111111111111111111111111111111111111111111111111111")
 	return l
 }
 
@@ -795,12 +797,12 @@ func TestReopenForRevision_WrongStatus(t *testing.T) {
 		}},
 		{"PUBLISHED", func() *launch.Launch {
 			l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
-			_ = l.Publish("hash")
+			_ = l.Publish("1111111111111111111111111111111111111111111111111111111111111111")
 			return l
 		}},
 		{"WINDOW_OPEN", func() *launch.Launch {
 			l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
-			_ = l.Publish("hash")
+			_ = l.Publish("1111111111111111111111111111111111111111111111111111111111111111")
 			_ = l.OpenWindow()
 			return l
 		}},
@@ -808,7 +810,7 @@ func TestReopenForRevision_WrongStatus(t *testing.T) {
 			r := testRecord()
 			r.MinValidatorCount = 1
 			l, _ := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
-			_ = l.Publish("hash")
+			_ = l.Publish("1111111111111111111111111111111111111111111111111111111111111111")
 			_ = l.OpenWindow()
 			_ = l.CloseWindow(1)
 			return l

@@ -45,7 +45,7 @@ func TestLaunchRepository_Save(t *testing.T) {
 				ctx := context.Background()
 				l := testLaunch(t)
 				require.NoError(t, repo.Save(ctx, l), "initial Save")
-				require.NoError(t, l.Publish("deadbeef"), "Publish")
+				require.NoError(t, l.Publish("1111111111111111111111111111111111111111111111111111111111111111"), "Publish")
 				require.NoError(t, repo.Save(ctx, l), "update Save")
 				got, err := repo.FindByID(ctx, l.ID)
 				require.NoError(t, err, "FindByID")
@@ -57,11 +57,11 @@ func TestLaunchRepository_Save(t *testing.T) {
 			run: func(t *testing.T, repo *LaunchRepository) {
 				ctx := context.Background()
 				l := testLaunch(t)
-				require.NoError(t, l.UploadAllocationFile(launch.AllocationAccounts, "hashaccounts"))
-				require.NoError(t, l.UploadAllocationFile(launch.AllocationClaims, "hashclaims"))
+				require.NoError(t, l.UploadAllocationFile(launch.AllocationAccounts, "1111111111111111111111111111111111111111111111111111111111111111"))
+				require.NoError(t, l.UploadAllocationFile(launch.AllocationClaims, "1111111111111111111111111111111111111111111111111111111111111111"))
 				// Approve one file so the APPROVED status + approved_by_proposal round-trips.
 				pid := uuid.New()
-				require.NoError(t, l.ApproveAllocationFile(launch.AllocationClaims, "hashclaims", pid))
+				require.NoError(t, l.ApproveAllocationFile(launch.AllocationClaims, "1111111111111111111111111111111111111111111111111111111111111111", pid))
 				require.NoError(t, repo.Save(ctx, l))
 
 				got, err := repo.FindByID(ctx, l.ID)
@@ -70,7 +70,7 @@ func TestLaunchRepository_Save(t *testing.T) {
 
 				accounts, ok := got.AllocationFileOf(launch.AllocationAccounts)
 				require.True(t, ok)
-				assert.Equal(t, "hashaccounts", accounts.SHA256)
+				assert.Equal(t, "1111111111111111111111111111111111111111111111111111111111111111", accounts.SHA256)
 				assert.Equal(t, launch.AllocationPending, accounts.Status)
 				assert.Nil(t, accounts.ApprovedByProposal)
 
@@ -81,14 +81,14 @@ func TestLaunchRepository_Save(t *testing.T) {
 				assert.Equal(t, pid, *claims.ApprovedByProposal)
 
 				// Re-upload claims with a new hash → replaces in place and resets to PENDING.
-				require.NoError(t, got.UploadAllocationFile(launch.AllocationClaims, "newhash"))
+				require.NoError(t, got.UploadAllocationFile(launch.AllocationClaims, "2222222222222222222222222222222222222222222222222222222222222222"))
 				require.NoError(t, repo.Save(ctx, got))
 				got2, err := repo.FindByID(ctx, l.ID)
 				require.NoError(t, err)
 				require.Len(t, got2.AllocationFiles, 2)
 				claims2, ok := got2.AllocationFileOf(launch.AllocationClaims)
 				require.True(t, ok)
-				assert.Equal(t, "newhash", claims2.SHA256)
+				assert.Equal(t, "2222222222222222222222222222222222222222222222222222222222222222", claims2.SHA256)
 				assert.Equal(t, launch.AllocationPending, claims2.Status)
 				assert.Nil(t, claims2.ApprovedByProposal)
 			},
@@ -317,7 +317,7 @@ func TestLaunchRepository_FindByStatus(t *testing.T) {
 				ctx := context.Background()
 				l := testLaunch(t)
 				require.NoError(t, repo.Save(ctx, l))
-				require.NoError(t, l.Publish("abc123"))
+				require.NoError(t, l.Publish("1111111111111111111111111111111111111111111111111111111111111111"))
 				require.NoError(t, repo.Save(ctx, l))
 				return l.ID
 			},

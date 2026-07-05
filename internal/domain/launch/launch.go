@@ -187,8 +187,8 @@ func (l *Launch) Publish(initialGenesisSHA256 string) error {
 	if l.Status != StatusDraft {
 		return fmt.Errorf("launch: can only publish from DRAFT, current status: %s: %w", l.Status, ErrInvalidStatusTransition)
 	}
-	if initialGenesisSHA256 == "" {
-		return fmt.Errorf("launch: initial genesis hash must be set before publishing: %w", ErrGenesisHashRequired)
+	if !isSHA256HexLower(initialGenesisSHA256) {
+		return fmt.Errorf("launch: initial genesis hash must be a 64-character lowercase hex string: %w", ErrGenesisHashRequired)
 	}
 	l.InitialGenesisSHA256 = initialGenesisSHA256
 	l.Status = StatusPublished
@@ -232,8 +232,8 @@ func (l *Launch) PublishGenesis(finalGenesisSHA256 string) error {
 	if l.Status != StatusWindowClosed {
 		return fmt.Errorf("launch: can only publish genesis from WINDOW_CLOSED, current status: %s: %w", l.Status, ErrInvalidStatusTransition)
 	}
-	if finalGenesisSHA256 == "" {
-		return fmt.Errorf("launch: final genesis hash must not be empty: %w", ErrGenesisHashRequired)
+	if !isSHA256HexLower(finalGenesisSHA256) {
+		return fmt.Errorf("launch: final genesis hash must be a 64-character lowercase hex string: %w", ErrGenesisHashRequired)
 	}
 	l.FinalGenesisSHA256 = finalGenesisSHA256
 	l.Status = StatusGenesisReady
@@ -458,8 +458,8 @@ func (l *Launch) UploadAllocationFile(t AllocationType, sha256 string) error {
 	if !ValidAllocationType(t) {
 		return fmt.Errorf("launch: %q: %w", t, ErrUnknownAllocationType)
 	}
-	if sha256 == "" {
-		return fmt.Errorf("launch: %q: %w", t, ErrAllocationEmptyHash)
+	if !isSHA256HexLower(sha256) {
+		return fmt.Errorf("launch: %q allocation hash must be a 64-character lowercase hex string: %w", t, ErrAllocationEmptyHash)
 	}
 	now := time.Now().UTC()
 	for i := range l.AllocationFiles {
