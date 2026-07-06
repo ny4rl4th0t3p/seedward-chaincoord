@@ -48,12 +48,20 @@ member is absent) is enforced only when the committee is modified via `EXPAND_CO
 A **Proposal** is a signed, time-limited committee action. Every state transition and governance decision goes through a
 proposal. See [Proposals & M-of-N](proposals.md) for the full list of action types and how signing works.
 
+### Membership & privacy
+
+Every launch is **private-always**: visible to — and submittable by — exactly its **committee** plus the addresses on
+its **members list** (per-launch hot addresses and labels, managed directly by the committee). A leaked URL and a fresh
+address see nothing (`404`). See [Roles → Membership](roles.md#membership).
+
 ### Join Request
 
-A **Join Request** is a validator's application to participate in a genesis. It carries:
+A **Join Request** is a validator's application to participate in a genesis, submitted by a **member** (its hot actor
+address; the on-chain validator/operator address is **derived from the gentx's signer**, not a self-declared field). It
+carries:
 
-- The validator's operator address and consensus public key
-- Their `gentx` (the Cosmos SDK genesis transaction that creates their validator)
+- Their `gentx` (the Cosmos SDK genesis transaction that creates their validator) — the consensus public key and the
+  operator address are taken from it (the operator address by deriving it from the signing key)
 - Their peer address and RPC endpoint
 - A secp256k1 signature over the full request payload
 
@@ -68,6 +76,16 @@ Every state-changing event is appended to a JSONL file, with each entry signed b
 also carries a `prev_hash` field — the SHA-256 of the previous line — covered by the current entry's signature. The log
 can be verified offline with `coordd audit verify` to confirm that entries have not been modified or deleted.
 See [Audit Log](../reference/audit.md).
+
+### Rehearsal (pre-flight)
+
+Before publishing the final genesis, the committee can **pre-flight** the approved input set: an external **rehearsal
+service** assembles a candidate genesis, boots an ephemeral chain on substitute validators, runs assertions, tears it
+down, and posts back a **signed** PASS/FAIL result. `coordd` never boots a chain — it exposes an ops-plane **bridge**
+(`/bridge/*`) that serves the approved input, mints a single-writer **claim** so two runs can't collide, and records the
+signed result (rejecting any it didn't itself serve). The committee reads results back at `GET /launch/{id}/rehearsal`.
+A PASS certifies the input set assembles and a representative chain advances — it is **not** a guarantee the real
+network produces blocks. (In v1 rehearsal is advisory and manually triggered; making it a gate is v1.1.)
 
 ---
 

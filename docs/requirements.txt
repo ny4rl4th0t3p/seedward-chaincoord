@@ -1,0 +1,7 @@
+# Python dependencies for building the docs site (mkdocs).
+# Install with `make docs-deps` (pip install -r docs/requirements.txt).
+# Unpinned for now; pin exact versions with `pip freeze | grep -iE 'mkdocs|swagger'`
+# once a local `make docs-build` is green, if you want fully reproducible builds.
+mkdocs
+mkdocs-material
+mkdocs-swagger-ui-tag

@@ -92,6 +92,6 @@ curl http://localhost:8080/healthz
 
 ## Next steps
 
-- [Dev Environment](dev-environment.md) — run the full stack (coordd + web frontend) with Docker
+- [Dev Environment](dev-environment.md) — run `coordd` with Docker in one command (the web frontend runs separately)
 - [Smoke Test](smoke-test.md) — run the full end-to-end protocol against a live Cosmos SDK chain
 - [Setup & Configuration](../reference/setup.md) — TLS, CORS, production options

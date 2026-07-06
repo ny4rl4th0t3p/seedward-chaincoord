@@ -61,10 +61,14 @@ by `coordd audit verify`.
 | `AllocationFileRejected`  | `APPROVE_ALLOCATION_FILE` proposal vetoed — file rejected                             |
 | `LaunchCancelled`         | Lead coordinator cancels the launch                                                   |
 | `LaunchDetected`          | Block monitor observes block 1 — launch moves to `LAUNCHED`                           |
+| `RehearsalResultRecorded` | A signature-verified rehearsal result is recorded via the bridge (`POST .../rehearsal-results`); payload carries the outcome, input-set hash, and a `stale` flag |
+| `RehearsalAttemptReset`   | A coordinator force-releases a stuck rehearsal run lease (`POST .../rehearsal/{attempt_id}/reset`) |
 
 !!! note
 Proposal actions that do not directly transition launch state (e.g. `REPLACE_COMMITTEE_MEMBER`, `EXPAND_COMMITTEE`,
 `SHRINK_COMMITTEE`) are recorded in the database but do not produce audit log entries in the current implementation.
+Members-list changes (`POST`/`DELETE /launch/{id}/members`) are likewise persisted with add-provenance
+(`added_by`/`added_at`) but do not emit a domain event, so they do not appear in the audit log.
 
 ---
 

@@ -38,28 +38,28 @@ This single target:
 
 The smoke test script (`docker/smoke-test.sh`) drives the full 20-step protocol:
 
-| Step | Action                                                                      |
-|------|-----------------------------------------------------------------------------|
-| 1    | Wait for `coordd` health check                                              |
-| 2    | Initialise `gaiad` environments for coordinator and 4 validators            |
-| 3    | Import deterministic secp256k1 operator keys via `smoke-signer`             |
-| 4    | Authenticate coordinator, obtain JWT                                        |
-| 5    | Create launch with a 1-of-1 committee                                       |
-| 6    | Upload initial genesis (host mode)                                          |
-| 7    | Publish chain record (`DRAFT` → `PUBLISHED`)                                |
-| 8    | Open application window (`PUBLISHED` → `WINDOW_OPEN`)                       |
-| 9    | Each validator authenticates, generates a gentx, and submits a join request |
-| 10   | Coordinator approves all 4 validators via proposals                         |
-| 11   | Close application window (`WINDOW_OPEN` → `WINDOW_CLOSED`)                  |
-| 12   | Coordinator assembles the final genesis (`collect-gentxs`)                  |
-| 13   | Upload final genesis                                                        |
-| 14   | Publish genesis (`WINDOW_CLOSED` → `GENESIS_READY`)                         |
-| 15   | Download and verify final genesis SHA256                                    |
-| 16   | Configure `persistent_peers` in each validator's `config.toml`              |
-| 17   | Each validator confirms readiness (genesis hash + binary hash)              |
-| 18   | Signal validator containers to start `gaiad`                                |
-| 19   | Set monitor RPC URL so `coordd` polls for block production                  |
-| 20   | Wait for `LAUNCHED` status (180 s timeout)                                  |
+| Step | Action                                                                                                                                                              |
+|------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1    | Wait for `coordd` health check                                                                                                                                      |
+| 2    | Initialise `gaiad` environments for coordinator and 4 validators                                                                                                    |
+| 3    | Import deterministic secp256k1 operator keys via `smoke-signer`                                                                                                     |
+| 4    | Authenticate coordinator, obtain JWT                                                                                                                                |
+| 5    | Create launch with a 1-of-1 committee, listing the 4 validators' addresses as **members** (a launch is private-always — only committee ∪ members can see or submit) |
+| 6    | Upload initial genesis (host mode)                                                                                                                                  |
+| 7    | Publish chain record (`DRAFT` → `PUBLISHED`)                                                                                                                        |
+| 8    | Open application window (`PUBLISHED` → `WINDOW_OPEN`)                                                                                                               |
+| 9    | Each validator authenticates, generates a gentx, and submits a join request                                                                                         |
+| 10   | Coordinator approves all 4 validators via proposals                                                                                                                 |
+| 11   | Close application window (`WINDOW_OPEN` → `WINDOW_CLOSED`)                                                                                                          |
+| 12   | Coordinator assembles the final genesis (`collect-gentxs`)                                                                                                          |
+| 13   | Upload final genesis                                                                                                                                                |
+| 14   | Publish genesis (`WINDOW_CLOSED` → `GENESIS_READY`)                                                                                                                 |
+| 15   | Download and verify final genesis SHA256                                                                                                                            |
+| 16   | Configure `persistent_peers` in each validator's `config.toml`                                                                                                      |
+| 17   | Each validator confirms readiness (genesis hash + binary hash)                                                                                                      |
+| 18   | Signal validator containers to start `gaiad`                                                                                                                        |
+| 19   | Set monitor RPC URL so `coordd` polls for block production                                                                                                          |
+| 20   | Wait for `LAUNCHED` status (180 s timeout)                                                                                                                          |
 
 ---
 

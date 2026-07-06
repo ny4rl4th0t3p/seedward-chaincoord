@@ -122,6 +122,23 @@ lint-openapi: swagger ## Lint the OpenAPI spec with vacuum
 	$(GO) tool vacuum lint docs/mkdocs/api/swagger.yaml
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Docs (mkdocs)
+# mkdocs is a Python tool; its deps live in docs/requirements.txt — run `make docs-deps` once.
+# The API reference page renders docs/mkdocs/api/swagger.yaml (keep it fresh with `make swagger`).
+# ──────────────────────────────────────────────────────────────────────────────
+.PHONY: docs-deps
+docs-deps: ## Install the Python deps for the docs site (mkdocs + plugins)
+	pip install -r docs/requirements.txt
+
+.PHONY: docs-serve
+docs-serve: ## Serve the docs site locally with live reload (http://localhost:8000)
+	mkdocs serve -f docs/mkdocs.yml
+
+.PHONY: docs-build
+docs-build: ## Build the static docs site into site/ (--strict: fail on broken links/nav)
+	mkdocs build -f docs/mkdocs.yml --strict
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Docker / smoke
 # ──────────────────────────────────────────────────────────────────────────────
 .PHONY: docker-build
@@ -169,7 +186,3 @@ release: ## Cross-compile coordd for linux/darwin × amd64/arm64 → bin/
 	GOOS=linux  GOARCH=arm64  $(GO) build -ldflags "$(LDFLAGS)" -o bin/coordd-linux-arm64  ./cmd/coordd
 	GOOS=darwin GOARCH=arm64  $(GO) build -ldflags "$(LDFLAGS)" -o bin/coordd-darwin-arm64 ./cmd/coordd
 	GOOS=darwin GOARCH=amd64  $(GO) build -ldflags "$(LDFLAGS)" -o bin/coordd-darwin-amd64 ./cmd/coordd
-
-.PHONY: clean
-clean: ## Remove build artifacts
-	rm -rf bin/

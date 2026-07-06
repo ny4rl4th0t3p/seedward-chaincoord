@@ -46,8 +46,9 @@ Triggered by: `PUBLISH_CHAIN_RECORD` proposal executing.
 The committee attests to the chain record and the initial genesis SHA256. From this point the chain record is
 immutable (no further edits to chain ID, binary name, denom, etc.).
 
-The launch is visible to validators if `visibility = PUBLIC`. Allowlist launches remain hidden to non-allowlisted
-addresses.
+Every launch is **private** — visible only to its committee and the addresses on its **members list** (see
+[Roles → Membership](roles.md#membership)). A non-member, even with the launch URL, gets a `404`. There is no
+public/browsable launch.
 
 Validators cannot apply yet — the application window is not open.
 
@@ -59,7 +60,10 @@ Triggered by: Any committee member calls `POST /launch/:id/open-window` (no prop
 in `DRAFT` and the initial genesis hash has already been uploaded, this call auto-publishes first — a single-coordinator
 shortcut equivalent to executing a `PUBLISH_CHAIN_RECORD` proposal.
 
-Validators can now submit join requests. The window stays open until the committee closes it via proposal.
+Validators **on the member list** can now submit join requests — a caller whose (hot) address is not a
+committee member or member is `404`'d, so the committee adds each operator's hot address to the member list
+(off-band, with a label) before the window opens (see [Roles → Membership](roles.md#membership)). The window
+stays open until the committee closes it with a proposal.
 
 During this phase coordinators review incoming join requests and raise `APPROVE_VALIDATOR` or `REJECT_VALIDATOR`
 proposals. Approved validators accumulate; the server tracks committed voting power and warns if any single entity

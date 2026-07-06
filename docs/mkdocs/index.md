@@ -28,15 +28,15 @@ flowchart LR
     DRAFT & PUBLISHED & WINDOW_OPEN & WINDOW_CLOSED & GENESIS_READY --> CANCELED
 ```
 
-| State             | What happens                                                                             |
-|-------------------|------------------------------------------------------------------------------------------|
-| **DRAFT**         | Coordinator creates the launch and configures the committee                              |
-| **PUBLISHED**     | Chain record published; initial genesis file hash committed                              |
-| **WINDOW_OPEN**   | Validators submit join requests (gentx + metadata)                                       |
-| **WINDOW_CLOSED** | Application window closes; BFT safety check passes (no single entity ≥ 1/3 voting power) |
-| **GENESIS_READY** | Final genesis file hash published and confirmed by validators                            |
-| **LAUNCHED**      | Block monitoring detects the chain is live                                               |
-| **CANCELED**      | Launch aborted from any non-terminal state                                               |
+| State             | What happens                                                                                      |
+|-------------------|---------------------------------------------------------------------------------------------------|
+| **DRAFT**         | Coordinator creates the launch and configures the committee                                       |
+| **PUBLISHED**     | Chain record published; initial genesis file hash committed                                       |
+| **WINDOW_OPEN**   | Members submit join requests (gentx + metadata) — launches are private (committee ∪ members only) |
+| **WINDOW_CLOSED** | Application window closes; BFT safety check passes (no single entity ≥ 1/3 voting power)          |
+| **GENESIS_READY** | Final genesis file hash published and confirmed by validators                                     |
+| **LAUNCHED**      | Block monitoring detects the chain is live                                                        |
+| **CANCELED**      | Launch aborted from any non-terminal state                                                        |
 
 Most state transitions are driven by **proposals** — committee actions that require M-of-N coordinator signatures before
 they execute. The exceptions are direct actions: any committee member can open the application window, the lead
@@ -52,8 +52,11 @@ member is designated the lead.
 **Proposal** — A signed, time-limited action raised by any committee member. A single VETO from any member kills it.
 Once M SIGN decisions are collected it executes immediately.
 
-**Join request** — A validator's application to participate, carrying their `gentx`, operator address, and
-self-delegation amount.
+**Membership** — Every launch is private. Only its committee and the addresses on its per-launch **members list**
+(managed directly by the committee) can see it or submit a join request; everyone else gets a `404`.
+
+**Join request** — A member's application to participate, carrying their `gentx` and self-delegation amount; the
+operator address is derived from the gentx's signer, not supplied as a trusted field.
 
 **Audit log** — An append-only JSONL file recording every state transition, proposal, and signature. Each entry is
 signed with the server's Ed25519 key and can be verified offline with `coordd audit verify`.
@@ -62,17 +65,18 @@ signed with the server's Ed25519 key and can be verified offline with `coordd au
 
 ## Components
 
-| Component      | Role                                                                                                                                                  |
-|----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `coordd`       | The coordination server — HTTP API + background jobs                                                                                                  |
-| `web/app`      | React + TypeScript web frontend — coordinators and validators use their Keplr/Leap wallet to authenticate and interact with the full launch lifecycle |
-| `smoke-signer` | Test utility for signing committee and validator actions in smoke/E2E tests                                                                           |
+| Component                 | Role                                                                                                                                                                                      |
+|---------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `coordd`                  | The coordination server — HTTP API + background jobs                                                                                                                                      |
+| `seedward-chaincoord-web` | React + TypeScript web frontend — **a separate repo**; coordinators and validators use their Keplr/Leap wallet to authenticate and drive the full launch lifecycle over coordd's HTTP API |
+| `smoke-signer`            | Test utility for signing committee and validator actions in smoke/E2E tests                                                                                                               |
 
 ---
 
 ## Next steps
 
-- [Web App](getting-started/web-app.md) — run the full stack with `make dev-up` and use it from a browser wallet
+- [Dev Environment](getting-started/dev-environment.md) — run `coordd` with `make dev-up` (the web frontend runs
+  separately)
 - [Quickstart](getting-started/quickstart.md) — run `coordd` locally in five minutes
 - [Setup & Configuration](reference/setup.md) — full configuration reference
 - [Concepts](concepts/overview.md) — deeper explanation of roles, proposals, and the lifecycle
