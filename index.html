@@ -955,7 +955,7 @@ frameworks.</p>
 </tr>
 <tr>
 <td><strong>WINDOW_OPEN</strong></td>
-<td>Validators submit join requests (gentx + metadata)</td>
+<td>Members submit join requests (gentx + metadata) — launches are private (committee ∪ members only)</td>
 </tr>
 <tr>
 <td><strong>WINDOW_CLOSED</strong></td>
@@ -984,8 +984,10 @@ coordinator can cancel, and the move to LAUNCHED is detected automatically from 
 member is designated the lead.</p>
 <p><strong>Proposal</strong> — A signed, time-limited action raised by any committee member. A single VETO from any member kills it.
 Once M SIGN decisions are collected it executes immediately.</p>
-<p><strong>Join request</strong> — A validator's application to participate, carrying their <code>gentx</code>, operator address, and
-self-delegation amount.</p>
+<p><strong>Membership</strong> — Every launch is private. Only its committee and the addresses on its per-launch <strong>members list</strong>
+(managed directly by the committee) can see it or submit a join request; everyone else gets a <code>404</code>.</p>
+<p><strong>Join request</strong> — A member's application to participate, carrying their <code>gentx</code> and self-delegation amount; the
+operator address is derived from the gentx's signer, not supplied as a trusted field.</p>
 <p><strong>Audit log</strong> — An append-only JSONL file recording every state transition, proposal, and signature. Each entry is
 signed with the server's Ed25519 key and can be verified offline with <code>coordd audit verify</code>.</p>
 <hr />
@@ -1003,8 +1005,8 @@ signed with the server's Ed25519 key and can be verified offline with <code>coor
 <td>The coordination server — HTTP API + background jobs</td>
 </tr>
 <tr>
-<td><code>web/app</code></td>
-<td>React + TypeScript web frontend — coordinators and validators use their Keplr/Leap wallet to authenticate and interact with the full launch lifecycle</td>
+<td><code>seedward-chaincoord-web</code></td>
+<td>React + TypeScript web frontend — <strong>a separate repo</strong>; coordinators and validators use their Keplr/Leap wallet to authenticate and drive the full launch lifecycle over coordd's HTTP API</td>
 </tr>
 <tr>
 <td><code>smoke-signer</code></td>
@@ -1015,7 +1017,8 @@ signed with the server's Ed25519 key and can be verified offline with <code>coor
 <hr />
 <h2 id="next-steps">Next steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="getting-started/web-app.md">Web App</a> — run the full stack with <code>make dev-up</code> and use it from a browser wallet</li>
+<li><a href="getting-started/dev-environment/">Dev Environment</a> — run <code>coordd</code> with <code>make dev-up</code> (the web frontend runs
+  separately)</li>
 <li><a href="getting-started/quickstart/">Quickstart</a> — run <code>coordd</code> locally in five minutes</li>
 <li><a href="reference/setup/">Setup &amp; Configuration</a> — full configuration reference</li>
 <li><a href="concepts/overview/">Concepts</a> — deeper explanation of roles, proposals, and the lifecycle</li>

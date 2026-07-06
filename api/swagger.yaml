@@ -62,8 +62,6 @@ definitions:
     type: object
   api.chainRecordJSON:
     properties:
-      application_window_open:
-        type: string
       bech32_prefix:
         type: string
       binary_name:
@@ -460,6 +458,166 @@ definitions:
       launch_id:
         type: string
     type: object
+  api.rehearsalAllocJSON:
+    properties:
+      approved_by_proposal:
+        type: string
+      sha256:
+        type: string
+      url:
+        description: |-
+          URL is where the daemon streams the file — coordd's ops-gated per-file stream endpoint
+          (host bytes) or, for attestor-mode files, a 302 to the external URL. Relative to coordd's
+          base URL. The bytes are NOT inlined, so airdrop-scale files never buffer in memory.
+        type: string
+    type: object
+  api.rehearsalBinaryJSON:
+    properties:
+      name:
+        type: string
+      repo_commit:
+        type: string
+      repo_url:
+        type: string
+      sha256:
+        type: string
+      version:
+        type: string
+    type: object
+  api.rehearsalChainJSON:
+    properties:
+      bech32_prefix:
+        type: string
+      binary:
+        $ref: '#/definitions/api.rehearsalBinaryJSON'
+      chain_id:
+        type: string
+      denom:
+        type: string
+      genesis_time:
+        type: string
+      max_commission_change_rate:
+        type: string
+      max_commission_rate:
+        type: string
+      min_self_delegation:
+        type: string
+      min_validator_count:
+        type: integer
+      total_supply:
+        type: string
+    type: object
+  api.rehearsalClaimRequest:
+    properties:
+      runner_id:
+        type: string
+    type: object
+  api.rehearsalGentxJSON:
+    properties:
+      consensus_pubkey:
+        type: string
+      gentx:
+        type: object
+      moniker:
+        type: string
+      operator_address:
+        type: string
+      self_delegation:
+        type: string
+    type: object
+  api.rehearsalInputJSON:
+    properties:
+      allocations:
+        additionalProperties:
+          $ref: '#/definitions/api.rehearsalAllocJSON'
+        type: object
+      attempt_id:
+        type: string
+      chain:
+        $ref: '#/definitions/api.rehearsalChainJSON'
+      generated_at:
+        type: string
+      gentxs:
+        items:
+          $ref: '#/definitions/api.rehearsalGentxJSON'
+        type: array
+      input_set_hash:
+        type: string
+      launch_id:
+        type: string
+      schema_version:
+        type: integer
+      status:
+        type: string
+    type: object
+  api.rehearsalLeaseConflictJSON:
+    properties:
+      claimed_at:
+        type: string
+      claimed_by:
+        type: string
+      lease_expires_at:
+        type: string
+    type: object
+  api.rehearsalResultAckJSON:
+    properties:
+      attempt_id:
+        type: string
+      launch_id:
+        type: string
+      outcome:
+        type: string
+      recorded_at:
+        type: string
+      stale:
+        type: boolean
+    type: object
+  api.rehearsalResultJSON:
+    properties:
+      attempt_id:
+        type: string
+      binary_name:
+        type: string
+      binary_sha256:
+        type: string
+      binary_version:
+        type: string
+      blocks_advanced:
+        type: integer
+      engine_version:
+        type: string
+      failed_step:
+        type: string
+      finished_at:
+        type: string
+      input_set_hash:
+        type: string
+      outcome:
+        type: string
+      recorded_at:
+        type: string
+      stale:
+        type: boolean
+      started_at:
+        type: string
+      steps:
+        items:
+          $ref: '#/definitions/api.rehearsalResultStepJSON'
+        type: array
+      summary:
+        type: string
+      validators:
+        type: integer
+    type: object
+  api.rehearsalResultStepJSON:
+    properties:
+      detail:
+        type: string
+      name:
+        type: string
+      status:
+        type: string
+    type: object
   api.sessionInfoJSON:
     properties:
       expires_at:
@@ -614,6 +772,61 @@ definitions:
       signature:
         type: string
       timestamp:
+        type: string
+    type: object
+  services.RehearsalResultFact:
+    properties:
+      attempt_id:
+        type: string
+      failed_step:
+        type: string
+      finished_at:
+        type: string
+      input_set_hash:
+        type: string
+      launch_id:
+        type: string
+      outcome:
+        type: string
+      rehearsal:
+        $ref: '#/definitions/services.RehearsalResultFactMeta'
+      schema_version:
+        type: integer
+      service_pubkey:
+        type: string
+      signature:
+        type: string
+      started_at:
+        type: string
+      steps:
+        items:
+          $ref: '#/definitions/services.RehearsalResultFactStep'
+        type: array
+      summary:
+        type: string
+    type: object
+  services.RehearsalResultFactMeta:
+    properties:
+      binary_name:
+        type: string
+      binary_sha256:
+        type: string
+      binary_version:
+        type: string
+      blocks_advanced:
+        type: integer
+      engine_version:
+        type: string
+      validators:
+        type: integer
+    type: object
+  services.RehearsalResultFactStep:
+    properties:
+      detail:
+        type: string
+      name:
+        type: string
+      status:
         type: string
     type: object
   services.SignInput:
@@ -944,6 +1157,178 @@ paths:
       summary: Verify a signed challenge
       tags:
       - auth
+  /bridge/launches/{id}/allocations/{type}:
+    get:
+      description: |-
+        Streams a launch's allocation file (host mode → raw bytes; attestor mode → 302 to the
+        external URL). Ops-credential only. Streamed, not buffered — safe for airdrop-scale files.
+      parameters:
+      - description: Launch UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Allocation type (accounts/claims/grants/authz/feegrant)
+        in: path
+        name: type
+        required: true
+        type: string
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: Raw file bytes (host mode)
+          schema:
+            type: string
+        "302":
+          description: Redirect to external URL (attestor mode)
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+      summary: Rehearsal allocation file (bridge)
+      tags:
+      - bridge
+  /bridge/launches/{id}/rehearsal-claim:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Acquires the single-writer run lease for the launch's current input set and returns the
+        full build input (chain + gentxs + allocation URLs + attempt_id). 409 if another runner
+        already holds an unexpired lease. Ops-credential only.
+      parameters:
+      - description: Launch UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Runner identity
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.rehearsalClaimRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.rehearsalInputJSON'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.rehearsalLeaseConflictJSON'
+      summary: Claim a rehearsal run (bridge)
+      tags:
+      - bridge
+  /bridge/launches/{id}/rehearsal-input:
+    get:
+      description: |-
+        Returns the launch's approved rehearsal build input (chain + approved gentxs + approved
+        host-mode allocation files) plus input_set_hash. Ops-credential only. 422 if an approved
+        allocation is attestor-mode (run the rehearsal standalone instead).
+      parameters:
+      - description: Launch UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.rehearsalInputJSON'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+      summary: Rehearsal input (bridge)
+      tags:
+      - bridge
+  /bridge/launches/{id}/rehearsal-results:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Verifies the fact's Ed25519 signature against the launch's trusted service pubkey and
+        that it references an attempt coordd minted (anti-fabrication), then stores it —
+        flagged stale if the approved input set has since changed. Ops-credential only.
+      parameters:
+      - description: Launch UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Signed result fact
+        in: body
+        name: fact
+        required: true
+        schema:
+          $ref: '#/definitions/services.RehearsalResultFact'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.rehearsalResultAckJSON'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+      summary: Rehearsal result write-back (bridge)
+      tags:
+      - bridge
   /committee/{launch_id}:
     get:
       parameters:
@@ -1691,7 +2076,7 @@ paths:
     get:
       description: |-
         Returns join requests grouped by the submitting hot actor, each group carrying the member label
-        and per-actor aggregates (count, total self-delegation). Committee members only.
+        and per-actor aggregates (count, total self-delegation). Coordinator-only.
       parameters:
       - description: Launch UUID
         in: path
@@ -2142,6 +2527,80 @@ paths:
       summary: Confirm readiness
       tags:
       - readiness
+  /launch/{id}/rehearsal:
+    get:
+      description: |-
+        Returns the launch's recorded rehearsal results — outcome, which step failed, the
+        input-set hash the run consumed, and a `stale` flag (the approved inputs changed
+        since the run) — newest first. Committee members only.
+      parameters:
+      - description: Launch UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/api.rehearsalResultJSON'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+      summary: Rehearsal results (committee read-back)
+      tags:
+      - rehearsal
+  /launch/{id}/rehearsal/{attempt_id}/reset:
+    post:
+      description: |-
+        Coordinator override that returns a stuck (crashed-runner) rehearsal attempt to OPEN so
+        the run can be re-claimed before the lease TTL expires. Committee members only.
+      parameters:
+      - description: Launch UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Attempt UUID
+        in: path
+        name: attempt_id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: Lease reset
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+      summary: Reset a rehearsal run lease
+      tags:
+      - rehearsal
   /launches:
     get:
       description: Returns a paginated list of launches. Visibility is filtered based

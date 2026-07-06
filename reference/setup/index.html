@@ -946,6 +946,28 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#rehearsal_ops_token-rehearsal_ops_token_file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        rehearsal_ops_token / rehearsal_ops_token_file
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rehearsal_lease_ttl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        rehearsal_lease_ttl
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#log_level" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1349,6 +1371,28 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#rehearsal_ops_token-rehearsal_ops_token_file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        rehearsal_ops_token / rehearsal_ops_token_file
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rehearsal_lease_ttl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        rehearsal_lease_ttl
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#log_level" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1649,6 +1693,27 @@ the real client address rather than the proxy address.</p>
 <td><code>false</code></td>
 <td>No</td>
 </tr>
+<tr>
+<td><code>rehearsal_ops_token</code></td>
+<td><code>COORD_REHEARSAL_OPS_TOKEN</code></td>
+<td>—</td>
+<td><em>(bridge disabled)</em></td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>rehearsal_ops_token_file</code></td>
+<td><code>COORD_REHEARSAL_OPS_TOKEN_FILE</code></td>
+<td>—</td>
+<td><em>(bridge disabled)</em></td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>rehearsal_lease_ttl</code></td>
+<td><code>COORD_REHEARSAL_LEASE_TTL</code></td>
+<td>—</td>
+<td><code>45m</code></td>
+<td>No</td>
+</tr>
 </tbody>
 </table>
 <p>¹ Exactly one of <code>audit_private_key</code> (inline base64) or <code>audit_private_key_file</code> (path) must be set.<br />
@@ -1703,6 +1768,20 @@ for automated test environments</strong> — do not enable in production.</p>
 <p>Disables DNS-resolution and private-IP validation on user-supplied RPC URLs (<code>monitor_rpc_url</code>) and genesis attestor
 URLs. Only enable this in trusted environments — for example, the smoke-test Docker network, where RPC hostnames are
 internal container names that would fail the SSRF check. <strong>Do not enable in production.</strong></p>
+<h3 id="rehearsal_ops_token-rehearsal_ops_token_file"><code>rehearsal_ops_token</code> / <code>rehearsal_ops_token_file</code><a class="headerlink" href="#rehearsal_ops_token-rehearsal_ops_token_file" title="Permanent link">&para;</a></h3>
+<p>Shared bearer token authenticating the <strong>rehearsal bridge</strong> (ops plane) endpoints under <code>/bridge/*</code> — a
+headless service-to-service credential, not a wallet. When set, the rehearsal service presents it as
+<code>Authorization: Bearer &lt;token&gt;</code> to pull the approved input set and post signed results. <strong>Leave unset to
+disable the bridge</strong> (all <code>/bridge/*</code> requests are rejected, fail-closed). Deployment-wide, not per-launch;
+prefer the <code>_file</code> variant (secret manager) over the plain env var. Rotation is "swap the secret + reload."
+Deploy the <code>/bridge/*</code> endpoints on an <strong>internal network only</strong> (e.g. an ingress rule restricting the
+prefix), since the ops plane must not be internet-reachable.</p>
+<h3 id="rehearsal_lease_ttl"><code>rehearsal_lease_ttl</code><a class="headerlink" href="#rehearsal_lease_ttl" title="Permanent link">&para;</a></h3>
+<p>How long a claimed rehearsal run (<code>POST /bridge/launches/{id}/rehearsal-claim</code>) holds its single-writer
+lease before it is treated as stale and re-claimable. A crashed runner self-heals after this window without
+operator intervention; set it comfortably above your longest rehearsal. Accepts a Go duration string
+(<code>45m</code>, <code>1h</code>, <code>90m</code>). Defaults to <strong>45m</strong> when unset. For an immediate override of a stuck lease, a committee
+coordinator can call <code>POST /launch/{id}/rehearsal/{attempt_id}/reset</code> instead of waiting for expiry.</p>
 <h3 id="log_level"><code>log_level</code><a class="headerlink" href="#log_level" title="Permanent link">&para;</a></h3>
 <p>Controls verbosity. Accepted values: <code>debug</code>, <code>info</code>, <code>warn</code>, <code>error</code>.</p>
 <ul>

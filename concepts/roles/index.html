@@ -575,6 +575,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#membership" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Membership
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#authentication" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -888,6 +899,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#membership" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Membership
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#authentication" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -958,17 +980,52 @@ proposals.</p>
 <h2 id="validator">Validator<a class="headerlink" href="#validator" title="Permanent link">&para;</a></h2>
 <p>A validator is an operator who wants to participate in the genesis validator set. They interact with <code>coordd</code> during
 <code>WINDOW_OPEN</code> (to apply) and again after <code>GENESIS_READY</code> (to download the final genesis and confirm readiness).</p>
+<p><strong>Two address classes.</strong> A validator works with two distinct addresses, and keeping them separate is the core of the
+onboarding model:</p>
+<ul>
+<li><strong>Hot actor address</strong> — the disposable address the operator logs into <code>coordd</code> with and signs the join-request
+  <em>submission</em>. This is the address that must be on the launch's <a href="#membership">members list</a>. The real (cold)
+  validator key never touches the app.</li>
+<li><strong>Cold validator (operator) address</strong> — the validator's on-chain account (the <code>valoper</code> identity in account form).
+  <code>coordd</code> does not trust a self-declared field: it <strong>derives</strong> this address from the key that <em>signed</em> the gentx
+  (<code>RIPEMD160(SHA256(pubkey))</code>, bech32-encoded) and verifies it matches the gentx's <code>validator_address</code>. That
+  cryptographic binding is why it's the stable anchor the committee vets against — forging a gentx for someone else's
+  operator address would need their cold key. (The deprecated <code>delegator_address</code> field is empty in modern gentxs and is
+  not used as the identity.)</li>
+</ul>
 <p><strong>What validators do:</strong></p>
 <ol>
-<li>Authenticate to <code>coordd</code> (same secp256k1 challenge–response as coordinators)</li>
-<li>Generate a <code>gentx</code> locally using their chain binary (e.g. <code>gaiad genesis gentx</code>)</li>
-<li>Submit a join request carrying the <code>gentx</code>, peer address, and RPC endpoint (the consensus key is read from the
-   <code>gentx</code>)</li>
-<li>Wait for the committee to approve or reject their application</li>
-<li>After <code>GENESIS_READY</code>: download the final genesis file, verify its SHA256 hash, and submit a readiness confirmation</li>
+<li>Be added to the launch's <strong>members list</strong> by the committee (off-band, with a label) — a non-member can't see the
+   launch or submit (see <a href="#membership">Membership</a>). </li>
+<li>Generate a <code>gentx</code> locally using their chain binary (e.g. <code>gaiad genesis gentx</code>). </li>
+<li>Authenticate to <code>coordd</code> with their <strong>hot</strong> address (same secp256k1 challenge–response as coordinators).</li>
+<li>Submit a join request carrying the <code>gentx</code>, peer address, and RPC endpoint. The consensus key is read from the
+   gentx; the operator address is <strong>derived from the gentx's signer</strong> (then checked against its self-declared
+   <code>validator_address</code>). The server rejects an invalid gentx with a <code>gentx_invalid</code> error + per-invariant detail.</li>
+<li>Wait for the committee to approve or reject. The committee reviews applications <strong>grouped by submitter</strong>
+   (<code>GET /launch/{id}/join/grouped</code>), matching each submitted operator address and self-delegation against the off-band
+   expectation tied to that member's label.</li>
+<li>After <code>GENESIS_READY</code>: download the final genesis file, verify its SHA256 hash, and submit a readiness confirmation.</li>
 </ol>
 <p>Validators have no proposal rights and cannot influence governance decisions. Their only active contribution beyond the
 join request is the readiness confirmation (attesting they have the correct genesis and binary).</p>
+<hr />
+<h2 id="membership">Membership<a class="headerlink" href="#membership" title="Permanent link">&para;</a></h2>
+<p>Every launch is <strong>private-always</strong> — there is no public/browsable launch. A launch is visible to (and submittable by)
+exactly its <strong>committee ∪ its member list</strong>; everyone else, even with the launch URL, gets a <code>404</code>. A leaked URL plus a
+fresh address grants <strong>nothing</strong>.</p>
+<p>The <strong>members list</strong> is the per-launch set of <strong>hot actor addresses</strong>, each with a <strong>label</strong>. The committee manages it
+directly (no proposal needed) while the launch is in <code>DRAFT</code>/<code>PUBLISHED</code>/<code>WINDOW_OPEN</code>:</p>
+<ul>
+<li><code>POST /launch/{id}/members</code> — add an address + label (the label points to off-band verification of who that operator
+  is; it is not proof of identity).</li>
+<li><code>DELETE /launch/{id}/members/{address}</code> — revoke.</li>
+<li><code>GET /launch/{id}/members</code> — committee-only; lists addresses, labels, and add provenance.</li>
+</ul>
+<p>For v1 the committee collects operators' hot addresses off-band and adds them directly. (Invite tokens — a labeled,
+redeemable token so the address need not be known up front — are planned for v1.x.) The label is what makes
+approval-review meaningful: the committee vets each submitted <strong>operator address + self-delegation</strong> against the label's
+expectation, so an unexpected operator address under a member surfaces at approval.</p>
 <hr />
 <h2 id="authentication">Authentication<a class="headerlink" href="#authentication" title="Permanent link">&para;</a></h2>
 <p>All three roles authenticate identically: secp256k1 challenge–response.</p>

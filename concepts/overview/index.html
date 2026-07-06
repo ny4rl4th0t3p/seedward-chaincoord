@@ -570,6 +570,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#membership-privacy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Membership &amp; privacy
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#join-request" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -585,6 +596,17 @@
     <span class="md-ellipsis">
       
         Audit Log
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rehearsal-pre-flight" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rehearsal (pre-flight)
       
     </span>
   </a>
@@ -972,6 +994,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#membership-privacy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Membership &amp; privacy
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#join-request" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -987,6 +1020,17 @@
     <span class="md-ellipsis">
       
         Audit Log
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rehearsal-pre-flight" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rehearsal (pre-flight)
       
     </span>
   </a>
@@ -1075,11 +1119,17 @@ member is absent) is enforced only when the committee is modified via <code>EXPA
 <h3 id="proposal">Proposal<a class="headerlink" href="#proposal" title="Permanent link">&para;</a></h3>
 <p>A <strong>Proposal</strong> is a signed, time-limited committee action. Every state transition and governance decision goes through a
 proposal. See <a href="../proposals/">Proposals &amp; M-of-N</a> for the full list of action types and how signing works.</p>
+<h3 id="membership-privacy">Membership &amp; privacy<a class="headerlink" href="#membership-privacy" title="Permanent link">&para;</a></h3>
+<p>Every launch is <strong>private-always</strong>: visible to — and submittable by — exactly its <strong>committee</strong> plus the addresses on
+its <strong>members list</strong> (per-launch hot addresses and labels, managed directly by the committee). A leaked URL and a fresh
+address see nothing (<code>404</code>). See <a href="../roles/#membership">Roles → Membership</a>.</p>
 <h3 id="join-request">Join Request<a class="headerlink" href="#join-request" title="Permanent link">&para;</a></h3>
-<p>A <strong>Join Request</strong> is a validator's application to participate in a genesis. It carries:</p>
+<p>A <strong>Join Request</strong> is a validator's application to participate in a genesis, submitted by a <strong>member</strong> (its hot actor
+address; the on-chain validator/operator address is <strong>derived from the gentx's signer</strong>, not a self-declared field). It
+carries:</p>
 <ul>
-<li>The validator's operator address and consensus public key</li>
-<li>Their <code>gentx</code> (the Cosmos SDK genesis transaction that creates their validator)</li>
+<li>Their <code>gentx</code> (the Cosmos SDK genesis transaction that creates their validator) — the consensus public key and the
+  operator address are taken from it (the operator address by deriving it from the signing key)</li>
 <li>Their peer address and RPC endpoint</li>
 <li>A secp256k1 signature over the full request payload</li>
 </ul>
@@ -1092,6 +1142,14 @@ semantic validation happens when the coordinator runs <code>gaiad genesis collec
 also carries a <code>prev_hash</code> field — the SHA-256 of the previous line — covered by the current entry's signature. The log
 can be verified offline with <code>coordd audit verify</code> to confirm that entries have not been modified or deleted.
 See <a href="../../reference/audit/">Audit Log</a>.</p>
+<h3 id="rehearsal-pre-flight">Rehearsal (pre-flight)<a class="headerlink" href="#rehearsal-pre-flight" title="Permanent link">&para;</a></h3>
+<p>Before publishing the final genesis, the committee can <strong>pre-flight</strong> the approved input set: an external <strong>rehearsal
+service</strong> assembles a candidate genesis, boots an ephemeral chain on substitute validators, runs assertions, tears it
+down, and posts back a <strong>signed</strong> PASS/FAIL result. <code>coordd</code> never boots a chain — it exposes an ops-plane <strong>bridge</strong>
+(<code>/bridge/*</code>) that serves the approved input, mints a single-writer <strong>claim</strong> so two runs can't collide, and records the
+signed result (rejecting any it didn't itself serve). The committee reads results back at <code>GET /launch/{id}/rehearsal</code>.
+A PASS certifies the input set assembles and a representative chain advances — it is <strong>not</strong> a guarantee the real
+network produces blocks. (In v1 rehearsal is advisory and manually triggered; making it a gate is v1.1.)</p>
 <hr />
 <h2 id="what-seedward-chaincoord-does-not-do">What seedward-chaincoord does not do<a class="headerlink" href="#what-seedward-chaincoord-does-not-do" title="Permanent link">&para;</a></h2>
 <ul>
