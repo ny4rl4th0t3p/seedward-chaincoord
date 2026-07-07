@@ -70,7 +70,9 @@ func (f *fakeRehearsalResultRepo) Save(_ context.Context, res *launch.RehearsalR
 		return nil // idempotent on signature
 	}
 	f.sigs[res.Signature] = true
-	f.byLaunch[res.LaunchID] = append(f.byLaunch[res.LaunchID], res)
+	// Prepend so FindByLaunch returns newest-first, matching the port contract + the sqlite repo
+	// (ORDER BY recorded_at DESC). The gate/staleness reads index [0] as "latest".
+	f.byLaunch[res.LaunchID] = append([]*launch.RehearsalResult{res}, f.byLaunch[res.LaunchID]...)
 	return nil
 }
 
