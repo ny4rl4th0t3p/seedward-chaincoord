@@ -33,6 +33,7 @@ type LaunchService struct {
 	results           ports.RehearsalResultRepository
 	rehearsalLeaseTTL time.Duration
 	urlValidator      func(string) error
+	hasher            *InputSetHasher
 }
 
 // defaultRehearsalLeaseTTL bounds how long a claimed rehearsal run holds its lease before it is
@@ -63,6 +64,7 @@ func NewLaunchService(
 		results:           results,
 		rehearsalLeaseTTL: defaultRehearsalLeaseTTL,
 		urlValidator:      netutil.ValidateRPCURL,
+		hasher:            NewInputSetHasher(joinRequests),
 	}
 }
 

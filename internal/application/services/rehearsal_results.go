@@ -102,7 +102,7 @@ func (s *LaunchService) RecordRehearsalResult(
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	current, err := s.currentInputSetHash(ctx, l)
+	current, err := s.hasher.Current(ctx, l)
 	if err != nil {
 		return nil, fmt.Errorf("%s: current hash: %w", op, err)
 	}
