@@ -48,16 +48,19 @@ const (
 //     ErrDominantVotingPower → 409 (state conflict / precondition),
 //   - ErrGenesisHashRequired / ErrCommitteeMemberNotFound / ErrInvalidCommitteeChange → 400.
 var (
-	ErrInvalidStatusTransition = errors.New("operation not allowed from the current launch status")
-	ErrGenesisHashRequired     = errors.New("genesis hash must be set")
-	ErrInsufficientValidators  = errors.New("not enough approved validators to close the window")
-	ErrDominantVotingPower     = errors.New("a single operator holds an unsafe share of voting power")
-	ErrCommitteeMemberNotFound = errors.New("committee member not found")
-	ErrCommitteeMemberExists   = errors.New("address is already a committee member")
-	ErrInvalidCommitteeChange  = errors.New("invalid committee change")
-	ErrWindowNotOpen           = errors.New("application window is not open")
-	ErrMembersNotEditable      = errors.New("members list is not editable in the current launch status")
-	ErrNotAMember              = errors.New("address is not a member of this launch")
+	ErrInvalidStatusTransition  = errors.New("operation not allowed from the current launch status")
+	ErrGenesisHashRequired      = errors.New("genesis hash must be set")
+	ErrInsufficientValidators   = errors.New("not enough approved validators to close the window")
+	ErrDominantVotingPower      = errors.New("a single operator holds an unsafe share of voting power")
+	ErrCommitteeMemberNotFound  = errors.New("committee member not found")
+	ErrCommitteeMemberExists    = errors.New("address is already a committee member")
+	ErrInvalidCommitteeChange   = errors.New("invalid committee change")
+	ErrWindowNotOpen            = errors.New("application window is not open")
+	ErrMembersNotEditable       = errors.New("members list is not editable in the current launch status")
+	ErrNotAMember               = errors.New("address is not a member of this launch")
+	ErrGenesisStale             = errors.New("the final genesis no longer matches the current approved validator set")
+	ErrGenesisHashMismatch      = errors.New("proposal genesis hash does not match the uploaded final genesis")
+	ErrGenesisPublishInProgress = errors.New("a genesis publication is in progress")
 )
 
 // CommitteeMember is an individual coordinator in the M-of-N committee.

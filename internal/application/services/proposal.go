@@ -36,6 +36,7 @@ type ProposalService struct {
 	events       ports.EventPublisher
 	audit        ports.AuditLogWriter
 	tx           ports.Transactor
+	hasher       *InputSetHasher
 }
 
 func NewProposalService(
@@ -59,6 +60,7 @@ func NewProposalService(
 		events:       events,
 		audit:        audit,
 		tx:           tx,
+		hasher:       NewInputSetHasher(joinRequests),
 	}
 }
 
@@ -108,6 +110,12 @@ func (s *ProposalService) Raise(ctx context.Context, launchID uuid.UUID, input R
 	if err := s.verifier.Verify(input.CoordinatorAddr, pubKeyB64, message, sigBytes); err != nil {
 		// Invalid signature is an auth failure (401); the verifier returns a bare error.
 		return nil, fmt.Errorf("raise proposal: signature invalid: %w: %w", err, ports.ErrUnauthorized)
+	}
+
+	// Genesis-finalization guards (Part A): keep the published genesis consistent with the approved
+	// set — reject a raise that would create or lock in an inconsistency.
+	if err := s.guardFinalizationRaise(ctx, l, input.ActionType); err != nil {
+		return nil, err
 	}
 
 	sig, err := launch.NewSignature(input.Signature)
@@ -471,10 +479,97 @@ func (s *ProposalService) applyPublishGenesis(ctx context.Context, l *launch.Lau
 	if err := json.Unmarshal(p.Payload, &pl); err != nil {
 		return fmt.Errorf("apply publish genesis: payload: %w", err)
 	}
+	// Consistency (Part A): publish exactly the uploaded genesis, and only if it still matches the
+	// current approved set (which can drift between raise and quorum, or via a raise-time race —
+	// this execute-time re-check is the hard floor that closes that window).
+	if pl.GenesisHash != l.FinalGenesisSHA256 {
+		return fmt.Errorf("apply publish genesis: proposal hash %q does not match the uploaded final genesis: %w: %w",
+			pl.GenesisHash, launch.ErrGenesisHashMismatch, ports.ErrConflict)
+	}
+	if err := s.checkGenesisFresh(ctx, l); err != nil {
+		return fmt.Errorf("apply publish genesis: %w", err)
+	}
 	if err := l.PublishGenesis(pl.GenesisHash); err != nil {
 		return mapLaunchDomainErr("apply publish genesis", err)
 	}
 	return s.saveLaunchAndProposal(ctx, l, p)
+}
+
+// guardFinalizationRaise (Part A) rejects a raise that would break genesis↔approved-set consistency.
+// Runs after auth so a doomed proposal never enters the signing flow:
+//   - PUBLISH_GENESIS: the uploaded genesis must still match the current set (freshness), and no
+//     set-mutating proposal may be pending (freeze).
+//   - APPROVE_VALIDATOR / REMOVE_APPROVED_VALIDATOR: no genesis publication may be pending (freeze).
+//
+// The freeze is bidirectional, so the two kinds can never be pending at once. applyPublishGenesis's
+// execute-time re-check remains the hard floor against a concurrent-raise race.
+func (s *ProposalService) guardFinalizationRaise(ctx context.Context, l *launch.Launch, action proposal.ActionType) error {
+	// if (not switch) so we only reason about the three actions that touch consistency — the rest are
+	// unaffected (and it keeps the exhaustive linter out of an intentionally partial enum match).
+	if action == proposal.ActionPublishGenesis {
+		if err := s.checkGenesisFresh(ctx, l); err != nil {
+			return fmt.Errorf("raise proposal: cannot publish genesis: %w", err)
+		}
+		pending, err := s.hasPending(ctx, l.ID, proposal.ActionApproveValidator, proposal.ActionRemoveApprovedValidator)
+		if err != nil {
+			return fmt.Errorf("raise proposal: %w", err)
+		}
+		if pending {
+			return fmt.Errorf(
+				"raise proposal: cannot publish genesis while a validator approve/remove proposal is pending — resolve it first: %w: %w",
+				launch.ErrGenesisPublishInProgress, ports.ErrConflict)
+		}
+		return nil
+	}
+	if action == proposal.ActionApproveValidator || action == proposal.ActionRemoveApprovedValidator {
+		pending, err := s.hasPending(ctx, l.ID, proposal.ActionPublishGenesis)
+		if err != nil {
+			return fmt.Errorf("raise proposal: %w", err)
+		}
+		if pending {
+			return fmt.Errorf("raise proposal: cannot change the validator set while a genesis publication is pending — veto it first: %w: %w",
+				launch.ErrGenesisPublishInProgress, ports.ErrConflict)
+		}
+	}
+	return nil
+}
+
+// checkGenesisFresh verifies the uploaded final genesis still matches the launch's current approved
+// input set. Shared by the raise guard and the execute-time re-check.
+func (s *ProposalService) checkGenesisFresh(ctx context.Context, l *launch.Launch) error {
+	if l.FinalGenesisInputSetHash == "" {
+		return fmt.Errorf("no final genesis has been uploaded: %w: %w", launch.ErrGenesisStale, ports.ErrConflict)
+	}
+	current, err := s.hasher.Current(ctx, l)
+	if err != nil {
+		return fmt.Errorf("input-set hash: %w", err)
+	}
+	if current != l.FinalGenesisInputSetHash {
+		return fmt.Errorf("the approved set changed since the final genesis was assembled — re-upload the final genesis: %w: %w",
+			launch.ErrGenesisStale, ports.ErrConflict)
+	}
+	return nil
+}
+
+// hasPending reports whether the launch has a PENDING_SIGNATURES proposal of the given action
+// types. Pending proposals are few (they execute or expire), so scanning FindPending is inexpensive and —
+// unlike a paginated per-launch scan — cannot miss one.
+func (s *ProposalService) hasPending(ctx context.Context, launchID uuid.UUID, actions ...proposal.ActionType) (bool, error) {
+	pending, err := s.proposals.FindPending(ctx)
+	if err != nil {
+		return false, fmt.Errorf("check pending proposals: %w", err)
+	}
+	for _, p := range pending {
+		if p.LaunchID != launchID {
+			continue
+		}
+		for _, a := range actions {
+			if p.ActionType == a {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
 }
 
 func (s *ProposalService) applyUpdateGenesisTime(ctx context.Context, l *launch.Launch, p *proposal.Proposal) error {

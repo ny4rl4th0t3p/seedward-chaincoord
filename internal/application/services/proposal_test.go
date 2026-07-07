@@ -548,15 +548,17 @@ func TestProposalService_applyCloseWindow_InsufficientValidators(t *testing.T) {
 }
 
 func TestProposalService_applyPublishGenesis_WrongStatus(t *testing.T) {
-	// PublishGenesis requires WINDOW_CLOSED; from DRAFT it must be a 409.
+	// From DRAFT no final genesis has been uploaded, so the finalization guard rejects the raise as a
+	// 409 (stale/absent) before the domain status guard is reached. (The domain status transition
+	// itself is covered in the launch package tests.)
 	l := test1of1Launch() // DRAFT
 	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
 
 	_, err := raiseWith(t, svc, l.ID, proposal.ActionPublishGenesis, proposal.PublishGenesisPayload{
 		GenesisHash: "1111111111111111111111111111111111111111111111111111111111111111",
 	})
-	require.ErrorIs(t, err, ports.ErrConflict, "publishing genesis from the wrong status is a state conflict")
-	assert.ErrorIs(t, err, launch.ErrInvalidStatusTransition, "and preserves the domain sentinel")
+	require.ErrorIs(t, err, ports.ErrConflict, "publishing genesis without an uploaded final genesis is a state conflict")
+	assert.ErrorIs(t, err, launch.ErrGenesisStale, "and surfaces the stale/absent-genesis sentinel")
 }
 
 func TestProposalService_applyProposal_SaveLaunchFails(t *testing.T) {
@@ -566,9 +568,10 @@ func TestProposalService_applyProposal_SaveLaunchFails(t *testing.T) {
 	lRepo := newFakeLaunchRepo(l)
 	lRepo.saveErr = errors.New("db down")
 	svc := newProposalSvc(lRepo, newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
+	hash := bindFinalGenesis(t, svc, l)
 
 	_, err := raiseWith(t, svc, l.ID, proposal.ActionPublishGenesis, proposal.PublishGenesisPayload{
-		GenesisHash: "1111111111111111111111111111111111111111111111111111111111111111",
+		GenesisHash: hash,
 	})
 	require.Error(t, err, "a launch save failure must surface")
 	assert.ErrorContains(t, err, "save launch")
@@ -578,13 +581,106 @@ func TestProposalService_applyPublishGenesis_Success(t *testing.T) {
 	l := test1of1Launch()
 	l.Status = launch.StatusWindowClosed
 	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
+	hash := bindFinalGenesis(t, svc, l)
 
 	p, err := raiseWith(t, svc, l.ID, proposal.ActionPublishGenesis, proposal.PublishGenesisPayload{
-		GenesisHash: "1111111111111111111111111111111111111111111111111111111111111111",
+		GenesisHash: hash,
 	})
 	require.NoError(t, err)
 	require.Equal(t, proposal.StatusExecuted, p.Status)
 	assert.Equal(t, launch.StatusGenesisReady, l.Status)
+}
+
+// bindFinalGenesis simulates a final-genesis upload: it sets the launch's final hash and binds the
+// current input_set_hash (as UploadFinalGenesis does), so the finalization guards see a fresh,
+// consistent genesis. Returns the genesis hash to put in the PUBLISH_GENESIS payload.
+func bindFinalGenesis(t *testing.T, svc *ProposalService, l *launch.Launch) string {
+	t.Helper()
+	const hash = "1111111111111111111111111111111111111111111111111111111111111111"
+	l.FinalGenesisSHA256 = hash
+	ish, err := svc.hasher.Current(context.Background(), l)
+	require.NoError(t, err)
+	l.FinalGenesisInputSetHash = ish
+	return hash
+}
+
+// pendingProposal builds a PENDING_SIGNATURES proposal for a launch (proposal.New starts pending),
+// used to seed the freeze checks. The payload must be valid for the action (proposal.New validates it).
+func pendingProposal(t *testing.T, launchID uuid.UUID, action proposal.ActionType, payload any) *proposal.Proposal {
+	t.Helper()
+	raw, _ := json.Marshal(payload)
+	p, err := proposal.New(uuid.New(), launchID, action, raw, mustAddr(testAddr1), mustSig(), defaultProposalTTL, time.Now())
+	require.NoError(t, err)
+	require.Equal(t, proposal.StatusPendingSignatures, p.Status)
+	return p
+}
+
+// --- Part A: genesis ↔ approved-set consistency guards ---
+
+func TestProposalService_PublishGenesis_StaleAtRaise(t *testing.T) {
+	// Bind a final genesis for the current set, then approve another validator (the set drifts) →
+	// raising PUBLISH_GENESIS is rejected as stale. This is the core hole the guard closes.
+	l := test1of1Launch()
+	l.Status = launch.StatusWindowClosed
+	jrRepo := newFakeJoinRequestRepo()
+	svc := newProposalSvc(newFakeLaunchRepo(l), jrRepo, newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
+	hash := bindFinalGenesis(t, svc, l) // bound to the current (empty) approved set
+
+	jr := makeJoinRequest(t, l.ID, testAddr2)
+	require.NoError(t, jr.Approve(uuid.New()))
+	jrRepo.data[jr.ID] = jr // set now differs from what the genesis was assembled from
+
+	_, err := raiseWith(t, svc, l.ID, proposal.ActionPublishGenesis, proposal.PublishGenesisPayload{GenesisHash: hash})
+	require.ErrorIs(t, err, ports.ErrConflict)
+	assert.ErrorIs(t, err, launch.ErrGenesisStale, "approved set changed since upload → stale")
+}
+
+func TestProposalService_PublishGenesis_HashMismatch(t *testing.T) {
+	// Raising PUBLISH_GENESIS with a hash other than the uploaded final genesis is rejected.
+	l := test1of1Launch()
+	l.Status = launch.StatusWindowClosed
+	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
+	_ = bindFinalGenesis(t, svc, l)
+
+	_, err := raiseWith(t, svc, l.ID, proposal.ActionPublishGenesis, proposal.PublishGenesisPayload{
+		GenesisHash: "2222222222222222222222222222222222222222222222222222222222222222",
+	})
+	require.ErrorIs(t, err, ports.ErrConflict)
+	assert.ErrorIs(t, err, launch.ErrGenesisHashMismatch, "proposal hash must match the uploaded final genesis")
+}
+
+func TestProposalService_PublishGenesis_FrozenByPendingMutation(t *testing.T) {
+	// A pending APPROVE_VALIDATOR proposal freezes genesis publication.
+	l := test1of1Launch()
+	l.Status = launch.StatusWindowClosed
+	pending := pendingProposal(t, l.ID, proposal.ActionApproveValidator, proposal.ApproveValidatorPayload{
+		JoinRequestID:   uuid.New(),
+		OperatorAddress: testAddr2,
+	})
+	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(pending), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
+	hash := bindFinalGenesis(t, svc, l)
+
+	_, err := raiseWith(t, svc, l.ID, proposal.ActionPublishGenesis, proposal.PublishGenesisPayload{GenesisHash: hash})
+	require.ErrorIs(t, err, ports.ErrConflict)
+	assert.ErrorIs(t, err, launch.ErrGenesisPublishInProgress, "cannot publish while a set mutation is pending")
+}
+
+func TestProposalService_ApproveValidator_FrozenByPendingPublish(t *testing.T) {
+	// Bidirectional: a pending PUBLISH_GENESIS proposal freezes validator-set changes.
+	l := test1of1Launch()
+	l.Status = launch.StatusWindowClosed
+	jr := makeJoinRequest(t, l.ID, testAddr2)
+	pending := pendingProposal(t, l.ID, proposal.ActionPublishGenesis, proposal.PublishGenesisPayload{
+		GenesisHash: "1111111111111111111111111111111111111111111111111111111111111111",
+	})
+	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(jr), newFakeProposalRepo(pending), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
+
+	_, err := raiseWith(t, svc, l.ID, proposal.ActionApproveValidator, proposal.ApproveValidatorPayload{
+		JoinRequestID:   jr.ID,
+		OperatorAddress: testAddr2,
+	})
+	require.ErrorIs(t, err, ports.ErrConflict)
+	assert.ErrorIs(t, err, launch.ErrGenesisPublishInProgress, "cannot change the set while a genesis publication is pending")
 }
 
 func TestProposalService_applyPublishChainRecord_Success(t *testing.T) {
