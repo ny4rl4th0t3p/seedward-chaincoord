@@ -128,6 +128,12 @@ type Launch struct {
 	InitialGenesisSHA256 string
 	FinalGenesisSHA256   string // empty until GENESIS_READY
 
+	// FinalGenesisInputSetHash is the input_set_hash (approved gentxs + allocations + chain params)
+	// that the uploaded final genesis was assembled from — bound at upload, re-checked at
+	// PUBLISH_GENESIS so a genesis that no longer matches the current approved set cannot be
+	// finalized. Empty until a final genesis is uploaded.
+	FinalGenesisInputSetHash string
+
 	// AllocationFiles holds the curated allocation files (≤1 per type). Each is
 	// uploaded by a committee member and approved independently by an
 	// APPROVE_ALLOCATION_FILE committee proposal. Ordered by type.

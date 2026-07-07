@@ -200,6 +200,13 @@ func (s *LaunchService) UploadFinalGenesis(
 	}
 
 	l.FinalGenesisSHA256 = hash
+	// Bind the genesis to the approved input set it was assembled from; re-checked at PUBLISH_GENESIS
+	// so a set that drifts (approve/remove in WINDOW_CLOSED) can't finalize a stale genesis.
+	inputSetHash, err := s.hasher.Current(ctx, l)
+	if err != nil {
+		return "", fmt.Errorf("upload final genesis: input-set hash: %w", err)
+	}
+	l.FinalGenesisInputSetHash = inputSetHash
 	if err := s.launches.Save(ctx, l); err != nil {
 		return "", fmt.Errorf("upload final genesis: save launch: %w", err)
 	}
@@ -216,7 +223,10 @@ func (s *LaunchService) UploadFinalGenesis(
 func (s *LaunchService) UploadInitialGenesisRef(ctx context.Context, launchID uuid.UUID, genesisURL, sha256Hash, callerAddr string) error {
 	if err := s.uploadGenesisRef(ctx, "upload initial genesis ref", launch.StatusDraft, launchID, genesisURL, sha256Hash, callerAddr,
 		s.genesis.SaveInitialRef,
-		func(l *launch.Launch, hash string) { l.InitialGenesisSHA256 = hash },
+		func(_ context.Context, l *launch.Launch, hash string) error {
+			l.InitialGenesisSHA256 = hash
+			return nil
+		},
 	); err != nil {
 		return err
 	}
@@ -243,9 +253,15 @@ func (s *LaunchService) UploadFinalGenesisRef(
 	}
 	if err := s.uploadGenesisRef(ctx, "upload final genesis ref", launch.StatusWindowClosed, launchID, genesisURL, sha256Hash, callerAddr,
 		s.genesis.SaveFinalRef,
-		func(l *launch.Launch, hash string) {
+		func(ctx context.Context, l *launch.Launch, hash string) error {
 			l.FinalGenesisSHA256 = hash
 			l.Record.GenesisTime = &genesisTime
+			inputSetHash, err := s.hasher.Current(ctx, l)
+			if err != nil {
+				return err
+			}
+			l.FinalGenesisInputSetHash = inputSetHash
+			return nil
 		},
 	); err != nil {
 		return err
@@ -261,7 +277,7 @@ func (s *LaunchService) uploadGenesisRef(
 	launchID uuid.UUID,
 	genesisURL, sha256Hash, callerAddr string,
 	saveFn func(ctx context.Context, id, url, hash string) error,
-	setHashFn func(l *launch.Launch, hash string),
+	setHashFn func(ctx context.Context, l *launch.Launch, hash string) error,
 ) error {
 	l, err := s.launches.FindByID(ctx, launchID)
 	if err != nil {
@@ -283,7 +299,9 @@ func (s *LaunchService) uploadGenesisRef(
 	if err := saveFn(ctx, launchID.String(), genesisURL, sha256Hash); err != nil {
 		return fmt.Errorf("%s: store: %w", op, err)
 	}
-	setHashFn(l, sha256Hash)
+	if err := setHashFn(ctx, l, sha256Hash); err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
 	if err := s.launches.Save(ctx, l); err != nil {
 		return fmt.Errorf("%s: save launch: %w", op, err)
 	}
