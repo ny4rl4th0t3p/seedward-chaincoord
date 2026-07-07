@@ -49,3 +49,34 @@ func TestRehearsalAttempt_ReleaseAndReset(t *testing.T) {
 	assert.Nil(t, a.LeaseExpiresAt)
 	assert.Empty(t, a.RunnerID)
 }
+
+func TestEvaluateRehearsalReady(t *testing.T) {
+	const h = "abc123"
+	ready := func(latest *RehearsalResult, cur string) bool {
+		ok, _ := EvaluateRehearsalReady(latest, cur)
+		return ok
+	}
+	assert.True(t, ready(&RehearsalResult{Outcome: OutcomePass, InputSetHash: h}, h), "current PASS is ready")
+	assert.False(t, ready(nil, h), "no result → not ready")
+	assert.False(t, ready(&RehearsalResult{Outcome: OutcomeFail, InputSetHash: h}, h), "FAIL → not ready")
+	assert.False(t, ready(&RehearsalResult{Outcome: OutcomeSkipped, InputSetHash: h}, h), "SKIPPED → not ready")
+
+	ok, reason := EvaluateRehearsalReady(&RehearsalResult{Outcome: OutcomePass, InputSetHash: "old"}, h)
+	assert.False(t, ok, "stale PASS → not ready")
+	assert.Contains(t, reason, "stale")
+}
+
+func TestParseRehearsalGateMode(t *testing.T) {
+	for in, want := range map[string]RehearsalGateMode{
+		"":         RehearsalGateOff,
+		"off":      RehearsalGateOff,
+		"advisory": RehearsalGateAdvisory,
+		"required": RehearsalGateRequired,
+	} {
+		got, err := ParseRehearsalGateMode(in)
+		require.NoError(t, err, in)
+		assert.Equal(t, want, got, in)
+	}
+	_, err := ParseRehearsalGateMode("bogus")
+	assert.Error(t, err, "unrecognized mode is an error")
+}

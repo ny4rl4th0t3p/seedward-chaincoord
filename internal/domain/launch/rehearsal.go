@@ -2,6 +2,7 @@ package launch
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -133,4 +134,46 @@ type RehearsalResult struct {
 
 	Stale      bool
 	RecordedAt time.Time
+}
+
+// RehearsalGateMode is the opt-in policy for whether a passing rehearsal is required before a launch
+// may finalize genesis (WINDOW_CLOSED → GENESIS_READY). Default off keeps coordd fully standalone —
+// rehearsal is an optional bolt-on, never a hard dependency.
+type RehearsalGateMode string
+
+const (
+	RehearsalGateOff      RehearsalGateMode = "off"      // never consulted (default)
+	RehearsalGateAdvisory RehearsalGateMode = "advisory" // evaluated and recorded, never blocks
+	RehearsalGateRequired RehearsalGateMode = "required" // blocks unless the latest rehearsal is a current PASS
+)
+
+// ParseRehearsalGateMode parses a config string; empty maps to off. An unrecognized value is an error.
+func ParseRehearsalGateMode(s string) (RehearsalGateMode, error) {
+	switch RehearsalGateMode(s) {
+	case RehearsalGateOff, "":
+		return RehearsalGateOff, nil
+	case RehearsalGateAdvisory:
+		return RehearsalGateAdvisory, nil
+	case RehearsalGateRequired:
+		return RehearsalGateRequired, nil
+	default:
+		return RehearsalGateOff, fmt.Errorf("invalid rehearsal gate mode %q (want off|advisory|required)", s)
+	}
+}
+
+// EvaluateRehearsalReady reports whether the latest rehearsal fact is a *current* PASS for the given
+// input set — the condition the required gate enforces. reason explains a negative (for advisory
+// records / rejection messages). Freshness is judged live against currentHash, not the stored Stale
+// flag (which was computed when the fact was recorded).
+func EvaluateRehearsalReady(latest *RehearsalResult, currentHash string) (ok bool, reason string) {
+	if latest == nil {
+		return false, "no rehearsal result recorded"
+	}
+	if latest.Outcome != OutcomePass {
+		return false, "latest rehearsal outcome is " + string(latest.Outcome)
+	}
+	if latest.InputSetHash != currentHash {
+		return false, "rehearsal is stale — the approved set changed since it ran"
+	}
+	return true, ""
 }

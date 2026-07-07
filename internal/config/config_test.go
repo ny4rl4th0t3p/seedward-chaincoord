@@ -92,6 +92,51 @@ func TestLoad_LaunchPolicyInvalid(t *testing.T) {
 	}
 }
 
+func TestLoad_RehearsalGateDefault(t *testing.T) {
+	v := newViper()
+	allRequired(v)
+	cfg, err := config.Load(v, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.RehearsalGate != "off" {
+		t.Errorf("RehearsalGate default: got %q, want off", cfg.RehearsalGate)
+	}
+}
+
+func TestLoad_RehearsalGateInvalid(t *testing.T) {
+	v := newViper()
+	allRequired(v)
+	v.Set("rehearsal_gate", "sometimes")
+	if _, err := config.Load(v, ""); err == nil {
+		t.Fatal("expected validation error for invalid rehearsal_gate")
+	}
+}
+
+func TestLoad_RehearsalGateRequiredWithoutBridge(t *testing.T) {
+	// required is meaningless without the bridge that produces result facts → fail fast at startup.
+	v := newViper()
+	allRequired(v)
+	v.Set("rehearsal_gate", "required")
+	if _, err := config.Load(v, ""); err == nil {
+		t.Fatal("expected fail-fast: rehearsal_gate=required without a rehearsal ops token")
+	}
+}
+
+func TestLoad_RehearsalGateRequiredWithBridge(t *testing.T) {
+	v := newViper()
+	allRequired(v)
+	v.Set("rehearsal_gate", "required")
+	v.Set("rehearsal_ops_token", "secret")
+	cfg, err := config.Load(v, "")
+	if err != nil {
+		t.Fatalf("required + ops token should be valid: %v", err)
+	}
+	if cfg.RehearsalGate != "required" {
+		t.Errorf("RehearsalGate: got %q, want required", cfg.RehearsalGate)
+	}
+}
+
 func TestLoad_AdminAddressesFromEnv(t *testing.T) {
 	t.Setenv("COORD_ADMIN_ADDRESSES", "cosmos1aaa,cosmos1bbb,cosmos1ccc")
 

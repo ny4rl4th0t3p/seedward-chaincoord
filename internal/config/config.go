@@ -85,6 +85,11 @@ type Config struct {
 	// it is considered stale and re-claimable (a crashed runner self-heals). Accepts a Go duration
 	// string, e.g. "45m", "1h". Empty/zero uses the built-in default (45m).
 	RehearsalLeaseTTL time.Duration `mapstructure:"rehearsal_lease_ttl"`
+
+	// RehearsalGate is the opt-in policy for requiring a passing rehearsal before a launch may
+	// finalize genesis: off (default) | advisory | required. Default off keeps coordd standalone —
+	// rehearsal is an optional bolt-on. required additionally needs the bridge enabled (ops token).
+	RehearsalGate string `mapstructure:"rehearsal_gate"`
 }
 
 // Load reads configuration into a Config from the provided Viper instance.
@@ -95,6 +100,7 @@ func Load(v *viper.Viper, cfgFile string) (*Config, error) {
 	v.SetDefault("log_level", "info")
 	v.SetDefault("launch_policy", LaunchPolicyRestricted)
 	v.SetDefault("genesis_max_bytes", int64(genesisMaxMiB<<mibShift))
+	v.SetDefault("rehearsal_gate", "off")
 
 	if cfgFile != "" {
 		v.SetConfigFile(cfgFile)
@@ -135,6 +141,7 @@ func Load(v *viper.Viper, cfgFile string) (*Config, error) {
 	_ = v.BindEnv("rehearsal_ops_token", "COORD_REHEARSAL_OPS_TOKEN")
 	_ = v.BindEnv("rehearsal_ops_token_file", "COORD_REHEARSAL_OPS_TOKEN_FILE")
 	_ = v.BindEnv("rehearsal_lease_ttl", "COORD_REHEARSAL_LEASE_TTL")
+	_ = v.BindEnv("rehearsal_gate", "COORD_REHEARSAL_GATE")
 
 	if err := v.ReadInConfig(); err != nil {
 		var notFound viper.ConfigFileNotFoundError
@@ -219,6 +226,16 @@ func (c *Config) validate() error {
 	}
 	if c.LaunchPolicy != LaunchPolicyOpen && c.LaunchPolicy != LaunchPolicyRestricted {
 		return fmt.Errorf("config: launch_policy must be %q or %q, got %q", LaunchPolicyOpen, LaunchPolicyRestricted, c.LaunchPolicy)
+	}
+	switch c.RehearsalGate {
+	case "", "off", "advisory", "required":
+	default:
+		return fmt.Errorf("config: rehearsal_gate must be off|advisory|required, got %q", c.RehearsalGate)
+	}
+	// Fail fast: requiring rehearsal is meaningless without the bridge that produces result facts.
+	if c.RehearsalGate == "required" && c.RehearsalOpsToken == "" && c.RehearsalOpsTokenFile == "" {
+		return errors.New("config: rehearsal_gate=required but the rehearsal bridge is disabled" +
+			" (set COORD_REHEARSAL_OPS_TOKEN or COORD_REHEARSAL_OPS_TOKEN_FILE)")
 	}
 	if (c.TLSCert == "") != (c.TLSKey == "") {
 		return errors.New("config: tls_cert and tls_key must both be set or both be empty")

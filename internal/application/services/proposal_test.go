@@ -683,6 +683,56 @@ func TestProposalService_ApproveValidator_FrozenByPendingPublish(t *testing.T) {
 	assert.ErrorIs(t, err, launch.ErrGenesisPublishInProgress, "cannot change the set while a genesis publication is pending")
 }
 
+// --- Part B: opt-in rehearsal gate (off is exercised by applyPublishGenesis_Success) ---
+
+func TestProposalService_RehearsalGate_Required_NoPass_Rejected(t *testing.T) {
+	l := test1of1Launch()
+	l.Status = launch.StatusWindowClosed
+	l.RehearsalServicePubKey = "pk" // a rehearsal service IS configured for this launch
+	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{}).
+		WithRehearsalGate("required", newFakeRehearsalResultRepo())
+	hash := bindFinalGenesis(t, svc, l)
+
+	_, err := raiseWith(t, svc, l.ID, proposal.ActionPublishGenesis, proposal.PublishGenesisPayload{GenesisHash: hash})
+	require.ErrorIs(t, err, ports.ErrConflict)
+	assert.ErrorIs(t, err, launch.ErrRehearsalGateUnsatisfied, "required + no passing rehearsal → blocked")
+}
+
+func TestProposalService_RehearsalGate_Required_NoService_Rejected(t *testing.T) {
+	l := test1of1Launch()
+	l.Status = launch.StatusWindowClosed
+	// RehearsalServicePubKey empty → required gate but no rehearsal service wired for this launch.
+	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{}).
+		WithRehearsalGate("required", newFakeRehearsalResultRepo())
+	hash := bindFinalGenesis(t, svc, l)
+
+	_, err := raiseWith(t, svc, l.ID, proposal.ActionPublishGenesis, proposal.PublishGenesisPayload{GenesisHash: hash})
+	require.ErrorIs(t, err, ports.ErrConflict)
+	assert.ErrorIs(t, err, launch.ErrRehearsalGateNoService)
+}
+
+func TestProposalService_RehearsalGate_Required_CurrentPass_Allowed(t *testing.T) {
+	l := test1of1Launch()
+	l.Status = launch.StatusWindowClosed
+	l.RehearsalServicePubKey = "pk"
+	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
+	hash := bindFinalGenesis(t, svc, l) // also sets l.FinalGenesisInputSetHash
+
+	// A current PASS for the launch's present input set.
+	results := newFakeRehearsalResultRepo()
+	require.NoError(t, results.Save(context.Background(), &launch.RehearsalResult{
+		LaunchID:     l.ID,
+		Outcome:      launch.OutcomePass,
+		InputSetHash: l.FinalGenesisInputSetHash,
+		Signature:    "sig-current-pass",
+	}))
+	gated := svc.WithRehearsalGate("required", results)
+
+	p, err := raiseWith(t, gated, l.ID, proposal.ActionPublishGenesis, proposal.PublishGenesisPayload{GenesisHash: hash})
+	require.NoError(t, err)
+	require.Equal(t, proposal.StatusExecuted, p.Status, "required + current PASS → finalizes")
+}
+
 func TestProposalService_applyPublishChainRecord_Success(t *testing.T) {
 	l := test1of1Launch()
 	l.InitialGenesisSHA256 = "1111111111111111111111111111111111111111111111111111111111111111"

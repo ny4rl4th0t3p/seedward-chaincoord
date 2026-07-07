@@ -292,7 +292,7 @@ func runServe(cmd *cobra.Command, _ []string) error {
 	proposalSvc := services.NewProposalService(
 		launchRepo, joinReqRepo, proposalRepo, readinessRepo,
 		nonceStore, verifier, sseBroker, auditLog, tx,
-	)
+	).WithRehearsalGate(cfg.RehearsalGate, rehearsalResultRepo)
 	readinessSvc := services.NewReadinessService(launchRepo, joinReqRepo, readinessRepo, nonceStore, verifier)
 
 	// --- HTTP server -----------------------------------------------------

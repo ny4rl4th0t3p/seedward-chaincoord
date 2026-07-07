@@ -85,6 +85,21 @@ func (e GenesisPublished) WithTime(t time.Time) GenesisPublished {
 	return e
 }
 
+// RehearsalGateNotSatisfied is recorded (advisory gate mode) when a PUBLISH_GENESIS raise proceeds
+// despite the rehearsal gate not being satisfied. In required mode this is a rejection, not an event.
+type RehearsalGateNotSatisfied struct {
+	base
+	LaunchID uuid.UUID
+	Reason   string
+}
+
+func (RehearsalGateNotSatisfied) EventName() string        { return "RehearsalGateNotSatisfied" }
+func (e RehearsalGateNotSatisfied) GetLaunchID() uuid.UUID { return e.LaunchID }
+func (e RehearsalGateNotSatisfied) WithTime(t time.Time) RehearsalGateNotSatisfied {
+	e.base = e.withTime(t)
+	return e
+}
+
 // GenesisTimeUpdated is emitted when an UPDATE_GENESIS_TIME proposal reaches quorum.
 type GenesisTimeUpdated struct {
 	base

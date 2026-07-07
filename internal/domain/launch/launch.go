@@ -61,6 +61,8 @@ var (
 	ErrGenesisStale             = errors.New("the final genesis no longer matches the current approved validator set")
 	ErrGenesisHashMismatch      = errors.New("proposal genesis hash does not match the uploaded final genesis")
 	ErrGenesisPublishInProgress = errors.New("a genesis publication is in progress")
+	ErrRehearsalGateUnsatisfied = errors.New("rehearsal gate not satisfied: a current passing rehearsal is required")
+	ErrRehearsalGateNoService   = errors.New("rehearsal gate is required but no rehearsal service is configured for this launch")
 )
 
 // CommitteeMember is an individual coordinator in the M-of-N committee.

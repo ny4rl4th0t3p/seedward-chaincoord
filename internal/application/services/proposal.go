@@ -27,16 +27,28 @@ const (
 // It is the central dispatcher: when a proposal executes, this service applies
 // the side effects to the affected aggregates and dispatches domain events.
 type ProposalService struct {
-	launches     ports.LaunchRepository
-	joinRequests ports.JoinRequestRepository
-	proposals    ports.ProposalRepository
-	readiness    ports.ReadinessRepository
-	nonces       ports.NonceStore
-	verifier     ports.SignatureVerifier
-	events       ports.EventPublisher
-	audit        ports.AuditLogWriter
-	tx           ports.Transactor
-	hasher       *InputSetHasher
+	launches      ports.LaunchRepository
+	joinRequests  ports.JoinRequestRepository
+	proposals     ports.ProposalRepository
+	readiness     ports.ReadinessRepository
+	nonces        ports.NonceStore
+	verifier      ports.SignatureVerifier
+	events        ports.EventPublisher
+	audit         ports.AuditLogWriter
+	tx            ports.Transactor
+	hasher        *InputSetHasher
+	rehearsalGate launch.RehearsalGateMode        // Part B: off (default) | advisory | required
+	results       ports.RehearsalResultRepository // latest rehearsal fact for the gate; nil when off
+}
+
+// WithRehearsalGate returns a copy of the service configured with the opt-in rehearsal gate (Part B).
+// mode is one of off|advisory|required (already validated at config load; an unrecognized value falls
+// back to off). results supplies the latest rehearsal fact for advisory/required evaluation.
+func (s *ProposalService) WithRehearsalGate(mode string, results ports.RehearsalResultRepository) *ProposalService {
+	cp := *s
+	cp.rehearsalGate, _ = launch.ParseRehearsalGateMode(mode)
+	cp.results = results
+	return &cp
 }
 
 func NewProposalService(
@@ -489,6 +501,13 @@ func (s *ProposalService) applyPublishGenesis(ctx context.Context, l *launch.Lau
 	if err := s.checkGenesisFresh(ctx, l); err != nil {
 		return fmt.Errorf("apply publish genesis: %w", err)
 	}
+	// Part B: required-gate re-check at execute (safety net against a raise-time race). Advisory is
+	// already recorded at raise, so only required re-blocks here.
+	if s.rehearsalGate == launch.RehearsalGateRequired {
+		if err := s.gateRehearsal(ctx, l); err != nil {
+			return fmt.Errorf("apply publish genesis: %w", err)
+		}
+	}
 	if err := l.PublishGenesis(pl.GenesisHash); err != nil {
 		return mapLaunchDomainErr("apply publish genesis", err)
 	}
@@ -518,6 +537,10 @@ func (s *ProposalService) guardFinalizationRaise(ctx context.Context, l *launch.
 			return fmt.Errorf(
 				"raise proposal: cannot publish genesis while a validator approve/remove proposal is pending — resolve it first: %w: %w",
 				launch.ErrGenesisPublishInProgress, ports.ErrConflict)
+		}
+		// Part B: opt-in rehearsal gate (off by default → no-op).
+		if err := s.gateRehearsal(ctx, l); err != nil {
+			return fmt.Errorf("raise proposal: %w", err)
 		}
 		return nil
 	}
@@ -570,6 +593,68 @@ func (s *ProposalService) hasPending(ctx context.Context, launchID uuid.UUID, ac
 		}
 	}
 	return false, nil
+}
+
+// gateRehearsal (Part B) enforces the opt-in rehearsal gate for a PUBLISH_GENESIS. off → no-op;
+// required → error unless the latest rehearsal is a current PASS (and a rehearsal service is
+// configured for this launch); advisory → records an audit event but never blocks.
+func (s *ProposalService) gateRehearsal(ctx context.Context, l *launch.Launch) error {
+	if s.rehearsalGate != launch.RehearsalGateAdvisory && s.rehearsalGate != launch.RehearsalGateRequired {
+		return nil // off / unset — standalone coordd is untouched
+	}
+	if s.rehearsalGate == launch.RehearsalGateRequired && l.RehearsalServicePubKey == "" {
+		return fmt.Errorf("%w: %w", launch.ErrRehearsalGateNoService, ports.ErrConflict)
+	}
+	latest, err := s.latestRehearsal(ctx, l.ID)
+	if err != nil {
+		return fmt.Errorf("rehearsal gate: %w", err)
+	}
+	current, err := s.hasher.Current(ctx, l)
+	if err != nil {
+		return fmt.Errorf("rehearsal gate: input-set hash: %w", err)
+	}
+	ok, reason := launch.EvaluateRehearsalReady(latest, current)
+	if ok {
+		return nil
+	}
+	if s.rehearsalGate == launch.RehearsalGateRequired {
+		return fmt.Errorf("%s: %w: %w", reason, launch.ErrRehearsalGateUnsatisfied, ports.ErrConflict)
+	}
+	s.auditRehearsalGate(ctx, l.ID, reason) // advisory: record, never block
+	return nil
+}
+
+// latestRehearsal returns the newest stored rehearsal fact for a launch, or nil if none / gate off.
+func (s *ProposalService) latestRehearsal(ctx context.Context, launchID uuid.UUID) (*launch.RehearsalResult, error) {
+	if s.results == nil {
+		return nil, nil
+	}
+	results, err := s.results.FindByLaunch(ctx, launchID)
+	if err != nil {
+		return nil, fmt.Errorf("fetch rehearsal results: %w", err)
+	}
+	if len(results) == 0 {
+		return nil, nil
+	}
+	return results[0], nil
+}
+
+// auditRehearsalGate records an advisory gate miss (never blocks).
+func (s *ProposalService) auditRehearsalGate(ctx context.Context, launchID uuid.UUID, reason string) {
+	if s.audit == nil {
+		return
+	}
+	ev := domain.RehearsalGateNotSatisfied{LaunchID: launchID, Reason: reason}.WithTime(time.Now())
+	payload, err := json.Marshal(ev)
+	if err != nil {
+		return
+	}
+	_ = s.audit.Append(ctx, ports.AuditEvent{
+		LaunchID:   launchID.String(),
+		EventName:  ev.EventName(),
+		OccurredAt: ev.OccurredAt(),
+		Payload:    payload,
+	})
 }
 
 func (s *ProposalService) applyUpdateGenesisTime(ctx context.Context, l *launch.Launch, p *proposal.Proposal) error {
