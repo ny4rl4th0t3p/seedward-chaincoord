@@ -94,7 +94,7 @@ func NewServer(
 
 	admins := make(map[string]struct{}, len(adminAddresses))
 	for _, a := range adminAddresses {
-		admins[a] = struct{}{}
+		admins[accountLookupKey(a)] = struct{}{}
 	}
 
 	s := &Server{

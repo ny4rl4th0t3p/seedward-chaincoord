@@ -229,6 +229,21 @@ func (c *testClient) doRaw(method, path string, contentType string, body []byte)
 	return resp
 }
 
+// accountHexOf decodes a bech32 address to its HRP-independent account hex — the form
+// coordd stores and lists global identities (coordinators) by.
+func accountHexOf(t *testing.T, addr string) string {
+	t.Helper()
+	_, data5, err := bech32.Decode(addr, 1023)
+	if err != nil {
+		t.Fatalf("accountHexOf decode %q: %v", addr, err)
+	}
+	acctBytes, err := bech32.ConvertBits(data5, 5, 8, false)
+	if err != nil {
+		t.Fatalf("accountHexOf convert %q: %v", addr, err)
+	}
+	return hex.EncodeToString(acctBytes)
+}
+
 func mustDecode(t *testing.T, resp *http.Response, want int, dst any) {
 	t.Helper()
 	defer resp.Body.Close()
@@ -928,8 +943,8 @@ func TestE2E_AdminFlow(t *testing.T) {
 	mustDecode(t, adminClient.do("POST", "/admin/coordinators", map[string]string{
 		"address": coordCandidate.addr,
 	}), http.StatusCreated, &addResp)
-	if addResp.Address != coordCandidate.addr {
-		t.Fatalf("add coordinator: want address %s, got %s", coordCandidate.addr, addResp.Address)
+	if got, want := addResp.Address, accountHexOf(t, coordCandidate.addr); got != want {
+		t.Fatalf("add coordinator: want account %s, got %s", want, got)
 	}
 	if addResp.AddedBy != admin.addr {
 		t.Fatalf("add coordinator: want added_by %s, got %s", admin.addr, addResp.AddedBy)
@@ -946,8 +961,10 @@ func TestE2E_AdminFlow(t *testing.T) {
 	if listResp.Total != 1 {
 		t.Fatalf("list coordinators: want 1, got %d", listResp.Total)
 	}
-	if listResp.Items[0].Address != coordCandidate.addr {
-		t.Fatalf("list coordinators: unexpected address %s", listResp.Items[0].Address)
+	// Coordinators are global (no launch prefix), so they are stored + listed by their
+	// HRP-independent account hex — the frontend renders it for display.
+	if got, want := listResp.Items[0].Address, accountHexOf(t, coordCandidate.addr); got != want {
+		t.Fatalf("list coordinators: want account %s, got %s", want, got)
 	}
 
 	// Admin removes coordinator.

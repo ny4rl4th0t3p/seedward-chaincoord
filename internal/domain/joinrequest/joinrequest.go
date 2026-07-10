@@ -33,10 +33,10 @@ type JoinRequest struct {
 	LaunchID uuid.UUID
 	// OperatorAddress is the validator operator (self-delegator) account, extracted from the
 	// verified gentx — the genesis-relevant validator identity (voting power, dedup, downstream).
-	OperatorAddress launch.OperatorAddress
+	OperatorAddress launch.AccountID
 	// SubmitterAddress is the account that signed the submission request (provenance/auth). It may
 	// differ from OperatorAddress: an authorized uploader can submit a validator's gentx on its behalf.
-	SubmitterAddress launch.OperatorAddress
+	SubmitterAddress launch.AccountID
 	ConsensusPubKey  string // base64 Ed25519 consensus pubkey (validator consensus key, not operator key)
 	GentxJSON        json.RawMessage
 	PeerAddress      launch.PeerAddress
@@ -59,8 +59,8 @@ type JoinRequest struct {
 func New(
 	id uuid.UUID,
 	launchID uuid.UUID,
-	operatorAddr launch.OperatorAddress, // validator operator (from the gentx)
-	submitterAddr launch.OperatorAddress, // request signer
+	operatorAddr launch.AccountID, // validator operator (from the gentx)
+	submitterAddr launch.AccountID, // request signer
 	gentxJSON json.RawMessage,
 	peerAddr launch.PeerAddress,
 	rpcEndpoint launch.RPCEndpoint,

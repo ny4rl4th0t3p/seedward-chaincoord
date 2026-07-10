@@ -53,8 +53,10 @@ func (s *Server) handleCoordinatorAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Return the canonical account form (what was stored), consistent with List —
+	// coordinators are global, so there is no launch prefix to render under.
 	writeJSON(w, http.StatusCreated, coordinatorAllowlistEntryJSON{
-		Address: body.Address,
+		Address: accountLookupKey(body.Address),
 		AddedBy: addedBy,
 	})
 }

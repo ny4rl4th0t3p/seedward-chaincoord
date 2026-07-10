@@ -216,7 +216,7 @@ func TestJoinRequestService_Submit_Success(t *testing.T) {
 func TestJoinRequestService_Submit_AllowlistedMemberAllowed(t *testing.T) {
 	l := test1of1Launch() // committee = testAddr1 only
 	l.Status = launch.StatusWindowOpen
-	l.Allowlist = launch.NewAllowlist([]launch.OperatorAddress{mustAddr(testAddr2)}) // member, not committee
+	l.Allowlist = launch.NewAllowlist([]launch.AccountID{mustAddr(testAddr2)}) // member, not committee
 	svc := newJoinReqSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo())
 
 	in := validSubmitInput(l)

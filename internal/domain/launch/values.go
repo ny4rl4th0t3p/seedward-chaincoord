@@ -3,6 +3,7 @@ package launch
 import (
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -20,39 +21,89 @@ const (
 	secp256k1SigLen = 64 // secp256k1 compact signature length in bytes
 )
 
-// OperatorAddress is a validated bech32 Cosmos SDK operator address.
-// Accepts any bech32 prefix — the system is Cosmos SDK-compatible but not
-// tied to a single chain's prefix (e.g. "cosmos1...", "osmo1...", etc.).
-type OperatorAddress struct {
-	value string
+// Sentinel errors for AccountID parsing, so callers (auth → 400) and tests can
+// distinguish the cases with errors.Is.
+var (
+	ErrAccountIDEmpty    = errors.New("account id: empty")
+	ErrAccountIDInvalid  = errors.New("account id: invalid bech32 account address")
+	ErrNotAccountAddress = errors.New("account id: validator-entity address (valoper/valcons) is not an account")
+)
+
+// AccountID is the HRP-independent identity of a Cosmos SDK account: the decoded
+// account bytes (ripemd160(sha256(pubkey)) for a secp256k1 wallet), independent of
+// the bech32 human-readable prefix. cosmos1<h>, osmo1<h>, and a launch's own
+// network1<h> all decode to the SAME account and are therefore the SAME AccountID —
+// equality and map-keying are on the account bytes, never the display string.
+//
+// Only *account*-form addresses are accepted; validator-entity forms (…valoper…,
+// …valcons…) are network-bound and rejected — they are never an account identity.
+type AccountID struct {
+	acct string // lowercase hex of the decoded account bytes — the canonical identity
+	orig string // the bech32 as provided, for display; empty when built without one
 }
 
-func NewOperatorAddress(s string) (OperatorAddress, error) {
+func NewAccountID(s string) (AccountID, error) {
+	s = strings.TrimSpace(s)
 	if s == "" {
-		return OperatorAddress{}, fmt.Errorf("operator address: empty")
+		return AccountID{}, ErrAccountIDEmpty
 	}
-	// Decode validates the checksum, HRP, and base32 data encoding.
-	// The limit of 1023 is the maximum bech32 length per BIP-0173; Cosmos addresses
-	// are always well under this.
-	hrp, _, err := bech32.Decode(s, 1023)
+	// Decode validates the checksum, HRP, and base32 data encoding. The limit of
+	// 1023 is the maximum bech32 length per BIP-0173; Cosmos addresses are well under.
+	hrp, data5, err := bech32.Decode(s, 1023)
 	if err != nil {
-		return OperatorAddress{}, fmt.Errorf("operator address: invalid bech32 %q: %w", s, err)
+		return AccountID{}, fmt.Errorf("%w %q: %w", ErrAccountIDInvalid, s, err)
 	}
 	if hrp == "" {
-		return OperatorAddress{}, fmt.Errorf("operator address: missing human-readable prefix in %q", s)
+		return AccountID{}, fmt.Errorf("%w: missing human-readable prefix in %q", ErrAccountIDInvalid, s)
 	}
-	return OperatorAddress{value: s}, nil
+	// An account HRP is the bare chain prefix (cosmos, osmo, a launch's network);
+	// valoper/valcons forms are network-bound validator entities, never an account.
+	if strings.HasSuffix(hrp, "valoper") || strings.HasSuffix(hrp, "valcons") {
+		return AccountID{}, fmt.Errorf("%w: %q", ErrNotAccountAddress, s)
+	}
+	acctBytes, err := bech32.ConvertBits(data5, 5, 8, false)
+	if err != nil {
+		return AccountID{}, fmt.Errorf("%w %q: cannot decode account bytes: %w", ErrAccountIDInvalid, s, err)
+	}
+	return AccountID{acct: hex.EncodeToString(acctBytes), orig: s}, nil
 }
 
-func (a OperatorAddress) String() string { return a.value }
-func (a OperatorAddress) Equal(other OperatorAddress) bool {
-	return a.value == other.value
+// String returns the address for display: the bech32 form as provided, falling
+// back to the canonical hex account when built without one. It is NOT a stable
+// identity — use Hex()/Equal for that, and Bech32(hrp) to render under a prefix.
+func (a AccountID) String() string {
+	if a.orig != "" {
+		return a.orig
+	}
+	return a.acct
 }
 
-// MustNewOperatorAddress creates an OperatorAddress and panics if invalid.
+// Hex is the canonical, HRP-independent account identity (lowercase hex).
+func (a AccountID) Hex() string { return a.acct }
+
+// Equal reports whether two AccountIDs are the same account, ignoring HRP.
+func (a AccountID) Equal(other AccountID) bool { return a.acct == other.acct }
+
+// IsZero reports whether the AccountID is unset.
+func (a AccountID) IsZero() bool { return a.acct == "" }
+
+// Bech32 renders the account under the given human-readable prefix.
+func (a AccountID) Bech32(hrp string) (string, error) {
+	b, err := hex.DecodeString(a.acct)
+	if err != nil {
+		return "", fmt.Errorf("account id: corrupt account hex %q: %w", a.acct, err)
+	}
+	data5, err := bech32.ConvertBits(b, 8, 5, true)
+	if err != nil {
+		return "", fmt.Errorf("account id: cannot convert account bytes: %w", err)
+	}
+	return bech32.Encode(hrp, data5)
+}
+
+// MustNewAccountID creates an AccountID and panics if invalid.
 // Use only in tests and package-level initialisers.
-func MustNewOperatorAddress(s string) OperatorAddress {
-	a, err := NewOperatorAddress(s)
+func MustNewAccountID(s string) AccountID {
+	a, err := NewAccountID(s)
 	if err != nil {
 		panic(err)
 	}
@@ -186,97 +237,100 @@ func (c CommissionRate) LessThanOrEqual(other CommissionRate) bool {
 // the entry and when; both are zero for entries created before provenance was tracked
 // (e.g. the address-only create/patch path).
 type Member struct {
-	Address OperatorAddress
+	Address AccountID
 	Label   string
 	AddedBy string
 	AddedAt time.Time
 }
 
-// memberMeta is the per-address value stored in an Allowlist: everything about a member
-// except the address itself (which is the map key).
+// memberMeta is the per-account value stored in an Allowlist: everything about a member
+// except the account itself (which is the map key). display is the member's bech32 as
+// added, kept for rendering.
 type memberMeta struct {
+	display string
 	label   string
 	addedBy string
 	addedAt time.Time
 }
 
-// Allowlist is an immutable set of member OperatorAddresses, each carrying a label and
-// add-provenance. The zero value is an empty (open) allowlist.
+// Allowlist is an immutable set of member accounts, keyed on the HRP-independent
+// AccountID (so a member added under one prefix is recognized under any), each carrying
+// a label and add-provenance. The zero value is an empty (open) allowlist.
 type Allowlist struct {
-	members map[string]memberMeta // address string → metadata
+	members map[string]memberMeta // account hex → metadata
 }
 
-// NewAllowlist builds an Allowlist from bare addresses, each with empty metadata.
-func NewAllowlist(addresses []OperatorAddress) Allowlist {
+// NewAllowlist builds an Allowlist from bare accounts, each with empty metadata.
+func NewAllowlist(addresses []AccountID) Allowlist {
 	m := make(map[string]memberMeta, len(addresses))
 	for _, a := range addresses {
-		m[a.String()] = memberMeta{}
+		m[a.Hex()] = memberMeta{display: a.String()}
 	}
 	return Allowlist{members: m}
 }
 
 // NewAllowlistFromMembers builds an Allowlist from full members. A later entry for the
-// same address wins, mirroring set semantics.
+// same account wins, mirroring set semantics.
 func NewAllowlistFromMembers(members []Member) Allowlist {
 	m := make(map[string]memberMeta, len(members))
 	for _, mem := range members {
-		m[mem.Address.String()] = memberMeta{label: mem.Label, addedBy: mem.AddedBy, addedAt: mem.AddedAt}
+		m[mem.Address.Hex()] = memberMeta{display: mem.Address.String(), label: mem.Label, addedBy: mem.AddedBy, addedAt: mem.AddedAt}
 	}
 	return Allowlist{members: m}
 }
 
-func (al Allowlist) Contains(addr OperatorAddress) bool {
-	_, ok := al.members[addr.String()]
+func (al Allowlist) Contains(addr AccountID) bool {
+	_, ok := al.members[addr.Hex()]
 	return ok
 }
 
 // Label returns the label for addr, or "" if addr is not a member.
-func (al Allowlist) Label(addr OperatorAddress) string {
-	return al.members[addr.String()].label
+func (al Allowlist) Label(addr AccountID) string {
+	return al.members[addr.Hex()].label
 }
 
 // Add returns a copy with addr added, carrying empty metadata.
-func (al Allowlist) Add(addr OperatorAddress) Allowlist {
+func (al Allowlist) Add(addr AccountID) Allowlist {
 	return al.AddMember(Member{Address: addr})
 }
 
 // AddMember returns a copy with the member added, replacing any existing entry for the
-// same address (label and provenance are overwritten).
+// same account (label and provenance are overwritten).
 func (al Allowlist) AddMember(mem Member) Allowlist {
 	m := make(map[string]memberMeta, len(al.members)+1)
 	for k, v := range al.members {
 		m[k] = v
 	}
-	m[mem.Address.String()] = memberMeta{label: mem.Label, addedBy: mem.AddedBy, addedAt: mem.AddedAt}
+	m[mem.Address.Hex()] = memberMeta{display: mem.Address.String(), label: mem.Label, addedBy: mem.AddedBy, addedAt: mem.AddedAt}
 	return Allowlist{members: m}
 }
 
-func (al Allowlist) Remove(addr OperatorAddress) Allowlist {
+func (al Allowlist) Remove(addr AccountID) Allowlist {
 	m := make(map[string]memberMeta, len(al.members))
 	for k, v := range al.members {
 		m[k] = v
 	}
-	delete(m, addr.String())
+	delete(m, addr.Hex())
 	return Allowlist{members: m}
 }
 
-func (al Allowlist) Addresses() []OperatorAddress {
-	out := make([]OperatorAddress, 0, len(al.members))
-	for k := range al.members {
-		out = append(out, OperatorAddress{value: k})
+func (al Allowlist) Addresses() []AccountID {
+	out := make([]AccountID, 0, len(al.members))
+	for k, v := range al.members {
+		out = append(out, AccountID{acct: k, orig: v.display})
 	}
 	// Sort for deterministic output — callers must not depend on insertion order.
-	sort.Slice(out, func(i, j int) bool { return out[i].value < out[j].value })
+	sort.Slice(out, func(i, j int) bool { return out[i].acct < out[j].acct })
 	return out
 }
 
-// Members returns the full members, sorted by address.
+// Members returns the full members, sorted by account.
 func (al Allowlist) Members() []Member {
 	out := make([]Member, 0, len(al.members))
 	for k, v := range al.members {
-		out = append(out, Member{Address: OperatorAddress{value: k}, Label: v.label, AddedBy: v.addedBy, AddedAt: v.addedAt})
+		out = append(out, Member{Address: AccountID{acct: k, orig: v.display}, Label: v.label, AddedBy: v.addedBy, AddedAt: v.addedAt})
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Address.value < out[j].Address.value })
+	sort.Slice(out, func(i, j int) bool { return out[i].Address.acct < out[j].Address.acct })
 	return out
 }
 

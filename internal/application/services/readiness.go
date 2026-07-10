@@ -113,7 +113,7 @@ func (s *ReadinessService) Confirm(ctx context.Context, launchID uuid.UUID, inpu
 			input.BinaryHashConfirmed, l.Record.BinarySHA256, ports.ErrBadRequest)
 	}
 
-	operatorAddr, err := launch.NewOperatorAddress(input.OperatorAddress)
+	operatorAddr, err := launch.NewAccountID(input.OperatorAddress)
 	if err != nil {
 		return nil, fmt.Errorf("confirm readiness: operator address: %w", err)
 	}

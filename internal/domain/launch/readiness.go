@@ -13,7 +13,7 @@ type ReadinessConfirmation struct {
 	ID              uuid.UUID
 	LaunchID        uuid.UUID
 	JoinRequestID   uuid.UUID
-	OperatorAddress OperatorAddress
+	OperatorAddress AccountID
 
 	// The SHA256 hash the validator claims their local genesis file matches.
 	GenesisHashConfirmed string

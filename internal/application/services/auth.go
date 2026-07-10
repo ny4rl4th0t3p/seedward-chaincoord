@@ -11,6 +11,7 @@ import (
 	"github.com/ny4rl4th0t3p/seedward-libs/canonicaljson"
 
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/ports"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/launch"
 )
 
 // AuthService handles the challenge-response authentication flow.
@@ -35,12 +36,25 @@ func NewAuthService(
 	}
 }
 
-// IssueChallenge generates a short-lived challenge string for the given operator address.
-func (s *AuthService) IssueChallenge(ctx context.Context, operatorAddr string) (string, error) {
-	if operatorAddr == "" {
-		return "", fmt.Errorf("operator address is required: %w", ports.ErrBadRequest)
+// accountKey derives the HRP-independent account key from a presented bech32
+// address, rejecting non-account (valoper/valcons) forms. Auth state — challenge
+// and nonce — is keyed on this, so the same account under any prefix is one
+// identity (cosmos1<h> ≡ network1<h>).
+func accountKey(addr string) (string, error) {
+	id, err := launch.NewAccountID(addr)
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", err, ports.ErrBadRequest)
 	}
-	return s.challenges.Issue(ctx, operatorAddr)
+	return id.Hex(), nil
+}
+
+// IssueChallenge generates a short-lived challenge string for the given account.
+func (s *AuthService) IssueChallenge(ctx context.Context, operatorAddr string) (string, error) {
+	acct, err := accountKey(operatorAddr)
+	if err != nil {
+		return "", err
+	}
+	return s.challenges.Issue(ctx, acct)
 }
 
 // VerifyChallengeInput is the payload the validator signs to authenticate.
@@ -76,20 +90,25 @@ type VerifyChallengeInput struct {
 
 // VerifyChallenge validates a signed challenge response and issues a session token.
 func (s *AuthService) VerifyChallenge(ctx context.Context, input VerifyChallengeInput) (token string, err error) {
-	if input.OperatorAddress == "" {
-		return "", fmt.Errorf("operator_address is required: %w", ports.ErrBadRequest)
+	// Derive the HRP-independent account key (also rejects valoper/valcons — only
+	// account-form addresses may authenticate). Challenge + nonce are keyed on it,
+	// so a nonce consumed under one prefix cannot be replayed under another prefix
+	// of the same account.
+	acct, err := accountKey(input.OperatorAddress)
+	if err != nil {
+		return "", err
 	}
 
-	// Replay protection: consume the nonce before anything else.
-	if err := s.nonces.Consume(ctx, input.OperatorAddress, input.Nonce); err != nil {
+	// Replay protection: consume the nonce (per-account) before anything else.
+	if err := s.nonces.Consume(ctx, acct, input.Nonce); err != nil {
 		return "", fmt.Errorf("auth: nonce rejected: %w", err)
 	}
 	if err := validateTimestamp(input.Timestamp); err != nil {
 		return "", fmt.Errorf("auth: %w", err)
 	}
 
-	// Retrieve and consume the challenge (one-time use).
-	expected, err := s.challenges.Consume(ctx, input.OperatorAddress)
+	// Retrieve and consume the challenge (one-time use, per-account).
+	expected, err := s.challenges.Consume(ctx, acct)
 	if err != nil {
 		return "", fmt.Errorf("auth: challenge not found or expired: %w", err)
 	}

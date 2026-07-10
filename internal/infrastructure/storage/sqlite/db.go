@@ -41,6 +41,10 @@ func Open(dsn string) (*sql.DB, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("sqlite: migrate: %w", err)
 	}
+	if err := backfillAccountForms(ctx, db); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("sqlite: backfill: %w", err)
+	}
 	return db, nil
 }
 

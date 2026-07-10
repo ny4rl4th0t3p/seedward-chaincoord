@@ -67,7 +67,7 @@ var (
 
 // CommitteeMember is an individual coordinator in the M-of-N committee.
 type CommitteeMember struct {
-	Address   OperatorAddress
+	Address   AccountID
 	Moniker   string
 	PubKeyB64 string // base64-encoded secp256k1 compressed public key (33 bytes)
 }
@@ -79,7 +79,7 @@ type Committee struct {
 	Members     []CommitteeMember
 	ThresholdM  int
 	TotalN      int
-	LeadAddress OperatorAddress
+	LeadAddress AccountID
 	// CreationSignature is the lead coordinator's secp256k1 signature over the canonical
 	// JSON of this committee record. It is stored for the audit log — it proves the
 	// declared committee config was intentional. Verification is the responsibility of
@@ -89,7 +89,7 @@ type Committee struct {
 }
 
 // HasMember reports whether the given address is a committee member.
-func (c Committee) HasMember(addr OperatorAddress) bool {
+func (c Committee) HasMember(addr AccountID) bool {
 	for _, m := range c.Members {
 		if m.Address.Equal(addr) {
 			return true
@@ -309,7 +309,7 @@ func (l *Launch) IsVisibleTo(addr string) bool {
 	if addr == "" {
 		return false
 	}
-	validated, err := NewOperatorAddress(addr)
+	validated, err := NewAccountID(addr)
 	if err != nil {
 		return false
 	}
@@ -318,7 +318,7 @@ func (l *Launch) IsVisibleTo(addr string) bool {
 
 // IsVisibleToAddr is IsVisibleTo for an already-validated operator address. Hot paths
 // that have parsed the caller (e.g. join submit) call this to avoid a second bech32 decode.
-func (l *Launch) IsVisibleToAddr(addr OperatorAddress) bool {
+func (l *Launch) IsVisibleToAddr(addr AccountID) bool {
 	return l.Committee.HasMember(addr) || l.Allowlist.Contains(addr)
 }
 
@@ -350,7 +350,7 @@ func (l *Launch) AddMember(m Member) error {
 // RemoveMember removes a member from the members list. Returns ErrNotAMember if the
 // address is not currently on the list (a committee member not separately on the list is
 // not "a member" for this purpose). Allowed only while the members list is editable.
-func (l *Launch) RemoveMember(addr OperatorAddress) error {
+func (l *Launch) RemoveMember(addr AccountID) error {
 	if !l.membersEditable() {
 		return fmt.Errorf("cannot remove member in status %s: %w", l.Status, ErrMembersNotEditable)
 	}
@@ -364,7 +364,7 @@ func (l *Launch) RemoveMember(addr OperatorAddress) error {
 // ReplaceCommitteeMember swaps the committee member at oldAddr with newMember.
 // Returns an error if oldAddr is not found. No status guard — committee rotation
 // can occur at any lifecycle stage via proposal.
-func (l *Launch) ReplaceCommitteeMember(oldAddr OperatorAddress, newMember CommitteeMember) error {
+func (l *Launch) ReplaceCommitteeMember(oldAddr AccountID, newMember CommitteeMember) error {
 	for i, m := range l.Committee.Members {
 		if m.Address.Equal(oldAddr) {
 			l.Committee.Members[i] = newMember
@@ -408,7 +408,7 @@ func (l *Launch) ExpandCommittee(newMember CommitteeMember, newThresholdM int) e
 // would have fewer than 1 member, or if newThresholdM is not in [1, newN-1] (liveness
 // guard). If the removed member was the committee lead, the lead is transferred to the
 // first remaining member.
-func (l *Launch) ShrinkCommittee(removeAddr OperatorAddress, newThresholdM int) error {
+func (l *Launch) ShrinkCommittee(removeAddr AccountID, newThresholdM int) error {
 	idx := -1
 	for i, m := range l.Committee.Members {
 		if m.Address.Equal(removeAddr) {
@@ -540,7 +540,7 @@ func (l *Launch) RejectAllocationFile(t AllocationType, hash string) (rejected b
 
 // RecordValidatorApproval records the voting power contribution of an approved validator.
 // Returns a warning string if any single entity now holds ≥33% voting power.
-func (l *Launch) RecordValidatorApproval(operatorAddr OperatorAddress, selfDelegation int64) string {
+func (l *Launch) RecordValidatorApproval(operatorAddr AccountID, selfDelegation int64) string {
 	l.approvedVotingPower[operatorAddr.String()] = selfDelegation
 	dominant, pct := l.dominantVotingPowerPct()
 	if pct >= bftSafetyThreshold {
@@ -550,12 +550,12 @@ func (l *Launch) RecordValidatorApproval(operatorAddr OperatorAddress, selfDeleg
 }
 
 // RemoveValidatorApproval removes a validator's voting power contribution.
-func (l *Launch) RemoveValidatorApproval(operatorAddr OperatorAddress) {
+func (l *Launch) RemoveValidatorApproval(operatorAddr AccountID) {
 	delete(l.approvedVotingPower, operatorAddr.String())
 }
 
 // ApprovedVotingPowerOf returns the self-delegation of an approved validator (0 if not found).
-func (l *Launch) ApprovedVotingPowerOf(operatorAddr OperatorAddress) int64 {
+func (l *Launch) ApprovedVotingPowerOf(operatorAddr AccountID) int64 {
 	return l.approvedVotingPower[operatorAddr.String()]
 }
 

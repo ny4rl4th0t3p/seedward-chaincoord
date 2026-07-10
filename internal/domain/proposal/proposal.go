@@ -61,7 +61,7 @@ const (
 
 // SignatureEntry records one coordinator's signed decision.
 type SignatureEntry struct {
-	CoordinatorAddress launch.OperatorAddress
+	CoordinatorAddress launch.AccountID
 	Decision           Decision
 	Timestamp          time.Time
 	Signature          launch.Signature // sig over canonical JSON of the signing payload
@@ -73,7 +73,7 @@ type Proposal struct {
 	LaunchID   uuid.UUID
 	ActionType ActionType
 	Payload    []byte // canonical JSON of action-specific data
-	ProposedBy launch.OperatorAddress
+	ProposedBy launch.AccountID
 	ProposedAt time.Time
 	TTLExpires time.Time
 	Status     Status
@@ -90,7 +90,7 @@ func New(
 	launchID uuid.UUID,
 	actionType ActionType,
 	payload []byte,
-	proposedBy launch.OperatorAddress,
+	proposedBy launch.AccountID,
 	proposerSig launch.Signature,
 	ttl time.Duration,
 	now time.Time,
@@ -126,7 +126,7 @@ func New(
 // - A VETO immediately moves the proposal to VETOED.
 // - A SIGN is accumulated; once M signatures are collected the proposal executes.
 func (p *Proposal) Sign(
-	coordinatorAddr launch.OperatorAddress,
+	coordinatorAddr launch.AccountID,
 	decision Decision,
 	sig launch.Signature,
 	thresholdM int,

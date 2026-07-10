@@ -108,7 +108,7 @@ func scanReadiness(scan func(dest ...any) error) (*launch.ReadinessConfirmation,
 	if err != nil {
 		return nil, err
 	}
-	oa, err := launch.NewOperatorAddress(operatorAddr)
+	oa, err := launch.NewAccountID(operatorAddr)
 	if err != nil {
 		return nil, fmt.Errorf("readiness operator address: %w", err)
 	}

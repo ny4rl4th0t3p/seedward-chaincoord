@@ -436,7 +436,7 @@ func TestLaunchService_ListMembers_SortedForCommittee(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, members, 2)
 	for i := 1; i < len(members); i++ {
-		assert.Less(t, members[i-1].Address.String(), members[i].Address.String(), "members sorted by address")
+		assert.Less(t, members[i-1].Address.Hex(), members[i].Address.Hex(), "members sorted by account")
 	}
 }
 
@@ -531,7 +531,7 @@ func TestLaunchService_PatchLaunch_AllDraftFields(t *testing.T) {
 	repoCommit := "abc123def"
 	gt := time.Now().Add(72 * time.Hour).UTC()
 	minVal := 7
-	allow := []launch.OperatorAddress{mustAddr(testAddr2)}
+	allow := []launch.AccountID{mustAddr(testAddr2)}
 
 	updated, err := svc.PatchLaunch(context.Background(), l.ID, PatchLaunchInput{
 		ChainName:         &name,

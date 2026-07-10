@@ -38,6 +38,12 @@ func mustPeerAddr(s string) launch.PeerAddress {
 	return p
 }
 
+// acctKey is the HRP-independent account key the auth service keys challenge state
+// on — challenge fixtures must seed under this, not the bech32 address.
+func acctKey(addr string) string {
+	return launch.MustNewAccountID(addr).Hex()
+}
+
 func mustRPCEndpoint(s string) launch.RPCEndpoint {
 	e, err := launch.NewRPCEndpoint(s)
 	if err != nil {
@@ -265,8 +271,8 @@ func TestValidatorWriteEndpoints_RateLimitDisabled(t *testing.T) {
 
 func TestHandleAuthVerify_Success(t *testing.T) {
 	h := newHarness(t)
-	// Pre-seed the challenge so Consume finds it.
-	h.challenges.data[testAddr1] = "my-challenge"
+	// Pre-seed the challenge so Consume finds it (keyed on the account).
+	h.challenges.data[acctKey(testAddr1)] = "my-challenge"
 	body := []byte(`{
 		"operator_address":"` + testAddr1 + `",
 		"challenge":"my-challenge",

@@ -109,7 +109,7 @@ func (s *ProposalService) Raise(ctx context.Context, launchID uuid.UUID, input R
 		return nil, fmt.Errorf("raise proposal: launch: %w", err)
 	}
 
-	coordAddr, err := launch.NewOperatorAddress(input.CoordinatorAddr)
+	coordAddr, err := launch.NewAccountID(input.CoordinatorAddr)
 	if err != nil {
 		return nil, fmt.Errorf("raise proposal: coordinator address: %w: %w", err, ports.ErrBadRequest)
 	}
@@ -198,7 +198,7 @@ func (s *ProposalService) Sign(ctx context.Context, launchID, proposalID uuid.UU
 		return nil, fmt.Errorf("sign proposal: launch: %w", err)
 	}
 
-	coordAddr, err := launch.NewOperatorAddress(input.CoordinatorAddr)
+	coordAddr, err := launch.NewAccountID(input.CoordinatorAddr)
 	if err != nil {
 		return nil, fmt.Errorf("sign proposal: coordinator address: %w: %w", err, ports.ErrBadRequest)
 	}
@@ -376,7 +376,7 @@ func (s *ProposalService) applyApproveValidator(ctx context.Context, l *launch.L
 
 	// Record voting power and check 33% warning.
 	// The address was validated when the proposal was raised; this error is unexpected.
-	operatorAddr, err := launch.NewOperatorAddress(pl.OperatorAddress)
+	operatorAddr, err := launch.NewAccountID(pl.OperatorAddress)
 	if err != nil {
 		return fmt.Errorf("apply approve validator: invalid operator address in payload: %w", err)
 	}
@@ -431,7 +431,7 @@ func (s *ProposalService) applyRemoveValidator(ctx context.Context, l *launch.La
 		return mapJoinRequestDomainErr("apply remove validator", err)
 	}
 
-	operatorAddr, err := launch.NewOperatorAddress(pl.OperatorAddress)
+	operatorAddr, err := launch.NewAccountID(pl.OperatorAddress)
 	if err != nil {
 		return fmt.Errorf("apply remove validator: invalid operator address in payload: %w", err)
 	}
@@ -735,11 +735,11 @@ func (s *ProposalService) applyReplaceCommitteeMember(ctx context.Context, l *la
 	if err := json.Unmarshal(p.Payload, &pl); err != nil {
 		return fmt.Errorf("apply replace committee member: payload: %w", err)
 	}
-	oldAddr, err := launch.NewOperatorAddress(pl.OldAddress)
+	oldAddr, err := launch.NewAccountID(pl.OldAddress)
 	if err != nil {
 		return fmt.Errorf("apply replace committee member: invalid old_address: %w", err)
 	}
-	newAddr, err := launch.NewOperatorAddress(pl.NewAddress)
+	newAddr, err := launch.NewAccountID(pl.NewAddress)
 	if err != nil {
 		return fmt.Errorf("apply replace committee member: invalid new_address: %w", err)
 	}
@@ -769,7 +769,7 @@ func (s *ProposalService) applyExpandCommittee(ctx context.Context, l *launch.La
 	if err := json.Unmarshal(p.Payload, &pl); err != nil {
 		return fmt.Errorf("apply expand committee: payload: %w", err)
 	}
-	newAddr, err := launch.NewOperatorAddress(pl.NewMember.Address)
+	newAddr, err := launch.NewAccountID(pl.NewMember.Address)
 	if err != nil {
 		return fmt.Errorf("apply expand committee: invalid new_member.address: %w", err)
 	}
@@ -793,7 +793,7 @@ func (s *ProposalService) applyShrinkCommittee(ctx context.Context, l *launch.La
 	if err := json.Unmarshal(p.Payload, &pl); err != nil {
 		return fmt.Errorf("apply shrink committee: payload: %w", err)
 	}
-	removeAddr, err := launch.NewOperatorAddress(pl.RemoveAddress)
+	removeAddr, err := launch.NewAccountID(pl.RemoveAddress)
 	if err != nil {
 		return fmt.Errorf("apply shrink committee: invalid remove_address: %w", err)
 	}
@@ -885,7 +885,7 @@ func (s *ProposalService) writeAudit(ctx context.Context, p *proposal.Proposal, 
 	})
 }
 
-func committeeMemberPubKey(c launch.Committee, addr launch.OperatorAddress) string {
+func committeeMemberPubKey(c launch.Committee, addr launch.AccountID) string {
 	for _, m := range c.Members {
 		if m.Address.Equal(addr) {
 			return m.PubKeyB64

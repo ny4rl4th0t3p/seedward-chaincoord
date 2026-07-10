@@ -34,7 +34,7 @@ func nowTS() string { return time.Now().UTC().Format(time.RFC3339) }
 // expiredTS returns a timestamp 10 minutes in the past — rejected by validateTimestamp.
 func expiredTS() string { return time.Now().Add(-10 * time.Minute).UTC().Format(time.RFC3339) }
 
-func mustAddr(s string) launch.OperatorAddress { return launch.MustNewOperatorAddress(s) }
+func mustAddr(s string) launch.AccountID { return launch.MustNewAccountID(s) }
 
 func mustSig() launch.Signature {
 	s, err := launch.NewSignature(testSig)

@@ -119,6 +119,18 @@ func (r *LaunchRepository) insert(ctx context.Context, l *launch.Launch) error {
 	return err
 }
 
+// underPrefix renders an account under the given bech32 prefix for launch-scoped
+// storage, so all of a launch's stored addresses read under its own prefix. Falls
+// back to the address's display form if the prefix is empty or encoding fails.
+func underPrefix(a launch.AccountID, prefix string) string {
+	if prefix != "" {
+		if s, err := a.Bech32(prefix); err == nil {
+			return s
+		}
+	}
+	return a.String()
+}
+
 func (r *LaunchRepository) saveCommittee(ctx context.Context, l *launch.Launch) error {
 	q := conn(ctx, r.db)
 	c := l.Committee
@@ -128,7 +140,7 @@ func (r *LaunchRepository) saveCommittee(ctx context.Context, l *launch.Launch) 
 		VALUES (?,?,?,?,?,?,?)`,
 		uuidToStr(c.ID), uuidToStr(l.ID),
 		c.ThresholdM, c.TotalN,
-		c.LeadAddress.String(), c.CreationSignature.String(),
+		underPrefix(c.LeadAddress, l.Record.Bech32Prefix), c.CreationSignature.String(),
 		timeToStr(c.CreatedAt),
 	)
 	if err != nil {
@@ -142,7 +154,7 @@ func (r *LaunchRepository) saveCommittee(ctx context.Context, l *launch.Launch) 
 	for i, m := range c.Members {
 		if _, err := q.ExecContext(ctx,
 			`INSERT INTO committee_members (committee_id, position, address, moniker, pubkey_b64) VALUES (?,?,?,?,?)`,
-			uuidToStr(c.ID), i, m.Address.String(), m.Moniker, m.PubKeyB64,
+			uuidToStr(c.ID), i, underPrefix(m.Address, l.Record.Bech32Prefix), m.Moniker, m.PubKeyB64,
 		); err != nil {
 			return fmt.Errorf("insert committee member %d: %w", i, err)
 		}
@@ -162,7 +174,7 @@ func (r *LaunchRepository) saveAllowlist(ctx context.Context, l *launch.Launch) 
 		}
 		if _, err := q.ExecContext(ctx,
 			`INSERT INTO allowlist (launch_id, address, label, added_by, added_at) VALUES (?,?,?,?,?)`,
-			uuidToStr(l.ID), mem.Address.String(), mem.Label, mem.AddedBy, addedAt,
+			uuidToStr(l.ID), underPrefix(mem.Address, l.Record.Bech32Prefix), mem.Label, mem.AddedBy, addedAt,
 		); err != nil {
 			return fmt.Errorf("insert allowlist: %w", err)
 		}
@@ -389,7 +401,7 @@ func (r *LaunchRepository) loadCommittee(ctx context.Context, l *launch.Launch) 
 	if err != nil {
 		return err
 	}
-	l.Committee.LeadAddress, err = launch.NewOperatorAddress(leadAddr)
+	l.Committee.LeadAddress, err = launch.NewAccountID(leadAddr)
 	if err != nil {
 		return fmt.Errorf("load committee lead: %w", err)
 	}
@@ -416,7 +428,7 @@ func (r *LaunchRepository) loadCommittee(ctx context.Context, l *launch.Launch) 
 		if err := rows.Scan(&addrStr, &moniker, &pubKey); err != nil {
 			return fmt.Errorf("scan committee member: %w", err)
 		}
-		addr, err := launch.NewOperatorAddress(addrStr)
+		addr, err := launch.NewAccountID(addrStr)
 		if err != nil {
 			return fmt.Errorf("load member address: %w", err)
 		}
@@ -444,7 +456,7 @@ func (r *LaunchRepository) loadAllowlist(ctx context.Context, l *launch.Launch) 
 		if err := rows.Scan(&addrStr, &label, &addedBy, &addedAtStr); err != nil {
 			return fmt.Errorf("scan allowlist: %w", err)
 		}
-		addr, err := launch.NewOperatorAddress(addrStr)
+		addr, err := launch.NewAccountID(addrStr)
 		if err != nil {
 			return fmt.Errorf("load allowlist address: %w", err)
 		}

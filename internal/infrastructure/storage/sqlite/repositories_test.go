@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -272,7 +273,7 @@ func TestLaunchRepository_FindAll(t *testing.T) {
 			run: func(t *testing.T, repo *LaunchRepository) {
 				ctx := context.Background()
 				l := testLaunch(t)
-				l.Allowlist = launch.NewAllowlist([]launch.OperatorAddress{mustAddr(outsider)})
+				l.Allowlist = launch.NewAllowlist([]launch.AccountID{mustAddr(outsider)})
 				require.NoError(t, repo.Save(ctx, l))
 
 				_, total, err := repo.FindAll(ctx, outsider, 1, 10)
@@ -1224,6 +1225,50 @@ func TestNonceStore_Consume(t *testing.T) {
 	}
 }
 
+// ---- BackfillAccountForms ----
+
+func TestBackfillAccountForms(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	db := openTestDB(t)
+
+	// A legacy bech32 coordinator row (bypassing the normalizing Add).
+	_, err := db.ExecContext(ctx,
+		`INSERT INTO coordinator_allowlist (address, added_by, added_at) VALUES (?,?,?)`,
+		addr1, "admin", "2026-01-01T00:00:00Z")
+	require.NoError(t, err)
+
+	// A launch on the "network" chain with a legacy member stored under the cosmos
+	// prefix (inserted directly, bypassing the prefix-aware saveAllowlist).
+	const legacyMember = "cosmos1v93xxer9venks6t2ddkx6mn0wpchyum5nn4cca"
+	repo := NewLaunchRepository(db)
+	l := testLaunch(t)
+	l.Record.Bech32Prefix = "network"
+	require.NoError(t, repo.Save(ctx, l))
+	_, err = db.ExecContext(ctx,
+		`INSERT INTO allowlist (launch_id, address, label, added_by, added_at) VALUES (?,?,?,?,?)`,
+		uuidToStr(l.ID), legacyMember, "acme", "", "")
+	require.NoError(t, err)
+
+	require.NoError(t, backfillAccountForms(ctx, db))
+
+	// Coordinator is now the account hex, recognized under any prefix.
+	crepo := NewCoordinatorAllowlistRepo(db)
+	ok, err := crepo.Contains(ctx, addr1)
+	require.NoError(t, err)
+	assert.True(t, ok, "backfilled coordinator recognized")
+	var storedCoord string
+	require.NoError(t, db.QueryRowContext(ctx, `SELECT address FROM coordinator_allowlist`).Scan(&storedCoord))
+	assert.Equal(t, mustAddr(addr1).Hex(), storedCoord, "coordinator stored as account hex")
+
+	// The member is now stored under the launch's "network" prefix, same account.
+	var storedMember string
+	require.NoError(t, db.QueryRowContext(ctx,
+		`SELECT address FROM allowlist WHERE launch_id=? AND label='acme'`, uuidToStr(l.ID)).Scan(&storedMember))
+	assert.True(t, strings.HasPrefix(storedMember, "network1"), "member re-encoded under launch prefix, got %q", storedMember)
+	assert.True(t, mustAddr(storedMember).Equal(mustAddr(legacyMember)), "same account as the legacy cosmos form")
+}
+
 // ---- CoordinatorAllowlistRepo ----
 
 func TestCoordinatorAllowlistRepo(t *testing.T) {
@@ -1252,6 +1297,25 @@ func TestCoordinatorAllowlistRepo(t *testing.T) {
 
 		require.NoError(t, repo.Add(ctx, addr1, addr2), "first Add")
 		require.NoError(t, repo.Add(ctx, addr1, addr3), "second Add (duplicate)")
+	})
+
+	t.Run("recognizes the same account under a different prefix", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		repo := NewCoordinatorAllowlistRepo(openTestDB(t))
+
+		require.NoError(t, repo.Add(ctx, addr1, addr2), "Add under one prefix")
+
+		otherHRP, err := mustAddr(addr1).Bech32("network")
+		require.NoError(t, err)
+		ok, err := repo.Contains(ctx, otherHRP)
+		require.NoError(t, err)
+		assert.True(t, ok, "same account under a different prefix is a coordinator")
+
+		require.NoError(t, repo.Remove(ctx, otherHRP), "Remove under a different prefix")
+		ok, err = repo.Contains(ctx, addr1)
+		require.NoError(t, err)
+		assert.False(t, ok, "removed under any prefix")
 	})
 
 	t.Run("Remove existing entry", func(t *testing.T) {

@@ -21,8 +21,8 @@ const (
 	testAddr3 = "cosmos1g9pyx3z9ger5sj22fdxy6nj02pg4y5657yq8y0"
 )
 
-func newAddr(s string) launch.OperatorAddress {
-	return launch.MustNewOperatorAddress(s)
+func newAddr(s string) launch.AccountID {
+	return launch.MustNewAccountID(s)
 }
 
 func newSig() launch.Signature {

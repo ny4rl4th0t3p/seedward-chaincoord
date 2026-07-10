@@ -158,7 +158,7 @@ func parseConnectionFields(input SubmitInput) (
 // REJECTED/EXPIRED requests are terminal and never reach here, so they never block. Must run
 // before the consensus-pubkey check so a validator re-submitting its own key is not blocked by
 // its own now-expired prior request.
-func (s *JoinRequestService) supersedePending(ctx context.Context, launchID uuid.UUID, validatorAddr launch.OperatorAddress) error {
+func (s *JoinRequestService) supersedePending(ctx context.Context, launchID uuid.UUID, validatorAddr launch.AccountID) error {
 	existing, err := s.joinRequests.FindActiveByValidator(ctx, launchID, validatorAddr.String())
 	if errors.Is(err, ports.ErrNotFound) {
 		return nil
@@ -197,7 +197,7 @@ func (s *JoinRequestService) Submit(ctx context.Context, launchID uuid.UUID, inp
 		return nil, fmt.Errorf("submit join request: launch: %w", err)
 	}
 
-	submitterAddr, err := launch.NewOperatorAddress(input.OperatorAddress)
+	submitterAddr, err := launch.NewAccountID(input.OperatorAddress)
 	if err != nil {
 		return nil, fmt.Errorf("submit join request: submitter address: %w", err)
 	}
@@ -219,7 +219,7 @@ func (s *JoinRequestService) Submit(ctx context.Context, launchID uuid.UUID, inp
 	if err != nil {
 		return nil, err
 	}
-	validatorAddr, err := launch.NewOperatorAddress(validatorAddrStr)
+	validatorAddr, err := launch.NewAccountID(validatorAddrStr)
 	if err != nil {
 		return nil, fmt.Errorf("submit join request: validator address: %w", err)
 	}
@@ -328,7 +328,7 @@ func (s *JoinRequestService) ListForLaunch(
 // their join requests for a launch, plus the members-list label the committee vets the
 // submitted operator address against. Requests preserve submitted_at order.
 type SubmitterGroup struct {
-	SubmitterAddress launch.OperatorAddress
+	SubmitterAddress launch.AccountID
 	Label            string
 	Requests         []*joinrequest.JoinRequest
 }
@@ -347,7 +347,7 @@ func (s *JoinRequestService) ListGroupedBySubmitter(
 	if err != nil {
 		return nil, err
 	}
-	callerOp, err := launch.NewOperatorAddress(callerAddr)
+	callerOp, err := launch.NewAccountID(callerAddr)
 	if err != nil || !l.Committee.HasMember(callerOp) {
 		return nil, fmt.Errorf("list grouped join requests: caller is not a committee member: %w", ports.ErrForbidden)
 	}

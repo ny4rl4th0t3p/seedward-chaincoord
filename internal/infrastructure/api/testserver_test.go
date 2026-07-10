@@ -43,7 +43,7 @@ const (
 	testSig      = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
 )
 
-func mustAddr(s string) launch.OperatorAddress { return launch.MustNewOperatorAddress(s) }
+func mustAddr(s string) launch.AccountID { return launch.MustNewAccountID(s) }
 func mustSig() launch.Signature {
 	s, err := launch.NewSignature(testSig)
 	if err != nil {

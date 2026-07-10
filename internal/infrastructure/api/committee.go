@@ -89,7 +89,7 @@ func (s *Server) handleCommitteeCreate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build domain value objects.
-	leadAddr, err := launch.NewOperatorAddress(body.LeadAddress)
+	leadAddr, err := launch.NewAccountID(body.LeadAddress)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_field", "lead_address: "+err.Error())
 		return
@@ -101,7 +101,7 @@ func (s *Server) handleCommitteeCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	members := make([]launch.CommitteeMember, len(body.Members))
 	for i, m := range body.Members {
-		addr, err := launch.NewOperatorAddress(m.Address)
+		addr, err := launch.NewAccountID(m.Address)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_field", fmt.Sprintf("members[%d]: address: %s", i, err.Error()))
 			return

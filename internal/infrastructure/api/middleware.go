@@ -12,6 +12,7 @@ import (
 	"github.com/rs/zerolog/hlog"
 
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/ports"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/launch"
 )
 
 type contextKey int
@@ -48,6 +49,17 @@ func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 func operatorFromContext(ctx context.Context) string {
 	v, _ := ctx.Value(operatorAddrKey).(string)
 	return v
+}
+
+// accountLookupKey normalizes a bech32 account address to its HRP-independent
+// account key, for account-keyed membership checks (the admin set). Falls back to
+// the raw string when it isn't a valid account address, so a misconfigured entry is
+// inert rather than matching by accident.
+func accountLookupKey(addr string) string {
+	if id, err := launch.NewAccountID(addr); err == nil {
+		return id.Hex()
+	}
+	return addr
 }
 
 // optionalAuth attempts to resolve the caller's operator address from a Bearer
@@ -87,7 +99,7 @@ func (s *Server) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 			writeError(w, http.StatusInternalServerError, "internal_error", "could not validate session")
 			return
 		}
-		if _, ok := s.adminAddresses[operatorAddr]; !ok {
+		if _, ok := s.adminAddresses[accountLookupKey(operatorAddr)]; !ok {
 			writeError(w, http.StatusForbidden, "forbidden", "admin access required")
 			return
 		}

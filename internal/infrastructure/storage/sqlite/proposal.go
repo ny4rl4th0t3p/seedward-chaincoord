@@ -128,7 +128,7 @@ func (r *ProposalRepository) loadSignatures(ctx context.Context, p *proposal.Pro
 		if err := rows.Scan(&addrStr, &decision, &signedAt, &sigStr); err != nil {
 			return nil, fmt.Errorf("scan signature: %w", err)
 		}
-		addr, err := launch.NewOperatorAddress(addrStr)
+		addr, err := launch.NewAccountID(addrStr)
 		if err != nil {
 			return nil, fmt.Errorf("signature address: %w", err)
 		}
@@ -203,7 +203,7 @@ func scanProposal(scan func(dest ...any) error) (*proposal.Proposal, error) {
 	if err != nil {
 		return nil, err
 	}
-	pb, err := launch.NewOperatorAddress(proposedBy)
+	pb, err := launch.NewAccountID(proposedBy)
 	if err != nil {
 		return nil, fmt.Errorf("scan proposed_by: %w", err)
 	}

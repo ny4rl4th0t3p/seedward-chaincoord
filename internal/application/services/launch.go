@@ -88,7 +88,7 @@ func (s *LaunchService) WithURLValidator(fn func(string) error) *LaunchService {
 type CreateLaunchInput struct {
 	Record     launch.ChainRecord
 	LaunchType launch.LaunchType
-	Allowlist  []launch.OperatorAddress
+	Allowlist  []launch.AccountID
 	Committee  launch.Committee
 }
 
@@ -128,7 +128,7 @@ func (s *LaunchService) UploadInitialGenesis(
 	if err != nil {
 		return "", fmt.Errorf("upload genesis: %w", err)
 	}
-	callerOp, err := launch.NewOperatorAddress(callerAddr)
+	callerOp, err := launch.NewAccountID(callerAddr)
 	if err != nil || !l.Committee.HasMember(callerOp) {
 		return "", fmt.Errorf("upload genesis: caller is not a committee member: %w", ports.ErrForbidden)
 	}
@@ -167,7 +167,7 @@ func (s *LaunchService) UploadFinalGenesis(
 	if err != nil {
 		return "", fmt.Errorf("upload final genesis: %w", err)
 	}
-	callerOp, err := launch.NewOperatorAddress(callerAddr)
+	callerOp, err := launch.NewAccountID(callerAddr)
 	if err != nil || !l.Committee.HasMember(callerOp) {
 		return "", fmt.Errorf("upload final genesis: caller is not a committee member: %w", ports.ErrForbidden)
 	}
@@ -283,7 +283,7 @@ func (s *LaunchService) uploadGenesisRef(
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
-	callerOp, err := launch.NewOperatorAddress(callerAddr)
+	callerOp, err := launch.NewAccountID(callerAddr)
 	if err != nil || !l.Committee.HasMember(callerOp) {
 		return fmt.Errorf("%s: caller is not a committee member: %w", op, ports.ErrForbidden)
 	}
@@ -323,7 +323,7 @@ func (s *LaunchService) UploadAllocationFileBytes(
 	if err != nil {
 		return "", fmt.Errorf("upload allocation: %w", err)
 	}
-	callerOp, err := launch.NewOperatorAddress(callerAddr)
+	callerOp, err := launch.NewAccountID(callerAddr)
 	if err != nil || !l.Committee.HasMember(callerOp) {
 		return "", fmt.Errorf("upload allocation: caller is not a committee member: %w", ports.ErrForbidden)
 	}
@@ -364,7 +364,7 @@ func (s *LaunchService) UploadAllocationFileRef(
 	if err != nil {
 		return fmt.Errorf("upload allocation ref: %w", err)
 	}
-	callerOp, err := launch.NewOperatorAddress(callerAddr)
+	callerOp, err := launch.NewAccountID(callerAddr)
 	if err != nil || !l.Committee.HasMember(callerOp) {
 		return fmt.Errorf("upload allocation ref: caller is not a committee member: %w", ports.ErrForbidden)
 	}
@@ -559,9 +559,9 @@ type PatchLaunchInput struct {
 	RepoCommit        *string
 	GenesisTime       *time.Time
 	MinValidatorCount *int
-	TotalSupply       *string                  // draft-only chain-record field (bigint string)
-	Allowlist         []launch.OperatorAddress // nil = no change; empty slice = clear
-	MonitorRPCURL     *string                  // settable in any status
+	TotalSupply       *string            // draft-only chain-record field (bigint string)
+	Allowlist         []launch.AccountID // nil = no change; empty slice = clear
+	MonitorRPCURL     *string            // settable in any status
 	// RehearsalServicePubKey/RehearsalEndpoint are operational (bridge D2), settable in any status.
 	RehearsalServicePubKey *string
 	RehearsalEndpoint      *string
@@ -577,7 +577,7 @@ func (s *LaunchService) PatchLaunch(
 	if err != nil {
 		return nil, err
 	}
-	callerOp, err := launch.NewOperatorAddress(callerAddr)
+	callerOp, err := launch.NewAccountID(callerAddr)
 	if err != nil || !l.Committee.HasMember(callerOp) {
 		return nil, fmt.Errorf("patch launch: caller is not a committee member: %w", ports.ErrForbidden)
 	}
@@ -679,7 +679,7 @@ func (s *LaunchService) requireCommittee(ctx context.Context, launchID uuid.UUID
 	if err != nil {
 		return nil, err
 	}
-	callerOp, err := launch.NewOperatorAddress(callerAddr)
+	callerOp, err := launch.NewAccountID(callerAddr)
 	if err != nil || !l.Committee.HasMember(callerOp) {
 		return nil, fmt.Errorf("%s: caller is not a committee member: %w", op, ports.ErrForbidden)
 	}
@@ -699,7 +699,7 @@ func (s *LaunchService) AddMember(ctx context.Context, launchID uuid.UUID, addre
 	if len(label) > maxMemberLabelLen {
 		return nil, fmt.Errorf("%s: label exceeds %d characters: %w", op, maxMemberLabelLen, ports.ErrBadRequest)
 	}
-	addr, err := launch.NewOperatorAddress(address)
+	addr, err := launch.NewAccountID(address)
 	if err != nil {
 		return nil, fmt.Errorf("%s: address: %w: %w", op, err, ports.ErrBadRequest)
 	}
@@ -722,7 +722,7 @@ func (s *LaunchService) RemoveMember(ctx context.Context, launchID uuid.UUID, ad
 	if err != nil {
 		return err
 	}
-	addr, err := launch.NewOperatorAddress(address)
+	addr, err := launch.NewAccountID(address)
 	if err != nil {
 		return fmt.Errorf("%s: address: %w: %w", op, err, ports.ErrBadRequest)
 	}
@@ -783,7 +783,7 @@ func (s *LaunchService) IsCommitteeMember(ctx context.Context, launchID uuid.UUI
 	if err != nil {
 		return false, err
 	}
-	addr, err := launch.NewOperatorAddress(callerAddr)
+	addr, err := launch.NewAccountID(callerAddr)
 	if err != nil {
 		return false, nil
 	}
@@ -856,7 +856,7 @@ func (s *LaunchService) OpenWindow(ctx context.Context, launchID uuid.UUID, call
 	if err != nil {
 		return err
 	}
-	callerOp, err := launch.NewOperatorAddress(callerAddr)
+	callerOp, err := launch.NewAccountID(callerAddr)
 	if err != nil || !l.Committee.HasMember(callerOp) {
 		return fmt.Errorf("open window: caller is not a committee member: %w", ports.ErrForbidden)
 	}

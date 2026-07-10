@@ -39,12 +39,12 @@ func testCommittee() launch.Committee {
 		ID:                uuid.New(),
 		ThresholdM:        2,
 		TotalN:            3,
-		LeadAddress:       launch.MustNewOperatorAddress(testAddr1),
+		LeadAddress:       launch.MustNewAccountID(testAddr1),
 		CreationSignature: sig,
 		Members: []launch.CommitteeMember{
-			{Address: launch.MustNewOperatorAddress(testAddr1), Moniker: "coord-1", PubKeyB64: "AAAA"},
-			{Address: launch.MustNewOperatorAddress(testAddr2), Moniker: "coord-2", PubKeyB64: "BBBB"},
-			{Address: launch.MustNewOperatorAddress(testAddr3), Moniker: "coord-3", PubKeyB64: "CCCC"},
+			{Address: launch.MustNewAccountID(testAddr1), Moniker: "coord-1", PubKeyB64: "AAAA"},
+			{Address: launch.MustNewAccountID(testAddr2), Moniker: "coord-2", PubKeyB64: "BBBB"},
+			{Address: launch.MustNewAccountID(testAddr3), Moniker: "coord-3", PubKeyB64: "CCCC"},
 		},
 		CreatedAt: time.Now(),
 	}
@@ -105,8 +105,8 @@ func TestCloseWindow_MinValidatorCount(t *testing.T) {
 func TestVotingPowerWarning(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 
-	addr1 := launch.MustNewOperatorAddress(testAddr1)
-	addr2 := launch.MustNewOperatorAddress(testAddr2)
+	addr1 := launch.MustNewAccountID(testAddr1)
+	addr2 := launch.MustNewAccountID(testAddr2)
 
 	l.RecordValidatorApproval(addr1, 40)
 	warning := l.RecordValidatorApproval(addr2, 60)
@@ -117,10 +117,10 @@ func TestVotingPowerWarning_NoWarningBelow33(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 
 	// 4 validators at 25 each — no single entity reaches 33%
-	l.RecordValidatorApproval(launch.MustNewOperatorAddress(testAddr1), 25)
-	l.RecordValidatorApproval(launch.MustNewOperatorAddress(testAddr2), 25)
-	l.RecordValidatorApproval(launch.MustNewOperatorAddress(testAddr3), 25)
-	warning := l.RecordValidatorApproval(launch.MustNewOperatorAddress(testAddr4), 25)
+	l.RecordValidatorApproval(launch.MustNewAccountID(testAddr1), 25)
+	l.RecordValidatorApproval(launch.MustNewAccountID(testAddr2), 25)
+	l.RecordValidatorApproval(launch.MustNewAccountID(testAddr3), 25)
+	warning := l.RecordValidatorApproval(launch.MustNewAccountID(testAddr4), 25)
 	assert.Empty(t, warning)
 }
 
@@ -129,17 +129,17 @@ func TestCloseWindow_DominantVotingPowerBlocked(t *testing.T) {
 	_ = l.Publish("1111111111111111111111111111111111111111111111111111111111111111")
 	_ = l.OpenWindow()
 
-	l.RecordValidatorApproval(launch.MustNewOperatorAddress(testAddr1), 100) // 100% voting power
+	l.RecordValidatorApproval(launch.MustNewAccountID(testAddr1), 100) // 100% voting power
 
 	require.ErrorIs(t, l.CloseWindow(4), launch.ErrDominantVotingPower, "single entity holds 100%% of voting power")
 }
 
 func TestIsVisibleTo(t *testing.T) {
-	onAllowlist := launch.MustNewOperatorAddress(testAddr1)   // also a committee member
-	committeeOnly := launch.MustNewOperatorAddress(testAddr2) // committee, NOT on the allowlist
-	outsider := launch.MustNewOperatorAddress(testAddr4)      // neither committee nor allowlist
+	onAllowlist := launch.MustNewAccountID(testAddr1)   // also a committee member
+	committeeOnly := launch.MustNewAccountID(testAddr2) // committee, NOT on the allowlist
+	outsider := launch.MustNewAccountID(testAddr4)      // neither committee nor allowlist
 
-	al := launch.NewAllowlist([]launch.OperatorAddress{onAllowlist})
+	al := launch.NewAllowlist([]launch.AccountID{onAllowlist})
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypePermissioned, testCommittee())
 	l.Allowlist = al
 
@@ -282,8 +282,8 @@ func TestCloseWindow_DominantVotingPower_JustAboveThreshold(t *testing.T) {
 	l, _ := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
 	_ = l.Publish("1111111111111111111111111111111111111111111111111111111111111111")
 	_ = l.OpenWindow()
-	l.RecordValidatorApproval(launch.MustNewOperatorAddress(testAddr1), 34) // 34/100 = 34%
-	l.RecordValidatorApproval(launch.MustNewOperatorAddress(testAddr2), 66)
+	l.RecordValidatorApproval(launch.MustNewAccountID(testAddr1), 34) // 34/100 = 34%
+	l.RecordValidatorApproval(launch.MustNewAccountID(testAddr2), 66)
 	require.ErrorIs(t, l.CloseWindow(1), launch.ErrDominantVotingPower, "addr1 holds 34%% (≥ 1/3) of voting power")
 }
 
@@ -295,7 +295,7 @@ func TestCloseWindow_DominantVotingPower_JustBelowThreshold(t *testing.T) {
 	_ = l.Publish("1111111111111111111111111111111111111111111111111111111111111111")
 	_ = l.OpenWindow()
 	for _, a := range []string{testAddr1, testAddr2, testAddr3, testAddr4} {
-		l.RecordValidatorApproval(launch.MustNewOperatorAddress(a), 25)
+		l.RecordValidatorApproval(launch.MustNewAccountID(a), 25)
 	}
 	assert.NoError(t, l.CloseWindow(1))
 }
@@ -388,7 +388,7 @@ func TestEnsureOpenForApplications_WindowOpen(t *testing.T) {
 
 func TestRecordValidatorApproval_UpdatesExisting(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
-	addr := launch.MustNewOperatorAddress(testAddr1)
+	addr := launch.MustNewAccountID(testAddr1)
 	l.RecordValidatorApproval(addr, 100)
 	l.RecordValidatorApproval(addr, 50) // update
 	assert.Equal(t, int64(50), l.ApprovedVotingPowerOf(addr))
@@ -396,7 +396,7 @@ func TestRecordValidatorApproval_UpdatesExisting(t *testing.T) {
 
 func TestRemoveValidatorApproval(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
-	addr := launch.MustNewOperatorAddress(testAddr1)
+	addr := launch.MustNewAccountID(testAddr1)
 	l.RecordValidatorApproval(addr, 100)
 	l.RemoveValidatorApproval(addr)
 	assert.Equal(t, int64(0), l.ApprovedVotingPowerOf(addr), "want 0 after removal")
@@ -404,13 +404,13 @@ func TestRemoveValidatorApproval(t *testing.T) {
 
 func TestApprovedVotingPowerOf_NotFound(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
-	addr := launch.MustNewOperatorAddress(testAddr1)
+	addr := launch.MustNewAccountID(testAddr1)
 	assert.Equal(t, int64(0), l.ApprovedVotingPowerOf(addr), "want 0 for unknown addr")
 }
 
 func TestInitVotingPower(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
-	addr := launch.MustNewOperatorAddress(testAddr1)
+	addr := launch.MustNewAccountID(testAddr1)
 	l.InitVotingPower(map[string]int64{addr.String(): 500})
 	assert.Equal(t, int64(500), l.ApprovedVotingPowerOf(addr))
 }
@@ -419,8 +419,8 @@ func TestInitVotingPower(t *testing.T) {
 
 func TestHasMember_PresentAndAbsent(t *testing.T) {
 	c := testCommittee()
-	addr1 := launch.MustNewOperatorAddress(testAddr1)
-	addr4 := launch.MustNewOperatorAddress(testAddr4)
+	addr1 := launch.MustNewAccountID(testAddr1)
+	addr4 := launch.MustNewAccountID(testAddr4)
 	assert.True(t, c.HasMember(addr1), "addr1 should be a member")
 	assert.False(t, c.HasMember(addr4), "addr4 should not be a member")
 }
@@ -428,7 +428,7 @@ func TestHasMember_PresentAndAbsent(t *testing.T) {
 // ---- IsVisibleTo edge cases -------------------------------------------------
 
 func TestIsVisibleTo_InvalidAddress(t *testing.T) {
-	al := launch.NewAllowlist([]launch.OperatorAddress{launch.MustNewOperatorAddress(testAddr1)})
+	al := launch.NewAllowlist([]launch.AccountID{launch.MustNewAccountID(testAddr1)})
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypePermissioned, testCommittee())
 	l.Allowlist = al
 	// An invalid bech32 string should be treated as "not visible".
@@ -439,9 +439,9 @@ func TestIsVisibleTo_InvalidAddress(t *testing.T) {
 
 func TestLaunch_ReplaceCommitteeMember_Success(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
-	oldAddr := launch.MustNewOperatorAddress(testAddr2)
+	oldAddr := launch.MustNewAccountID(testAddr2)
 	newMember := launch.CommitteeMember{
-		Address:   launch.MustNewOperatorAddress(testAddr4),
+		Address:   launch.MustNewAccountID(testAddr4),
 		Moniker:   "coord-new",
 		PubKeyB64: "DDDD",
 	}
@@ -460,9 +460,9 @@ func TestLaunch_ReplaceCommitteeMember_Success(t *testing.T) {
 
 func TestLaunch_ReplaceCommitteeMember_UpdatesLead(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
-	leadAddr := launch.MustNewOperatorAddress(testAddr1)
+	leadAddr := launch.MustNewAccountID(testAddr1)
 	newMember := launch.CommitteeMember{
-		Address:   launch.MustNewOperatorAddress(testAddr4),
+		Address:   launch.MustNewAccountID(testAddr4),
 		Moniker:   "new-lead",
 		PubKeyB64: "DDDD",
 	}
@@ -473,8 +473,8 @@ func TestLaunch_ReplaceCommitteeMember_UpdatesLead(t *testing.T) {
 
 func TestLaunch_ReplaceCommitteeMember_NotFound(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
-	unknownAddr := launch.MustNewOperatorAddress(testAddr5)
-	newMember := launch.CommitteeMember{Address: launch.MustNewOperatorAddress(testAddr4)}
+	unknownAddr := launch.MustNewAccountID(testAddr5)
+	newMember := launch.CommitteeMember{Address: launch.MustNewAccountID(testAddr4)}
 
 	require.ErrorIs(t, l.ReplaceCommitteeMember(unknownAddr, newMember), launch.ErrCommitteeMemberNotFound, "expected error for unknown old address")
 }
@@ -484,7 +484,7 @@ func TestLaunch_ReplaceCommitteeMember_NotFound(t *testing.T) {
 func TestLaunch_ExpandCommittee_Success(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	newMember := launch.CommitteeMember{
-		Address:   launch.MustNewOperatorAddress(testAddr4),
+		Address:   launch.MustNewAccountID(testAddr4),
 		Moniker:   "coord-4",
 		PubKeyB64: "DDDD",
 	}
@@ -506,7 +506,7 @@ func TestLaunch_ExpandCommittee_Success(t *testing.T) {
 func TestLaunch_ExpandCommittee_ExplicitThreshold(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	newMember := launch.CommitteeMember{
-		Address:   launch.MustNewOperatorAddress(testAddr4),
+		Address:   launch.MustNewAccountID(testAddr4),
 		Moniker:   "coord-4",
 		PubKeyB64: "DDDD",
 	}
@@ -518,7 +518,7 @@ func TestLaunch_ExpandCommittee_ExplicitThreshold(t *testing.T) {
 func TestLaunch_ExpandCommittee_DuplicateMember(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	duplicate := launch.CommitteeMember{
-		Address:   launch.MustNewOperatorAddress(testAddr2),
+		Address:   launch.MustNewAccountID(testAddr2),
 		Moniker:   "dup",
 		PubKeyB64: "BBBB",
 	}
@@ -530,7 +530,7 @@ func TestLaunch_ExpandCommittee_LivenessGuard(t *testing.T) {
 	// 2-of-3 → expand to 4 members with threshold 4 (M == N) should be rejected.
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	newMember := launch.CommitteeMember{
-		Address:   launch.MustNewOperatorAddress(testAddr4),
+		Address:   launch.MustNewAccountID(testAddr4),
 		Moniker:   "coord-4",
 		PubKeyB64: "DDDD",
 	}
@@ -543,7 +543,7 @@ func TestLaunch_ExpandCommittee_LivenessGuard(t *testing.T) {
 func TestLaunch_ShrinkCommittee_Success(t *testing.T) {
 	// 2-of-3 → remove addr3 with threshold 1 → 1-of-2.
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
-	removeAddr := launch.MustNewOperatorAddress(testAddr3)
+	removeAddr := launch.MustNewAccountID(testAddr3)
 
 	require.NoError(t, l.ShrinkCommittee(removeAddr, 1))
 
@@ -558,7 +558,7 @@ func TestLaunch_ShrinkCommittee_Success(t *testing.T) {
 func TestLaunch_ShrinkCommittee_TransfersLeadWhenRemoved(t *testing.T) {
 	// Remove the lead (addr1); lead should transfer to the first remaining member.
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
-	leadAddr := launch.MustNewOperatorAddress(testAddr1)
+	leadAddr := launch.MustNewAccountID(testAddr1)
 
 	require.NoError(t, l.ShrinkCommittee(leadAddr, 1))
 	assert.NotEqual(t, testAddr1, l.Committee.LeadAddress.String(), "lead not transferred after removed member was the lead")
@@ -566,7 +566,7 @@ func TestLaunch_ShrinkCommittee_TransfersLeadWhenRemoved(t *testing.T) {
 
 func TestLaunch_ShrinkCommittee_NonLeadDoesNotChangeLead(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
-	removeAddr := launch.MustNewOperatorAddress(testAddr3) // not the lead
+	removeAddr := launch.MustNewAccountID(testAddr3) // not the lead
 
 	require.NoError(t, l.ShrinkCommittee(removeAddr, 1))
 	assert.Equal(t, testAddr1, l.Committee.LeadAddress.String(), "lead changed unexpectedly")
@@ -574,7 +574,7 @@ func TestLaunch_ShrinkCommittee_NonLeadDoesNotChangeLead(t *testing.T) {
 
 func TestLaunch_ShrinkCommittee_MemberNotFound(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
-	unknownAddr := launch.MustNewOperatorAddress(testAddr5)
+	unknownAddr := launch.MustNewAccountID(testAddr5)
 
 	require.ErrorIs(t, l.ShrinkCommittee(unknownAddr, 1), launch.ErrCommitteeMemberNotFound, "expected error for unknown member address")
 }
@@ -582,7 +582,7 @@ func TestLaunch_ShrinkCommittee_MemberNotFound(t *testing.T) {
 func TestLaunch_ShrinkCommittee_LivenessGuard(t *testing.T) {
 	// 2-of-3 → remove addr3 with threshold 2 → would produce 2-of-2 (M == N), rejected.
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
-	removeAddr := launch.MustNewOperatorAddress(testAddr3)
+	removeAddr := launch.MustNewAccountID(testAddr3)
 
 	require.ErrorIs(t, l.ShrinkCommittee(removeAddr, 2), launch.ErrInvalidCommitteeChange, "expected liveness guard error: threshold must be < N")
 }
@@ -594,17 +594,17 @@ func TestLaunch_ShrinkCommittee_CannotShrinkBelowOneActiveMember(t *testing.T) {
 		ID:          uuid.New(),
 		ThresholdM:  1,
 		TotalN:      2,
-		LeadAddress: launch.MustNewOperatorAddress(testAddr1),
+		LeadAddress: launch.MustNewAccountID(testAddr1),
 		Members: []launch.CommitteeMember{
-			{Address: launch.MustNewOperatorAddress(testAddr1), Moniker: "coord-1", PubKeyB64: "AAAA"},
-			{Address: launch.MustNewOperatorAddress(testAddr2), Moniker: "coord-2", PubKeyB64: "BBBB"},
+			{Address: launch.MustNewAccountID(testAddr1), Moniker: "coord-1", PubKeyB64: "AAAA"},
+			{Address: launch.MustNewAccountID(testAddr2), Moniker: "coord-2", PubKeyB64: "BBBB"},
 		},
 		CreationSignature: sig,
 		CreatedAt:         time.Now(),
 	}
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, smallCommittee)
 
-	require.ErrorIs(t, l.ShrinkCommittee(launch.MustNewOperatorAddress(testAddr2), 1), launch.ErrInvalidCommitteeChange,
+	require.ErrorIs(t, l.ShrinkCommittee(launch.MustNewAccountID(testAddr2), 1), launch.ErrInvalidCommitteeChange,
 		"expected error: cannot shrink to a 1-of-1 committee (liveness guard)")
 }
 
@@ -847,7 +847,7 @@ func newDraftLaunch(t *testing.T) *launch.Launch {
 
 func TestLaunch_AddMember_DraftOK(t *testing.T) {
 	l := newDraftLaunch(t)
-	addr := launch.MustNewOperatorAddress(testAddr2)
+	addr := launch.MustNewAccountID(testAddr2)
 	require.NoError(t, l.AddMember(launch.Member{Address: addr, Label: "acme"}))
 	assert.True(t, l.Allowlist.Contains(addr))
 	assert.Equal(t, "acme", l.Allowlist.Label(addr))
@@ -855,7 +855,7 @@ func TestLaunch_AddMember_DraftOK(t *testing.T) {
 
 func TestLaunch_AddMember_IdempotentOverwritesLabel(t *testing.T) {
 	l := newDraftLaunch(t)
-	addr := launch.MustNewOperatorAddress(testAddr2)
+	addr := launch.MustNewAccountID(testAddr2)
 	require.NoError(t, l.AddMember(launch.Member{Address: addr, Label: "old"}))
 	require.NoError(t, l.AddMember(launch.Member{Address: addr, Label: "new"}))
 	assert.Equal(t, 1, l.Allowlist.Len(), "re-adding the same address does not grow the set")
@@ -864,7 +864,7 @@ func TestLaunch_AddMember_IdempotentOverwritesLabel(t *testing.T) {
 
 func TestLaunch_RemoveMember_Success(t *testing.T) {
 	l := newDraftLaunch(t)
-	addr := launch.MustNewOperatorAddress(testAddr2)
+	addr := launch.MustNewAccountID(testAddr2)
 	require.NoError(t, l.AddMember(launch.Member{Address: addr}))
 	require.NoError(t, l.RemoveMember(addr))
 	assert.False(t, l.Allowlist.Contains(addr))
@@ -872,12 +872,12 @@ func TestLaunch_RemoveMember_Success(t *testing.T) {
 
 func TestLaunch_RemoveMember_Absent(t *testing.T) {
 	l := newDraftLaunch(t)
-	err := l.RemoveMember(launch.MustNewOperatorAddress(testAddr2))
+	err := l.RemoveMember(launch.MustNewAccountID(testAddr2))
 	require.ErrorIs(t, err, launch.ErrNotAMember)
 }
 
 func TestLaunch_MembersEditable_ByStatus(t *testing.T) {
-	addr := launch.MustNewOperatorAddress(testAddr2)
+	addr := launch.MustNewAccountID(testAddr2)
 
 	editable := []launch.Status{launch.StatusDraft, launch.StatusPublished, launch.StatusWindowOpen}
 	for _, st := range editable {

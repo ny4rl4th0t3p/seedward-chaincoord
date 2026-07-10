@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/ports"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/launch"
 )
 
 const jwtTTL = time.Hour
@@ -62,19 +63,32 @@ func (s *JWTSessionStore) Issue(_ context.Context, operatorAddr string) (string,
 	return signed, nil
 }
 
+// accountFenceKey maps a bech32 account address (a session subject, or a caller-supplied address)
+// to the HRP-independent account key used for revocation fences,
+// so a revoke-all covers every prefix the account authenticated under. The input was
+// minted as / validated as an account address, so decoding succeeds; on the off
+// chance it doesn't, fall back to the raw string rather than failing.
+func accountFenceKey(addr string) string {
+	if id, err := launch.NewAccountID(addr); err == nil {
+		return id.Hex()
+	}
+	return addr
+}
+
 // Validate verifies the token signature and expiry, then checks the
 // operator_revocations table to reject tokens issued before a bulk-revocation fence.
+// The fence is keyed on the HRP-independent account, so a revoke-all covers every prefix.
 func (s *JWTSessionStore) Validate(ctx context.Context, raw string) (string, error) {
 	operatorAddr, issuedAt, _, err := s.parseClaims(raw)
 	if err != nil {
 		return "", ports.ErrUnauthorized
 	}
 
-	// One DB read: check if a revocation fence exists for this operator.
+	// One DB read: check the account's revocation fence.
 	var revokeBeforeStr string
 	queryErr := s.db.QueryRowContext(ctx,
 		`SELECT revoke_before FROM operator_revocations WHERE operator_address = ?`,
-		operatorAddr,
+		accountFenceKey(operatorAddr),
 	).Scan(&revokeBeforeStr)
 	if queryErr != nil && !errors.Is(queryErr, sql.ErrNoRows) {
 		return "", fmt.Errorf("jwt store: revocation check: %w", queryErr)
@@ -104,14 +118,16 @@ func (*JWTSessionStore) Revoke(_ context.Context, _ string) error {
 }
 
 // RevokeAllForOperator upserts a revocation fence in operator_revocations so that
-// all tokens issued before now for this operator are rejected on the next Validate.
+// all tokens issued before now for this account are rejected on the next Validate.
+// The fence is keyed on the HRP-independent account, so it covers sessions the
+// account holds under any prefix.
 func (s *JWTSessionStore) RevokeAllForOperator(ctx context.Context, operatorAddr string) error {
 	now := time.Now().UTC().Format(time.RFC3339)
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO operator_revocations (operator_address, revoke_before)
 		 VALUES (?, ?)
 		 ON CONFLICT(operator_address) DO UPDATE SET revoke_before = excluded.revoke_before`,
-		operatorAddr, now,
+		accountFenceKey(operatorAddr), now,
 	)
 	if err != nil {
 		return fmt.Errorf("jwt store: upsert revocation fence: %w", err)

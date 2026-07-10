@@ -231,7 +231,7 @@ func scanJoinRequest(scan func(dest ...any) error) (*joinrequest.JoinRequest, er
 	if err != nil {
 		return nil, err
 	}
-	oa, err := launch.NewOperatorAddress(operatorAddr)
+	oa, err := launch.NewAccountID(operatorAddr)
 	if err != nil {
 		return nil, fmt.Errorf("scan operator address: %w", err)
 	}
@@ -257,9 +257,9 @@ func scanJoinRequest(scan func(dest ...any) error) (*joinrequest.JoinRequest, er
 	if err != nil {
 		return nil, err
 	}
-	var submitter launch.OperatorAddress
+	var submitter launch.AccountID
 	if submitterAddr != "" { // empty on pre-0005 / unmigrated rows (POC reset)
-		if submitter, err = launch.NewOperatorAddress(submitterAddr); err != nil {
+		if submitter, err = launch.NewAccountID(submitterAddr); err != nil {
 			return nil, fmt.Errorf("scan submitter address: %w", err)
 		}
 	}

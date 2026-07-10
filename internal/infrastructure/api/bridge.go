@@ -80,8 +80,8 @@ type rehearsalAllocJSON struct {
 //
 // @Summary      Rehearsal input (bridge)
 // @Description  Returns the launch's approved rehearsal build input (chain + approved gentxs + approved
-// @Description  host-mode allocation files) plus input_set_hash. Ops-credential only. 422 if an approved
-// @Description  allocation is attestor-mode (run the rehearsal standalone instead).
+// @Description  allocation files, host or attestor mode) plus input_set_hash. Ops-credential only. The
+// @Description  daemon streams each allocation by reference (host bytes, or a 302 to the attestor URL).
 // @Tags         bridge
 // @Produce      json
 // @Param        id  path      string  true  "Launch UUID"
@@ -89,7 +89,6 @@ type rehearsalAllocJSON struct {
 // @Failure      400  {object}  errorEnvelope
 // @Failure      401  {object}  errorEnvelope
 // @Failure      404  {object}  errorEnvelope
-// @Failure      422  {object}  errorEnvelope
 // @Router       /bridge/launches/{id}/rehearsal-input [get]
 func (s *Server) handleRehearsalInput(w http.ResponseWriter, r *http.Request) {
 	launchID, err := uuid.Parse(chi.URLParam(r, "id"))

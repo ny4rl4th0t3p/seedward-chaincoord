@@ -26,8 +26,8 @@ const testOperatorAddr = "cosmos1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5lzv7xu"
 // osmosisPubKey is the real Ed25519 consensus key from the Bi23Labs Osmosis gentx (32 bytes).
 const osmosisPubKey = "f5DzEhtQbnmXE/WZQsX+I8RljPdEU0u0ncVGtniFyEM="
 
-func addr() launch.OperatorAddress {
-	return launch.MustNewOperatorAddress(testOperatorAddr)
+func addr() launch.AccountID {
+	return launch.MustNewAccountID(testOperatorAddr)
 }
 
 func peer() launch.PeerAddress {

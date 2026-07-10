@@ -42,7 +42,7 @@ type RehearsalInput struct {
 	Status       launch.Status
 	Chain        RehearsalChain
 	Gentxs       []RehearsalGentx      // sorted by operator address
-	Allocations  []RehearsalAllocation // approved host-mode files, sorted by type
+	Allocations  []RehearsalAllocation // approved allocation files (host and attestor), sorted by type
 	InputSetHash string
 }
 

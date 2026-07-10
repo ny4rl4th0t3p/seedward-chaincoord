@@ -12,27 +12,41 @@ import (
 // ---- OperatorAddress --------------------------------------------------------
 
 func TestNewOperatorAddress_Empty(t *testing.T) {
-	_, err := launch.NewOperatorAddress("")
+	_, err := launch.NewAccountID("")
 	require.Error(t, err, "expected error for empty string")
 }
 
 func TestNewOperatorAddress_InvalidBech32(t *testing.T) {
-	_, err := launch.NewOperatorAddress("not-a-bech32-string")
+	_, err := launch.NewAccountID("not-a-bech32-string")
 	require.Error(t, err, "expected error for invalid bech32")
 }
 
 func TestNewOperatorAddress_Valid(t *testing.T) {
-	addr, err := launch.NewOperatorAddress(testAddr1)
+	addr, err := launch.NewAccountID(testAddr1)
 	require.NoError(t, err)
 	assert.Equal(t, testAddr1, addr.String())
 }
 
 func TestOperatorAddress_Equal(t *testing.T) {
-	a, _ := launch.NewOperatorAddress(testAddr1)
-	b, _ := launch.NewOperatorAddress(testAddr1)
-	c, _ := launch.NewOperatorAddress(testAddr2)
+	a, _ := launch.NewAccountID(testAddr1)
+	b, _ := launch.NewAccountID(testAddr1)
+	c, _ := launch.NewAccountID(testAddr2)
 	assert.True(t, a.Equal(b), "same address should be equal")
 	assert.False(t, a.Equal(c), "different addresses should not be equal")
+}
+
+// TestAccountID_SameSeedAcrossChains uses two real addresses derived from the SAME
+// seed on different chains. Their bech32 strings differ only in the 6-char checksum
+// (which is HRP-dependent by design); the 20 account bytes are identical, so they
+// are one identity.
+func TestAccountID_SameSeedAcrossChains(t *testing.T) {
+	osmo, err := launch.NewAccountID("osmo1am058pdux3hyulcmfgj4m3hhrlfn8nzm0u0hej")
+	require.NoError(t, err)
+	cosmos, err := launch.NewAccountID("cosmos1am058pdux3hyulcmfgj4m3hhrlfn8nzm88u80q")
+	require.NoError(t, err)
+
+	assert.Equal(t, osmo.Hex(), cosmos.Hex(), "same seed → identical account bytes")
+	assert.True(t, osmo.Equal(cosmos), "one identity across chains")
 }
 
 // ---- GenesisHash ------------------------------------------------------------
@@ -209,12 +223,12 @@ func TestCommissionRate_LessThanOrEqual(t *testing.T) {
 
 func TestAllowlist_EmptyContains(t *testing.T) {
 	al := launch.NewAllowlist(nil)
-	addr, _ := launch.NewOperatorAddress(testAddr1)
+	addr, _ := launch.NewAccountID(testAddr1)
 	assert.False(t, al.Contains(addr), "empty allowlist should not contain any address")
 }
 
 func TestAllowlist_Add(t *testing.T) {
-	addr, _ := launch.NewOperatorAddress(testAddr1)
+	addr, _ := launch.NewAccountID(testAddr1)
 	al := launch.NewAllowlist(nil)
 	al2 := al.Add(addr)
 	assert.False(t, al.Contains(addr), "Add should return a new Allowlist; original unchanged")
@@ -222,9 +236,9 @@ func TestAllowlist_Add(t *testing.T) {
 }
 
 func TestAllowlist_Remove(t *testing.T) {
-	addr1, _ := launch.NewOperatorAddress(testAddr1)
-	addr2, _ := launch.NewOperatorAddress(testAddr2)
-	al := launch.NewAllowlist([]launch.OperatorAddress{addr1, addr2})
+	addr1, _ := launch.NewAccountID(testAddr1)
+	addr2, _ := launch.NewAccountID(testAddr2)
+	al := launch.NewAllowlist([]launch.AccountID{addr1, addr2})
 	al2 := al.Remove(addr1)
 	assert.True(t, al.Contains(addr1), "Remove should return a new Allowlist; original unchanged")
 	assert.False(t, al2.Contains(addr1), "removed address should not be in the new allowlist")
@@ -232,41 +246,85 @@ func TestAllowlist_Remove(t *testing.T) {
 }
 
 func TestAllowlist_Len(t *testing.T) {
-	addr1, _ := launch.NewOperatorAddress(testAddr1)
-	addr2, _ := launch.NewOperatorAddress(testAddr2)
-	al := launch.NewAllowlist([]launch.OperatorAddress{addr1, addr2})
+	addr1, _ := launch.NewAccountID(testAddr1)
+	addr2, _ := launch.NewAccountID(testAddr2)
+	al := launch.NewAllowlist([]launch.AccountID{addr1, addr2})
 	assert.Equal(t, 2, al.Len())
 }
 
 func TestAllowlist_Addresses_Sorted(t *testing.T) {
-	addr1, _ := launch.NewOperatorAddress(testAddr1)
-	addr2, _ := launch.NewOperatorAddress(testAddr2)
-	addr3, _ := launch.NewOperatorAddress(testAddr3)
-	al := launch.NewAllowlist([]launch.OperatorAddress{addr3, addr1, addr2})
+	addr1, _ := launch.NewAccountID(testAddr1)
+	addr2, _ := launch.NewAccountID(testAddr2)
+	addr3, _ := launch.NewAccountID(testAddr3)
+	al := launch.NewAllowlist([]launch.AccountID{addr3, addr1, addr2})
 	addrs := al.Addresses()
 	require.Len(t, addrs, 3)
 	for i := 1; i < len(addrs); i++ {
-		assert.Less(t, addrs[i-1].String(), addrs[i].String(), "addresses not sorted")
+		assert.Less(t, addrs[i-1].Hex(), addrs[i].Hex(), "addresses not sorted by account")
 	}
 }
 
+func TestAccountID_HRPIndependentIdentity(t *testing.T) {
+	// The same account under two different prefixes is one identity.
+	acct, err := launch.NewAccountID(testAddr1)
+	require.NoError(t, err)
+	networkForm, err := acct.Bech32("network")
+	require.NoError(t, err)
+	require.NotEqual(t, testAddr1, networkForm, "the bech32 forms differ by prefix")
+
+	other, err := launch.NewAccountID(networkForm)
+	require.NoError(t, err)
+	assert.True(t, acct.Equal(other), "same account under a different HRP is the same identity")
+	assert.Equal(t, acct.Hex(), other.Hex(), "canonical account is HRP-independent")
+}
+
+func TestAccountID_RejectsValidatorForms(t *testing.T) {
+	acct, err := launch.NewAccountID(testAddr1)
+	require.NoError(t, err)
+	for _, hrp := range []string{"cosmosvaloper", "cosmosvalcons"} {
+		valForm, err := acct.Bech32(hrp)
+		require.NoError(t, err)
+		_, err = launch.NewAccountID(valForm)
+		assert.ErrorIs(t, err, launch.ErrNotAccountAddress, "%s address must be rejected as a non-account", hrp)
+	}
+}
+
+func TestAccountID_EmptyRejected(t *testing.T) {
+	_, err := launch.NewAccountID("")
+	assert.ErrorIs(t, err, launch.ErrAccountIDEmpty)
+}
+
+func TestAllowlist_CrossHRPMembership(t *testing.T) {
+	// A member added under one prefix is recognized under another.
+	added, err := launch.NewAccountID(testAddr1)
+	require.NoError(t, err)
+	al := launch.NewAllowlist([]launch.AccountID{added})
+
+	networkForm, err := added.Bech32("network")
+	require.NoError(t, err)
+	sameAcctOtherHRP, err := launch.NewAccountID(networkForm)
+	require.NoError(t, err)
+
+	assert.True(t, al.Contains(sameAcctOtherHRP), "membership is by account, independent of HRP")
+}
+
 func TestAllowlist_AddIdempotent(t *testing.T) {
-	addr, _ := launch.NewOperatorAddress(testAddr1)
-	al := launch.NewAllowlist([]launch.OperatorAddress{addr})
+	addr, _ := launch.NewAccountID(testAddr1)
+	al := launch.NewAllowlist([]launch.AccountID{addr})
 	al2 := al.Add(addr) // add again
 	assert.Equal(t, 1, al2.Len(), "add should be idempotent")
 }
 
 func TestAllowlist_NewAllowlist_EmptyLabels(t *testing.T) {
-	addr, _ := launch.NewOperatorAddress(testAddr1)
-	al := launch.NewAllowlist([]launch.OperatorAddress{addr})
+	addr, _ := launch.NewAccountID(testAddr1)
+	al := launch.NewAllowlist([]launch.AccountID{addr})
 	assert.True(t, al.Contains(addr))
 	assert.Empty(t, al.Label(addr), "bare addresses carry an empty label")
 }
 
 func TestAllowlist_FromMembers_LabelRoundTrip(t *testing.T) {
-	addr1, _ := launch.NewOperatorAddress(testAddr1)
-	addr2, _ := launch.NewOperatorAddress(testAddr2)
+	addr1, _ := launch.NewAccountID(testAddr1)
+	addr2, _ := launch.NewAccountID(testAddr2)
 	al := launch.NewAllowlistFromMembers([]launch.Member{
 		{Address: addr1, Label: "acme-fleet"},
 		{Address: addr2, Label: "genesis-validator-2"},
@@ -277,16 +335,16 @@ func TestAllowlist_FromMembers_LabelRoundTrip(t *testing.T) {
 }
 
 func TestAllowlist_Label_NonMemberEmpty(t *testing.T) {
-	addr1, _ := launch.NewOperatorAddress(testAddr1)
-	addr2, _ := launch.NewOperatorAddress(testAddr2)
+	addr1, _ := launch.NewAccountID(testAddr1)
+	addr2, _ := launch.NewAccountID(testAddr2)
 	al := launch.NewAllowlistFromMembers([]launch.Member{{Address: addr1, Label: "x"}})
 	assert.Empty(t, al.Label(addr2), "a non-member has no label")
 }
 
 func TestAllowlist_Members_SortedWithLabels(t *testing.T) {
-	addr1, _ := launch.NewOperatorAddress(testAddr1)
-	addr2, _ := launch.NewOperatorAddress(testAddr2)
-	addr3, _ := launch.NewOperatorAddress(testAddr3)
+	addr1, _ := launch.NewAccountID(testAddr1)
+	addr2, _ := launch.NewAccountID(testAddr2)
+	addr3, _ := launch.NewAccountID(testAddr3)
 	al := launch.NewAllowlistFromMembers([]launch.Member{
 		{Address: addr3, Label: "c"},
 		{Address: addr1, Label: "a"},
@@ -295,7 +353,7 @@ func TestAllowlist_Members_SortedWithLabels(t *testing.T) {
 	members := al.Members()
 	require.Len(t, members, 3)
 	for i := 1; i < len(members); i++ {
-		assert.Less(t, members[i-1].Address.String(), members[i].Address.String(), "members not sorted by address")
+		assert.Less(t, members[i-1].Address.Hex(), members[i].Address.Hex(), "members not sorted by account")
 	}
 	// Labels travel with their address, not with position.
 	for _, m := range members {
@@ -304,14 +362,14 @@ func TestAllowlist_Members_SortedWithLabels(t *testing.T) {
 }
 
 func TestAllowlist_AddMember_PreservesLabel(t *testing.T) {
-	addr, _ := launch.NewOperatorAddress(testAddr1)
+	addr, _ := launch.NewAccountID(testAddr1)
 	al := launch.NewAllowlist(nil).AddMember(launch.Member{Address: addr, Label: "labeled"})
 	assert.True(t, al.Contains(addr))
 	assert.Equal(t, "labeled", al.Label(addr))
 }
 
 func TestAllowlist_AddMember_ReplacesLabel(t *testing.T) {
-	addr, _ := launch.NewOperatorAddress(testAddr1)
+	addr, _ := launch.NewAccountID(testAddr1)
 	al := launch.NewAllowlistFromMembers([]launch.Member{{Address: addr, Label: "old"}})
 	al2 := al.AddMember(launch.Member{Address: addr, Label: "new"})
 	assert.Equal(t, 1, al2.Len(), "re-adding the same address does not grow the set")

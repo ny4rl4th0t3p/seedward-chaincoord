@@ -446,7 +446,7 @@ type committeeRequestJSON struct {
 }
 
 func parseCommittee(body committeeRequestJSON) (launch.Committee, error) {
-	leadAddr, err := launch.NewOperatorAddress(body.LeadAddress)
+	leadAddr, err := launch.NewAccountID(body.LeadAddress)
 	if err != nil {
 		return launch.Committee{}, fmt.Errorf("committee.lead_address: %w", err)
 	}
@@ -456,7 +456,7 @@ func parseCommittee(body committeeRequestJSON) (launch.Committee, error) {
 	}
 	members := make([]launch.CommitteeMember, len(body.Members))
 	for i, m := range body.Members {
-		addr, err := launch.NewOperatorAddress(m.Address)
+		addr, err := launch.NewAccountID(m.Address)
 		if err != nil {
 			return launch.Committee{}, fmt.Errorf("committee.members[%d].address: %w", i, err)
 		}
@@ -548,10 +548,10 @@ func (s *Server) handleChainHint(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func parseOperatorAddresses(addrs []string) ([]launch.OperatorAddress, error) {
-	out := make([]launch.OperatorAddress, len(addrs))
+func parseOperatorAddresses(addrs []string) ([]launch.AccountID, error) {
+	out := make([]launch.AccountID, len(addrs))
 	for i, a := range addrs {
-		addr, err := launch.NewOperatorAddress(a)
+		addr, err := launch.NewAccountID(a)
 		if err != nil {
 			return nil, fmt.Errorf("[%d]: %w", i, err)
 		}

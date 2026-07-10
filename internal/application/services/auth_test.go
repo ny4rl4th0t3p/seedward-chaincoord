@@ -8,10 +8,18 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/ports"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/launch"
 )
 
 func newAuthSvc(challenges *fakeChallengeStore, sessions *fakeSessionStore, nonces *fakeNonceStore, verifier *fakeVerifier) *AuthService {
 	return NewAuthService(challenges, sessions, nonces, verifier)
+}
+
+// acctKey is the HRP-independent account key the auth service keys challenge and
+// nonce state on for testAddr1 — fixtures must seed under this, not the bech32 address.
+func acctKey() string {
+	k, _ := accountKey(testAddr1)
+	return k
 }
 
 func TestAuthService_IssueChallenge_EmptyAddr(t *testing.T) {
@@ -25,6 +33,37 @@ func TestAuthService_IssueChallenge_Success(t *testing.T) {
 	ch, err := svc.IssueChallenge(context.Background(), testAddr1)
 	require.NoError(t, err)
 	assert.NotEmpty(t, ch, "expected non-empty challenge")
+}
+
+func TestAuthService_IssueChallenge_RejectsValoper(t *testing.T) {
+	svc := newAuthSvc(newFakeChallengeStore(), newFakeSessionStore(), newFakeNonceStore(), &fakeVerifier{})
+	valoper, err := launch.MustNewAccountID(testAddr1).Bech32("cosmosvaloper")
+	require.NoError(t, err)
+	_, err = svc.IssueChallenge(context.Background(), valoper)
+	require.ErrorIs(t, err, ports.ErrBadRequest, "a valoper address cannot authenticate")
+}
+
+func TestAuthService_VerifyChallenge_CrossHRP(t *testing.T) {
+	// A challenge issued while presenting one prefix is verifiable when the same
+	// account presents a different prefix — auth state is keyed on the account.
+	challenges := newFakeChallengeStore()
+	svc := newAuthSvc(challenges, newFakeSessionStore(), newFakeNonceStore(), &fakeVerifier{})
+
+	ch, err := svc.IssueChallenge(context.Background(), testAddr1)
+	require.NoError(t, err)
+
+	otherHRP, err := launch.MustNewAccountID(testAddr1).Bech32("network")
+	require.NoError(t, err)
+
+	token, err := svc.VerifyChallenge(context.Background(), VerifyChallengeInput{
+		OperatorAddress: otherHRP,
+		Nonce:           "nonce-xhrp",
+		Timestamp:       nowTS(),
+		Challenge:       ch,
+		Signature:       testSig,
+	})
+	require.NoError(t, err)
+	assert.NotEmpty(t, token, "same account under a different prefix authenticates")
 }
 
 func TestAuthService_VerifyChallenge_EmptyAddr(t *testing.T) {
@@ -74,7 +113,7 @@ func TestAuthService_VerifyChallenge_ChallengeNotFound(t *testing.T) {
 func TestAuthService_VerifyChallenge_ChallengeMismatch(t *testing.T) {
 	challenges := newFakeChallengeStore()
 	// Pre-store a challenge that differs from what the input claims.
-	challenges.data[testAddr1] = "stored-challenge"
+	challenges.data[acctKey()] = "stored-challenge"
 	svc := newAuthSvc(challenges, newFakeSessionStore(), newFakeNonceStore(), &fakeVerifier{})
 
 	_, err := svc.VerifyChallenge(context.Background(), VerifyChallengeInput{
@@ -90,7 +129,7 @@ func TestAuthService_VerifyChallenge_ChallengeMismatch(t *testing.T) {
 
 func TestAuthService_VerifyChallenge_BadSigEncoding(t *testing.T) {
 	challenges := newFakeChallengeStore()
-	challenges.data[testAddr1] = "stored-challenge"
+	challenges.data[acctKey()] = "stored-challenge"
 	svc := newAuthSvc(challenges, newFakeSessionStore(), newFakeNonceStore(), &fakeVerifier{})
 
 	_, err := svc.VerifyChallenge(context.Background(), VerifyChallengeInput{
@@ -105,7 +144,7 @@ func TestAuthService_VerifyChallenge_BadSigEncoding(t *testing.T) {
 
 func TestAuthService_VerifyChallenge_SigFails(t *testing.T) {
 	challenges := newFakeChallengeStore()
-	challenges.data[testAddr1] = "stored-challenge"
+	challenges.data[acctKey()] = "stored-challenge"
 	verifier := &fakeVerifier{err: ports.ErrUnauthorized}
 	svc := newAuthSvc(challenges, newFakeSessionStore(), newFakeNonceStore(), verifier)
 
@@ -121,7 +160,7 @@ func TestAuthService_VerifyChallenge_SigFails(t *testing.T) {
 
 func TestAuthService_VerifyChallenge_Success(t *testing.T) {
 	challenges := newFakeChallengeStore()
-	challenges.data[testAddr1] = "stored-challenge"
+	challenges.data[acctKey()] = "stored-challenge"
 	sessions := newFakeSessionStore()
 	svc := newAuthSvc(challenges, sessions, newFakeNonceStore(), &fakeVerifier{})
 
