@@ -52,7 +52,7 @@ func TestHandleCoordinatorAdd(t *testing.T) {
 
 		var body map[string]string
 		require.NoError(t, json.NewDecoder(w.Body).Decode(&body), "decode body")
-		assert.Equal(t, testAddr2, body["address"])
+		assert.Equal(t, acctKey(testAddr2), body["address"], "add returns the canonical account hex")
 		assert.Equal(t, testAddr1, body["added_by"])
 	})
 

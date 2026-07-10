@@ -408,30 +408,30 @@ func TestHandleChainHint_NotFound(t *testing.T) {
 	assertStatusCode(t, w, http.StatusNotFound)
 }
 
-func TestHandleChainHint_NoAuthRequired(t *testing.T) {
+func TestHandleChainHint_AnonymousHidden(t *testing.T) {
 	h := newHarness(t)
 	l := testLaunch()
 	h.launches.data[l.ID] = l
-	// No token — must succeed.
+	// No token — a non-member (here, anonymous) must not learn the launch exists: 404.
 	w := h.do("GET", "/launch/"+l.ID.String()+"/chain-hint", nil, nil)
-	assertStatusCode(t, w, http.StatusOK)
-	assertContentTypeJSON(t, w)
+	assertStatusCode(t, w, http.StatusNotFound)
 }
 
-func TestHandleChainHint_AllowlistLaunchVisible(t *testing.T) {
+func TestHandleChainHint_MemberVisible(t *testing.T) {
 	h := newHarness(t)
 	l := testLaunch()
 	h.launches.data[l.ID] = l
-	// chain-hint must bypass visibility — 200 even for private (allowlist) launches.
-	w := h.do("GET", "/launch/"+l.ID.String()+"/chain-hint", nil, nil)
+	// A committee member reads the hint after authenticating (any HRP) → 200.
+	w := h.getAsMember("/launch/" + l.ID.String() + "/chain-hint")
 	assertStatusCode(t, w, http.StatusOK)
+	assertContentTypeJSON(t, w)
 }
 
 func TestHandleChainHint_ResponseFields(t *testing.T) {
 	h := newHarness(t)
 	l := testLaunch()
 	h.launches.data[l.ID] = l
-	w := h.do("GET", "/launch/"+l.ID.String()+"/chain-hint", nil, nil)
+	w := h.getAsMember("/launch/" + l.ID.String() + "/chain-hint")
 	assertStatusCode(t, w, http.StatusOK)
 	var body map[string]any
 	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {

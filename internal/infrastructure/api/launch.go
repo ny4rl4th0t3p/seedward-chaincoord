@@ -515,14 +515,16 @@ type chainHintJSON struct {
 }
 
 // GET /launch/{id}/chain-hint
-// Unauthenticated — no auth or allowlist check.
-// Returns the minimal chain metadata needed to register the network with a
-// wallet extension. Even ALLOWLIST launches expose this endpoint so validators
-// can derive their chain address before the coordinator adds them to the list.
+// Member-gated: returns the minimal chain metadata a member needs to register the
+// network with a wallet (notably the bech32 prefix, to build a gentx). Non-members
+// get 404 — the launch's existence is not revealed. A validator authenticates with
+// any existing address first, then reads this to learn the launch's prefix.
 //
 // @Summary      Chain hint
-// @Description  Returns chain_id, chain_name, bech32_prefix, and denom. No authentication required.
+// @Description  Returns chain_id, chain_name, bech32_prefix, and denom. Visible only to a launch member
+// @Description  (committee ∪ allowlist); non-members get 404.
 // @Tags         launches
+// @Security     BearerAuth
 // @Produce      json
 // @Param        id   path      string  true  "Launch UUID"
 // @Success      200  {object}  chainHintJSON
@@ -535,7 +537,8 @@ func (s *Server) handleChainHint(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_id", "launch id must be a valid UUID")
 		return
 	}
-	hint, err := s.launches.GetChainHint(r.Context(), id)
+	callerAddr := operatorFromContext(r.Context())
+	hint, err := s.launches.GetChainHint(r.Context(), id, callerAddr)
 	if err != nil {
 		writeServiceError(w, r, err)
 		return

@@ -799,7 +799,7 @@ func (s *LaunchService) GetCommittee(ctx context.Context, launchID uuid.UUID, ca
 	return l.Committee, nil
 }
 
-// ChainHintOutput is the minimal public metadata returned by GetChainHint.
+// ChainHintOutput is the minimal chain metadata returned by GetChainHint.
 // It is intentionally small: enough for a wallet to register the chain,
 // but reveals nothing about who is participating.
 type ChainHintOutput struct {
@@ -809,14 +809,19 @@ type ChainHintOutput struct {
 	Denom        string
 }
 
-// GetChainHint returns the chain metadata needed to register the network with a
-// wallet extension. It bypasses visibility — even ALLOWLIST launches expose
-// this data so validators can derive their address before being added to the list.
+// GetChainHint returns the chain metadata a member needs to register the network
+// with a wallet extension (notably the bech32 prefix, to build a gentx). It is gated
+// by visibility: a caller who is not a member (committee ∪ allowlist) gets
+// ErrNotFound, so the launch's existence is not revealed. A validator authenticates
+// with any existing address first, then reads this to learn the launch's prefix.
 // Returns ErrNotFound for unknown IDs.
-func (s *LaunchService) GetChainHint(ctx context.Context, id uuid.UUID) (ChainHintOutput, error) {
+func (s *LaunchService) GetChainHint(ctx context.Context, id uuid.UUID, callerAddr string) (ChainHintOutput, error) {
 	l, err := s.launches.FindByID(ctx, id)
 	if err != nil {
 		return ChainHintOutput{}, err
+	}
+	if !l.IsVisibleTo(callerAddr) {
+		return ChainHintOutput{}, ports.ErrNotFound
 	}
 	return ChainHintOutput{
 		ChainID:      l.Record.ChainID,

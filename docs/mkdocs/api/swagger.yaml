@@ -1249,8 +1249,8 @@ paths:
     get:
       description: |-
         Returns the launch's approved rehearsal build input (chain + approved gentxs + approved
-        host-mode allocation files) plus input_set_hash. Ops-credential only. 422 if an approved
-        allocation is attestor-mode (run the rehearsal standalone instead).
+        allocation files, host or attestor mode) plus input_set_hash. Ops-credential only. The
+        daemon streams each allocation by reference (host bytes, or a 302 to the attestor URL).
       parameters:
       - description: Launch UUID
         in: path
@@ -1274,10 +1274,6 @@ paths:
             $ref: '#/definitions/api.errorEnvelope'
         "404":
           description: Not Found
-          schema:
-            $ref: '#/definitions/api.errorEnvelope'
-        "422":
-          description: Unprocessable Entity
           schema:
             $ref: '#/definitions/api.errorEnvelope'
       summary: Rehearsal input (bridge)
@@ -1671,8 +1667,9 @@ paths:
       - launches
   /launch/{id}/chain-hint:
     get:
-      description: Returns chain_id, chain_name, bech32_prefix, and denom. No authentication
-        required.
+      description: |-
+        Returns chain_id, chain_name, bech32_prefix, and denom. Visible only to a launch member
+        (committee ∪ allowlist); non-members get 404.
       parameters:
       - description: Launch UUID
         in: path
@@ -1694,6 +1691,8 @@ paths:
           description: Not Found
           schema:
             $ref: '#/definitions/api.errorEnvelope'
+      security:
+      - BearerAuth: []
       summary: Chain hint
       tags:
       - launches
