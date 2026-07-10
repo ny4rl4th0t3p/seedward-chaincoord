@@ -22,8 +22,20 @@ func NewJoinRequestRepository(db *sql.DB) *JoinRequestRepository {
 	return &JoinRequestRepository{db: db}
 }
 
+// launchPrefix returns the launch's bech32 prefix, used to canonicalize this launch's
+// stored submitter address under it (so join_requests read under one prefix and the
+// per-submitter cap counts by account). Returns "" if unknown, in which case the
+// address keeps its own display form.
+func (r *JoinRequestRepository) launchPrefix(ctx context.Context, launchID uuid.UUID) string {
+	var prefix string
+	_ = conn(ctx, r.db).QueryRowContext(ctx,
+		`SELECT bech32_prefix FROM launches WHERE id=?`, uuidToStr(launchID)).Scan(&prefix)
+	return prefix
+}
+
 func (r *JoinRequestRepository) Save(ctx context.Context, jr *joinrequest.JoinRequest) error {
 	q := conn(ctx, r.db)
+	prefix := r.launchPrefix(ctx, jr.LaunchID)
 	var approvedBy *string
 	if jr.ApprovedByProposal != nil {
 		s := jr.ApprovedByProposal.String()
@@ -51,7 +63,7 @@ func (r *JoinRequestRepository) Save(ctx context.Context, jr *joinrequest.JoinRe
 		string(jr.Status), jr.RejectionReason,
 		approvedBy,
 		jr.SelfDelegationAmount(),
-		jr.SubmitterAddress.String(),
+		underPrefix(jr.SubmitterAddress, prefix),
 	)
 	if err != nil {
 		return fmt.Errorf("join request save: %w", err)
@@ -151,13 +163,20 @@ func (r *JoinRequestRepository) AllByLaunch(ctx context.Context, launchID uuid.U
 	return scanJoinRequestRows(rows)
 }
 
-// CountBySubmitter counts a launch's join requests by the request signer (the per-submitter cap).
+// CountBySubmitter counts a launch's join requests by the request signer's
+// HRP-independent account (the per-submitter anti-spam cap), so switching bech32
+// prefix cannot reset the count. Submitters are stored canonicalized under the launch
+// prefix, so the query address is normalized to that same form and matched by index.
 func (r *JoinRequestRepository) CountBySubmitter(ctx context.Context, launchID uuid.UUID, submitterAddr string) (int, error) {
-	q := conn(ctx, r.db)
+	id, err := launch.NewAccountID(submitterAddr)
+	if err != nil {
+		return 0, fmt.Errorf("count by submitter: %w", err)
+	}
+	stored := underPrefix(id, r.launchPrefix(ctx, launchID))
 	var n int
-	err := q.QueryRowContext(ctx,
+	err = conn(ctx, r.db).QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM join_requests WHERE launch_id=? AND submitter_address=?`,
-		uuidToStr(launchID), submitterAddr).Scan(&n)
+		uuidToStr(launchID), stored).Scan(&n)
 	if err != nil {
 		return 0, fmt.Errorf("count by submitter: %w", err)
 	}

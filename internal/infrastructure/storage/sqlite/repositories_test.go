@@ -489,6 +489,23 @@ func TestJoinRequestRepository_CountBySubmitter(t *testing.T) {
 				assert.Equal(t, 3, n, "expected all 3 statuses counted")
 			},
 		},
+		{
+			name: "counts by account across the submitter's bech32 prefixes",
+			run: func(t *testing.T, lRepo *LaunchRepository, jrRepo *JoinRequestRepository) {
+				ctx := context.Background()
+				l := testLaunch(t)
+				require.NoError(t, lRepo.Save(ctx, l))
+				require.NoError(t, jrRepo.Save(ctx, testJoinRequest(t, l.ID)))
+
+				// The submitter (addr1) is queried under a different prefix of the same
+				// account — the cap counts by account, so it is still found.
+				otherHRP, err := mustAddr(addr1).Bech32("network")
+				require.NoError(t, err)
+				n, err := jrRepo.CountBySubmitter(ctx, l.ID, otherHRP)
+				require.NoError(t, err, "CountBySubmitter")
+				assert.Equal(t, 1, n, "the cap counts by account, not by bech32 prefix")
+			},
+		},
 	}
 
 	for _, tc := range tests {
