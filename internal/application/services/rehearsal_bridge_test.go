@@ -12,8 +12,10 @@ import (
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/launch"
 )
 
-// newBridgeSvc wires a LaunchService with the given launch repo, join-request repo, and
-// allocation store — the deps PreviewRehearsalInput / ClaimRehearsalRun read from.
+// newBridgeSvc wires a LaunchService from the given launch, join-request, and allocation deps.
+// PreviewRehearsalInput / ClaimRehearsalRun read the launch and join-request repos (ClaimRehearsalRun
+// also the attempt repo); the allocation store is inert here — allocation metadata comes from the
+// launch record's AllocationFiles.
 func newBridgeSvc(lRepo *fakeLaunchRepo, jrRepo *fakeJoinRequestRepo, alloc *fakeAllocationStore) *LaunchService {
 	return NewLaunchService(lRepo, jrRepo, newFakeReadinessRepo(), newFakeGenesisStore(), alloc, &fakeEventPublisher{}, &fakeAuditLogWriter{}, newFakeRehearsalAttemptRepo(), newFakeRehearsalResultRepo())
 }
@@ -88,7 +90,7 @@ func TestPreviewRehearsalInput_HashDeterministicAndStatusIndependent(t *testing.
 	require.NoError(t, err)
 	assert.Equal(t, first.InputSetHash, again.InputSetHash, "hash is deterministic")
 
-	// Status change → SAME hash (status is excluded, D7).
+	// Status change → SAME hash (status is excluded).
 	l.Status = launch.StatusWindowClosed
 	afterStatus, err := svc.PreviewRehearsalInput(context.Background(), l.ID)
 	require.NoError(t, err)

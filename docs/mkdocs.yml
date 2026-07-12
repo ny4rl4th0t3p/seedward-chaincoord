@@ -4,6 +4,11 @@ repo_url: https://github.com/ny4rl4th0t3p/seedward-chaincoord
 repo_name: ny4rl4th0t3p/seedward-chaincoord
 docs_dir: ./mkdocs
 
+# Fail the build on broken nav entries, dead internal links, or unrecognised
+# references — applies to every `mkdocs build` (local `make docs-build` and the
+# gh-deploy in .github/workflows/docs.yml).
+strict: true
+
 theme:
   name: material
   palette:
@@ -20,13 +25,18 @@ nav:
   - Overview: index.md
   - Getting Started:
       - Quickstart: getting-started/quickstart.md
-      - Dev Environment: getting-started/dev-environment.md
+      - Run with Docker: getting-started/docker.md
       - Smoke Test: getting-started/smoke-test.md
   - Concepts:
       - Overview: concepts/overview.md
       - Roles: concepts/roles.md
       - Launch Lifecycle: concepts/lifecycle.md
+      - Genesis: concepts/genesis.md
+      - Readiness: concepts/readiness.md
       - Proposals & M-of-N: concepts/proposals.md
+      - Gentx Validation: concepts/validation.md
+      - Trust Model: concepts/security.md
+  - Decisions: decisions/index.md
   - Reference:
       - Setup & Configuration: reference/setup.md
       - API: reference/api.md

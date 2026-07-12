@@ -15,7 +15,6 @@ dist/
 # Config with secrets
 config.local.yaml
 .env*
-!.env.example
 
 # IDE
 .idea/
@@ -34,3 +33,7 @@ audit.jsonl
 /docker/secrets/audit_key
 /docker/secrets/jwt_key
 /coverage-func.txt
+
+# Docs (mkdocs)
+/.venv/
+/docs/site/

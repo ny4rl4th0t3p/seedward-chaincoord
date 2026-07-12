@@ -21,12 +21,12 @@ func randomHex(n int) (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
-// timeToStr serializes a time.Time to RFC3339 UTC for storage.
+// timeToStr serializes a time.Time to RFC3339Nano UTC for storage.
 func timeToStr(t time.Time) string {
 	return t.UTC().Format(time.RFC3339Nano)
 }
 
-// strToTime parses an RFC3339 string from storage.
+// strToTime parses an RFC3339(Nano) string from storage.
 func strToTime(s string) (time.Time, error) {
 	t, err := time.Parse(time.RFC3339Nano, s)
 	if err != nil {
@@ -74,7 +74,7 @@ func strToUUID(s string) (uuid.UUID, error) {
 	return id, nil
 }
 
-// nullStrToUUID parses a nullable UUID string (approved_by_proposal, executed_at, etc.).
+// nullStrToUUID parses a nullable UUID string (e.g. approved_by_proposal).
 func nullStrToUUID(s *string) (*uuid.UUID, error) {
 	if s == nil {
 		return nil, nil

@@ -236,7 +236,7 @@ func TestRunLaunchMonitor_SkipsEmptyMonitorURL(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
-	// Use a non-existent address to prove no HTTP call is made (it would error).
+	// Empty MonitorRPCURL is skipped by the tick before any HTTP call — no address is dialed.
 	RunLaunchMonitor(ctx, repo, pub, zerolog.Nop(), 20*time.Millisecond, nil)
 
 	assert.Zero(t, repo.saveCount(), "expected no saves for empty MonitorRPCURL")
@@ -481,9 +481,9 @@ func TestMarkLaunched_SaveErrorNoPublish(t *testing.T) {
 // ---- SSRF defense-in-depth guard --------------------------------------------
 
 func TestRunMonitorTick_PrivateURLSkippedByValidator(t *testing.T) {
-	// A launch with a private IP URL. When the real validator is wired, the
-	// tick should skip it without making any HTTP call or saving.
-	// We use a fake HTTP server that would panic if called, to prove no request is made.
+	// A launch with a private IP URL. The tick runs the inline SSRF validator below,
+	// which rejects the private address, so it skips without any HTTP call or saving.
+	// badSrv's handler flips `called` if hit, so the test can assert it was never dialed.
 	called := false
 	badSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		called = true
@@ -492,8 +492,8 @@ func TestRunMonitorTick_PrivateURLSkippedByValidator(t *testing.T) {
 	}))
 	defer badSrv.Close()
 
-	// Replace the test server's URL host with a private IP — the server still
-	// listens on loopback, but the validator sees the private address and rejects it.
+	// The launch's MonitorRPCURL is a hardcoded private IP (unrelated to badSrv above);
+	// the SSRF validator must reject it before any dial.
 	privateURL := "http://192.168.1.1:26657"
 	l := genesisReadyLaunch(privateURL)
 	repo := &fakeMonitorRepo{launches: []*launch.Launch{l}}

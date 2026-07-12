@@ -1,6 +1,6 @@
 package api
 
-// Internal package tests for unexported middleware (requireAdmin).
+// Internal package tests for unexported middleware (requireAdmin and requireOps).
 // Uses package api directly so unexported fields and methods are accessible.
 
 import (

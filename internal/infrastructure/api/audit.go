@@ -21,7 +21,7 @@ type auditPubKeyResponse struct {
 }
 
 // GET /launch/{id}/audit
-// Returns the audit log entries for a launch.  Post-launch, observer access.
+// Returns the audit log entries for a launch. Visibility-gated (same rules as GET /launch/{id}).
 //
 // @Summary      Get audit log
 // @Description  Returns all audit log entries for a launch. Visibility-gated (same rules as GET /launch/{id}).

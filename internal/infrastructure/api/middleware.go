@@ -44,8 +44,8 @@ func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 }
 
 // operatorFromContext returns the authenticated operator address stored by
-// requireAuth.  Panics if called outside an authenticated handler — callers
-// must always be behind requireAuth.
+// requireAuth, or an empty string when there is none — an optionalAuth caller who
+// did not authenticate, or a handler behind neither requireAuth nor optionalAuth.
 func operatorFromContext(ctx context.Context) string {
 	v, _ := ctx.Value(operatorAddrKey).(string)
 	return v
@@ -64,9 +64,9 @@ func accountLookupKey(addr string) string {
 
 // optionalAuth attempts to resolve the caller's operator address from a Bearer
 // token if one is present.  Unlike requireAuth it never rejects the request —
-// unauthenticated callers simply get an empty operator address in context.
-// This is used on public endpoints so the service layer can apply allowlist
-// visibility filtering for callers who happen to be authenticated.
+// an unauthenticated caller simply gets an empty operator address in context.
+// Used on optional-auth endpoints so the service layer can apply per-launch
+// visibility (committee ∪ members) for callers who happen to be authenticated.
 func (s *Server) optionalAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if token := bearerToken(r); token != "" {
@@ -109,10 +109,10 @@ func (s *Server) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 }
 
 // requireOps gates the ops-plane bridge endpoints (/bridge/*) on the shared rehearsal ops
-// token (bridge contract D6/D4). It compares the Bearer token against the configured
+// token. It compares the Bearer token against the configured
 // rehearsal_ops_token in constant time. Fail-closed: if no token is configured the bridge is
 // disabled and every request is rejected. Unlike requireAuth it injects no operator identity —
-// the ops plane is a headless shared service credential, never a wallet (DEC-14).
+// the ops plane is a headless shared service credential, never a wallet.
 func (s *Server) requireOps(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if s.rehearsalOpsToken == "" {

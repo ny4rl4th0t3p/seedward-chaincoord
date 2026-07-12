@@ -82,8 +82,9 @@ type RehearsalAllocation struct {
 	ApprovedByProposal string
 }
 
-// Current returns the launch's current input_set_hash without assembling the full input — used to
-// decide staleness (an incoming rehearsal result, or a stored final genesis, vs the present set).
+// Current returns just the launch's current input_set_hash — used to decide staleness (an incoming
+// rehearsal result, or a stored final genesis, vs the present set). It runs the full Assemble and
+// keeps only the hash.
 func (h *InputSetHasher) Current(ctx context.Context, l *launch.Launch) (string, error) {
 	in, err := h.Assemble(ctx, l)
 	if err != nil {

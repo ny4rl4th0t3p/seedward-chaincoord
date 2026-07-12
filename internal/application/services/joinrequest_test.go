@@ -51,7 +51,8 @@ func (f *fakeGentxValidator) Validate(_ []byte, p gentxvalidate.Params) ports.Ge
 const osmosisPubKey = "f5DzEhtQbnmXE/WZQsX+I8RljPdEU0u0ncVGtniFyEM="
 
 // validSubmitInput returns a SubmitInput that passes all validation for the given launch.
-// The gentx matches the real-world v0.50+ format (SIGN_MODE_DIRECT, pubkey embedded).
+// The gentx is a minimal body-only fixture (consensus pubkey embedded in MsgCreateValidator);
+// auth_info/signatures are omitted because fakeGentxValidator stubs signer extraction.
 func validSubmitInput(l *launch.Launch) SubmitInput {
 	gentx, _ := json.Marshal(map[string]any{
 		"body": map[string]any{
@@ -291,7 +292,7 @@ func TestJoinRequestService_Submit_DeadlinePassed(t *testing.T) {
 	assert.ErrorIs(t, err, ports.ErrBadRequest, "deadline-passed should be a bad request")
 }
 
-// --- D4 dedup: validator identity + status ---
+// --- dedup: validator identity + status ---
 
 // A re-submission for a validator with a PENDING request supersedes it: the old
 // request is expired and the new one replaces it (the new gentx is validator-signed,
@@ -505,7 +506,7 @@ func makeJoinRequestSplit(t *testing.T, launchID uuid.UUID, validatorAddr, submi
 	)
 }
 
-// ---- M3 grouped-by-submitter read-model ----
+// ---- grouped-by-submitter read-model ----
 
 func TestJoinRequestService_ListGroupedBySubmitter(t *testing.T) {
 	l := test1of1Launch() // committee = testAddr1

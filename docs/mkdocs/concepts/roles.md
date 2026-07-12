@@ -35,7 +35,8 @@ proposals.
 - Authenticate to `coordd` via a secp256k1 challenge–response (the same key used on-chain)
 - Can raise any proposal type at any time (subject to the launch's current status)
 - Each coordinator signs or vetoes proposals raised by others
-- Signatures are verified server-side against the member's declared public key
+- Signatures are verified against the compressed secp256k1 public key the caller supplies with each
+  request, which the server proves derives to the claimed operator address — no public key is pre-registered
 
 **What coordinators cannot do unilaterally:**
 
@@ -112,6 +113,11 @@ All three roles authenticate identically: secp256k1 challenge–response.
 3. `POST /auth/verify` with the signed payload → server returns a JWT
 
 The JWT is short-lived and must be included as a `Bearer` token on all subsequent requests.
+
+The identity coordd derives is the **HRP-independent account** (the 20 bytes `ripemd160(sha256(pubkey))`),
+not the bech32 string — so the **same key authenticates under any account prefix as one identity**
+(`cosmos1…` and a launch's own `network1…` are the same member). Only account-form addresses are accepted;
+`…valoper…` / `…valcons…` forms are rejected. Challenge, nonce, and session revocation are keyed on the account.
 
 !!! note
 `coordd` does not store or manage private keys. Signing always happens client-side.

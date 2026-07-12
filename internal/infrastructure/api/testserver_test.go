@@ -3,7 +3,8 @@ package api_test
 // Test infrastructure for API handler tests.
 // Builds a real Server wired with in-memory fake port implementations so that
 // HTTP-layer concerns (parsing, auth middleware, status-code mapping) can be
-// tested without any I/O. Business logic is already covered by the service tests.
+// tested without network or database I/O (the thin genesis/allocation stores do
+// use temp files). Business logic is already covered by the service tests.
 
 import (
 	"bytes"
@@ -858,7 +859,7 @@ func jsonBody(s string) []byte { return []byte(s) }
 
 func nowTS() string { return time.Now().UTC().Format(time.RFC3339) }
 
-// Suppress "unused" linter if nowTS is only used in auth tests.
+// Keep net/http imported: http.MethodGet is this file's only net/http reference.
 var _ = http.MethodGet
 
 // thinCoordinatorAllowlist is an in-memory CoordinatorAllowlistRepository.

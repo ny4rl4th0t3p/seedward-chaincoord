@@ -151,7 +151,7 @@ func parseConnectionFields(input SubmitInput) (
 	return peerAddr, rpcEndpoint, sig, nil
 }
 
-// supersedePending applies D4 dedup keyed on the validator identity. If the validator already
+// supersedePending applies dedup keyed on the validator identity. If the validator already
 // has an ACTIVE request: an APPROVED one locks the validator (ErrConflict — revoke first); a
 // PENDING one is superseded — expired in place so the incoming submission replaces it (the new
 // gentx is validator-signed, so its content is self-authorized regardless of submitter).
@@ -170,7 +170,7 @@ func (s *JoinRequestService) supersedePending(ctx context.Context, launchID uuid
 	case joinrequest.StatusApproved:
 		return fmt.Errorf("submit join request: %w", ports.ErrValidatorAlreadyApproved)
 	case joinrequest.StatusPending:
-		if err := existing.Expire(); err != nil { // EXPIRED is the terminal "superseded" state (D4)
+		if err := existing.Expire(); err != nil { // EXPIRED is the terminal "superseded" state
 			return fmt.Errorf("submit join request: supersede pending: %w", err)
 		}
 		if err := s.joinRequests.Save(ctx, existing); err != nil {
@@ -247,9 +247,9 @@ func (s *JoinRequestService) Submit(ctx context.Context, launchID uuid.UUID, inp
 		return nil, fmt.Errorf("submit join request: max %d per window: %w", maxJoinRequestsPerSubmitter, ports.ErrSubmissionCapReached)
 	}
 
-	// Dedup on the validator identity (D4): supersede a stale PENDING request, or
+	// Dedup on the validator identity: supersede a stale PENDING request or
 	// reject if the validator already has a locked APPROVED one. Runs before the
-	// consensus-pubkey check below so a re-submission is not blocked by the request
+	// consensus-pubkey check below, so a re-submission is not blocked by the request
 	// it is replacing.
 	if err := s.supersedePending(ctx, launchID, validatorAddr); err != nil {
 		return nil, err
@@ -324,7 +324,7 @@ func (s *JoinRequestService) ListForLaunch(
 	return s.joinRequests.FindByLaunch(ctx, launchID, status, page, perPage)
 }
 
-// SubmitterGroup is the approval read-model (M3): a submitter (hot actor address) and all
+// SubmitterGroup is the approval read-model: a submitter (hot actor address) and all
 // their join requests for a launch, plus the members-list label the committee vets the
 // submitted operator address against. Requests preserve submitted_at order.
 type SubmitterGroup struct {

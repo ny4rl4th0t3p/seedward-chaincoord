@@ -50,9 +50,9 @@ func testCommittee() launch.Committee {
 	}
 }
 
-// validSig returns a 64-byte base64 string (all zeros) for test use.
+// validSig returns a valid 64-byte base64 signature (all zeros) for test use.
 func validSig() string {
-	return "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+	return "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
 }
 
 func TestNewLaunch_HappyPath(t *testing.T) {
@@ -144,7 +144,7 @@ func TestIsVisibleTo(t *testing.T) {
 	l.Allowlist = al
 
 	assert.True(t, l.IsVisibleTo(onAllowlist.String()), "addr on allowlist should be visible")
-	assert.True(t, l.IsVisibleTo(committeeOnly.String()), "committee member should be visible even if not allowlisted (D5b)")
+	assert.True(t, l.IsVisibleTo(committeeOnly.String()), "committee member should be visible even if not allowlisted")
 	assert.False(t, l.IsVisibleTo(outsider.String()), "non-committee, non-allowlisted addr should not be visible")
 	assert.False(t, l.IsVisibleTo(""), "unauthenticated should not see a private launch")
 }
@@ -836,7 +836,7 @@ func TestReadinessConfirmation_Invalidate(t *testing.T) {
 	assert.True(t, rc.InvalidatedAt.Equal(at), "InvalidatedAt should be set to the given time")
 }
 
-// ---- M2 members management (domain) ----
+// ---- members management (domain) ----
 
 func newDraftLaunch(t *testing.T) *launch.Launch {
 	t.Helper()

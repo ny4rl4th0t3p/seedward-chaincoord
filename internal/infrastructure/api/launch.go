@@ -202,7 +202,7 @@ func (s *Server) handleLaunchList(w http.ResponseWriter, r *http.Request) {
 }
 
 // GET /launch/{id}
-// Optional auth — ALLOWLIST gated.
+// Optional auth — visibility-gated (committee ∪ members; a non-member gets 404).
 //
 // @Summary      Get a launch
 // @Tags         launches
@@ -210,7 +210,6 @@ func (s *Server) handleLaunchList(w http.ResponseWriter, r *http.Request) {
 // @Param        id   path      string  true  "Launch UUID"
 // @Success      200  {object}  launchJSON
 // @Failure      400  {object}  errorEnvelope
-// @Failure      403  {object}  errorEnvelope
 // @Failure      404  {object}  errorEnvelope
 // @Router       /launch/{id} [get]
 func (s *Server) handleLaunchGet(w http.ResponseWriter, r *http.Request) {
@@ -230,10 +229,11 @@ func (s *Server) handleLaunchGet(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, launchToJSON(l))
 }
 
-// patchLaunchRequest is the body for PATCH /launch/{id}. Every field is optional;
-// only the fields present in the request are updated (DRAFT launches only). The
-// handler decodes the raw body to distinguish an absent field from a zero value —
-// this type exists to document the contract for the generated spec.
+// patchLaunchRequest is the body for PATCH /launch/{id}. Every field is optional; only the
+// fields present in the request are updated. Most fields require DRAFT status; monitor_rpc_url
+// and the rehearsal bridge fields are settable at any status. The handler decodes the raw body
+// to distinguish an absent field from a zero value — this type exists to document the contract
+// for the generated spec.
 type patchLaunchRequest struct {
 	ChainName         *string    `json:"chain_name,omitempty"`
 	BinaryVersion     *string    `json:"binary_version,omitempty"`
@@ -245,7 +245,7 @@ type patchLaunchRequest struct {
 	MinValidatorCount *int       `json:"min_validator_count,omitempty"`
 	TotalSupply       *string    `json:"total_supply,omitempty"`
 	Allowlist         []string   `json:"allowlist,omitempty"`
-	// Bridge D2 fields — operational, settable at any status.
+	// Bridge fields — operational, settable at any status.
 	RehearsalServicePubKey *string `json:"rehearsal_service_pubkey,omitempty"`
 	RehearsalEndpoint      *string `json:"rehearsal_endpoint,omitempty"`
 }
@@ -254,7 +254,8 @@ type patchLaunchRequest struct {
 // Coordinator only — updates mutable fields on a DRAFT launch.
 //
 // @Summary      Update a launch
-// @Description  Partially updates mutable fields on a DRAFT launch. Coordinator only.
+// @Description  Partially updates mutable fields on a launch (coordinator only). Most fields require
+// @Description  DRAFT status; monitor_rpc_url and the rehearsal bridge fields are settable at any status.
 // @Tags         launches
 // @Security     BearerAuth
 // @Accept       json

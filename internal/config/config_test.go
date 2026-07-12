@@ -35,7 +35,8 @@ func TestLoad_RehearsalLeaseTTL(t *testing.T) {
 const testAuditKey = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 
 // testJWTKey is a valid base64-encoded 32-byte Ed25519 seed for use in tests.
-// Must differ from testAuditKey to catch accidental key reuse.
+// Distinct from testAuditKey so tests use independent audit and JWT keys (validate()
+// does not currently reject reusing one key for both).
 const testJWTKey = "AQIDAQIDAQIDAQIDAQIDAQIDAQIDAQIDAQIDAQIDAQI="
 
 // allRequired sets all required fields on v so tests can focus on one thing at a time.

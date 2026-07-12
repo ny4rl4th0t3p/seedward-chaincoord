@@ -19,14 +19,14 @@ import (
 
 var (
 	// ErrRehearsalSignatureInvalid the fact's Ed25519 signature does not verify against the
-	// launch's trusted rehearsal service pubkey (D2). (401)
+	// launch's trusted rehearsal service pubkey. (401)
 	ErrRehearsalSignatureInvalid = fmt.Errorf("rehearsal result signature does not verify: %w", ports.ErrUnauthorized)
 	// ErrRehearsalNoTrustedKey the launch has no (valid) trusted rehearsal service pubkey, so no
 	// result can be accepted for it. (409)
 	ErrRehearsalNoTrustedKey = fmt.Errorf("launch has no valid trusted rehearsal service key: %w", ports.ErrConflict)
 )
 
-// RehearsalResultFact is the inbound, signed result fact (§4). Its JSON tags MUST match
+// RehearsalResultFact is the inbound, signed result fact. Its JSON tags MUST match
 // seedward-rehearsal's bridge.ResultFact field-for-field: the Ed25519 signature is over
 // canonicaljson.MarshalForSigning of this exact shape (signature stripped), so any drift breaks
 // verification. Pinned by the result-fact drift golden on both sides.
@@ -68,13 +68,13 @@ type RehearsalResultFactMeta struct {
 }
 
 // RecordRehearsalResult verifies and stores a signed rehearsal result fact (bridge write-back).
-//   - the fact's signature must verify against the launch's trusted service pubkey (D2);
+//   - the fact's signature must verify against the launch's trusted service pubkey;
 //   - the fact must reference an attempt coordd itself minted for this launch, whose input set
 //     matches the fact's — the anti-fabrication lock (coordd never records a hash it did not serve);
 //   - stale = the attempt's input set is no longer the launch's current one (stored, flagged).
 //
 // The binding vouches the input set was genuine; it does NOT vouch the PASS/FAIL verdict, which is
-// trusted by the signature (D2). Idempotent on the fact signature.
+// trusted by the signature. Idempotent on the fact signature.
 func (s *LaunchService) RecordRehearsalResult(
 	ctx context.Context, launchID uuid.UUID, fact RehearsalResultFact,
 ) (*launch.RehearsalResult, error) {

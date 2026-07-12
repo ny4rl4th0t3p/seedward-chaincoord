@@ -88,7 +88,7 @@ func (s *Server) handleMemberAdd(w http.ResponseWriter, r *http.Request) {
 // @Security     BearerAuth
 // @Produce      json
 // @Param        id       path  string  true  "Launch UUID"
-// @Param        address  path  string  true  "Operator address to remove"
+// @Param        address  path  string  true  "Hot actor address to remove"
 // @Success      204      "No Content"
 // @Failure      400      {object}  errorEnvelope
 // @Failure      401      {object}  errorEnvelope

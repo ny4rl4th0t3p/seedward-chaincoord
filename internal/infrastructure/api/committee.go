@@ -68,6 +68,7 @@ func committeeToJSON(c launch.Committee) committeeJSON {
 // @Failure      401   {object}  errorEnvelope
 // @Failure      403   {object}  errorEnvelope
 // @Failure      404   {object}  errorEnvelope
+// @Failure      409   {object}  errorEnvelope
 // @Router       /launch/{id}/committee [post]
 func (s *Server) handleCommitteeCreate(w http.ResponseWriter, r *http.Request) {
 	launchID, err := uuid.Parse(chi.URLParam(r, "id"))

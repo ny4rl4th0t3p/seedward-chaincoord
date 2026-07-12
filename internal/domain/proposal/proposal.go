@@ -14,8 +14,9 @@ import (
 )
 
 // Sentinel errors for proposal construction and signing. Callers (the proposal service,
-// tests) match these with errors.Is. The service maps ErrProposalPayloadRequired → 400 and
-// the signing-guard errors → 409.
+// tests) match these with errors.Is. The signing-guard errors (ErrProposalNotPending,
+// ErrProposalTTLExpired, ErrCoordinatorAlreadySigned) map to 409 via mapProposalDomainErr;
+// ErrProposalPayloadRequired guards construction in New.
 var (
 	ErrProposalPayloadRequired  = errors.New("proposal payload must not be nil")
 	ErrProposalNotPending       = errors.New("proposal is not pending signatures")

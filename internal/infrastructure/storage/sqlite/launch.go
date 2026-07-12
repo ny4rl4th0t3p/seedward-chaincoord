@@ -22,7 +22,7 @@ func NewLaunchRepository(db *sql.DB) *LaunchRepository {
 	return &LaunchRepository{db: db}
 }
 
-// Save inserts or replaces a Launch and its committee, members, and allowlist.
+// Save inserts or replaces a Launch and its committee, members list (allowlist), and allocation files.
 // Optimistic locking: the UPDATE increments version and checks the expected value;
 // if no row is affected the caller's snapshot is stale → ErrConflict.
 func (r *LaunchRepository) Save(ctx context.Context, l *launch.Launch) error {
@@ -203,7 +203,7 @@ func (r *LaunchRepository) FindByChainID(ctx context.Context, chainID string) (*
 }
 
 // membershipFilterFrom is the FROM/JOIN/WHERE clause shared by the visibility-gated
-// launch list and count queries (D5b): a caller sees a launch only if they are on its
+// launch list and count queries: a caller sees a launch only if they are on its
 // allowlist or its committee. Both bound params are the caller's operator address. Keeping
 // this in one place keeps the paginated results and the total count in agreement.
 const membershipFilterFrom = `
@@ -217,7 +217,7 @@ func (r *LaunchRepository) FindAll(ctx context.Context, operatorAddr string, pag
 	q := conn(ctx, r.db)
 	offset := (page - 1) * perPage
 
-	// Launches are private (D5b): a caller sees a launch only if they are a committee member
+	// Launches are private: a caller sees a launch only if they are a committee member
 	// or on its members allowlist. An unauthenticated caller sees nothing. (This mirrors the
 	// in-memory IsVisibleTo used by single-launch reads.)
 	if operatorAddr == "" {
@@ -267,7 +267,7 @@ func (r *LaunchRepository) FindAll(ctx context.Context, operatorAddr string, pag
 	return launches, total, nil
 }
 
-// FindByStatus returns all launches in the given status, across all visibilities.
+// FindByStatus returns all launches in the given status, regardless of caller membership/visibility.
 func (r *LaunchRepository) FindByStatus(ctx context.Context, status launch.Status) ([]*launch.Launch, error) {
 	q := conn(ctx, r.db)
 	rows, err := q.QueryContext(ctx,

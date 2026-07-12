@@ -93,7 +93,8 @@ func TestScanAuditLog_ValidChain(t *testing.T) {
 }
 
 func TestScanAuditLog_DetectsDeletedEntry(t *testing.T) {
-	// Write 3 chained entries, delete line 2 ("B"), expect a prev_hash mismatch on line 3.
+	// Write 3 chained entries, delete line 2 ("B"); the next entry ("C", now line 2) no longer
+	// chains to its predecessor, so expect a prev_hash mismatch reported on line 2.
 	path := filepath.Join(t.TempDir(), "audit.jsonl")
 	writeAuditEntries(t, path, []string{"A", "B", "C"})
 

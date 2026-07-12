@@ -21,7 +21,7 @@ const maxGentxDownloadCount = 10000
 type joinRequestJSON struct {
 	ID string `json:"id"`
 	// SubmitterAddress is the hot actor that signed the submission — the members-list key and
-	// the approval group key (M3). It may differ from OperatorAddress (an authorized uploader).
+	// the approval group key. It may differ from OperatorAddress (an authorized uploader).
 	SubmitterAddress   string          `json:"submitter_address"`
 	LaunchID           string          `json:"launch_id"`
 	OperatorAddress    string          `json:"operator_address"`
@@ -89,7 +89,9 @@ type gentxsResponse struct {
 // @Success      201   {object}  joinRequestJSON
 // @Failure      400   {object}  errorEnvelope
 // @Failure      401   {object}  errorEnvelope
+// @Failure      404   {object}  errorEnvelope
 // @Failure      409   {object}  errorEnvelope
+// @Failure      429   {object}  errorEnvelope
 // @Router       /launch/{id}/join [post]
 func (s *Server) handleJoinSubmit(w http.ResponseWriter, r *http.Request) {
 	launchID, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -114,11 +116,11 @@ func (s *Server) handleJoinSubmit(w http.ResponseWriter, r *http.Request) {
 }
 
 // GET /launch/{id}/join
-// Coordinator: lists all join requests for a launch.
+// Committee members: list all join requests for a launch.
 // Optional ?status= filter.
 //
 // @Summary      List join requests
-// @Description  Coordinator-only. Returns all join requests for a launch.
+// @Description  Committee members only. Returns all join requests for a launch.
 // @Tags         join-requests
 // @Security     BearerAuth
 // @Produce      json
@@ -130,6 +132,7 @@ func (s *Server) handleJoinSubmit(w http.ResponseWriter, r *http.Request) {
 // @Failure      400       {object}  errorEnvelope
 // @Failure      401       {object}  errorEnvelope
 // @Failure      403       {object}  errorEnvelope
+// @Failure      404       {object}  errorEnvelope
 // @Router       /launch/{id}/join [get]
 func (s *Server) handleJoinList(w http.ResponseWriter, r *http.Request) {
 	launchID, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -178,7 +181,7 @@ func (s *Server) handleJoinList(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// submitterGroupJSON is the M3 approval read-model: a submitter (hot actor) with all their
+// submitterGroupJSON is the approval read-model: a submitter (hot actor) with all their
 // join requests for a launch, the members-list label, and per-actor aggregates.
 type submitterGroupJSON struct {
 	SubmitterAddress    string            `json:"submitter_address"`
@@ -193,8 +196,8 @@ type submitterGroupJSON struct {
 //
 // @Summary      List join requests grouped by submitter
 // @Description  Returns join requests grouped by the submitting hot actor, each group carrying the member label
-// @Description  and per-actor aggregates (count, total self-delegation). Coordinator-only.
-// @Tags         join
+// @Description  and per-actor aggregates (count, total self-delegation). Committee members only.
+// @Tags         join-requests
 // @Security     BearerAuth
 // @Produce      json
 // @Param        id  path      string  true  "Launch UUID"
@@ -239,10 +242,10 @@ func (s *Server) handleJoinGrouped(w http.ResponseWriter, r *http.Request) {
 
 // GET /launch/{id}/gentxs
 // Returns the gentx JSON for every approved join request.
-// Coordinator-only; used to assemble the final genesis (spec §4.2, §9).
+// Coordinator-only; used to assemble the final genesis.
 //
 // @Summary      Download approved gentxs
-// @Description  Returns the gentx JSON for all approved join requests. Coordinator only.
+// @Description  Returns the gentx JSON for all approved join requests. Committee members only.
 // @Tags         join-requests
 // @Security     BearerAuth
 // @Produce      json
@@ -251,6 +254,7 @@ func (s *Server) handleJoinGrouped(w http.ResponseWriter, r *http.Request) {
 // @Failure      400  {object}  errorEnvelope
 // @Failure      401  {object}  errorEnvelope
 // @Failure      403  {object}  errorEnvelope
+// @Failure      404  {object}  errorEnvelope
 // @Router       /launch/{id}/gentxs [get]
 func (s *Server) handleGentxsGet(w http.ResponseWriter, r *http.Request) {
 	launchID, err := uuid.Parse(chi.URLParam(r, "id"))

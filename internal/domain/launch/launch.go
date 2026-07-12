@@ -43,10 +43,8 @@ const (
 
 // Sentinel errors for the launch state-machine and committee operations. Callers
 // (the proposal/launch services and tests) match these with errors.Is to distinguish
-// failure kinds and map them to an HTTP status (see the services' mapLaunchDomainErr):
-//   - ErrInvalidStatusTransition / ErrCommitteeMemberExists / ErrInsufficientValidators /
-//     ErrDominantVotingPower → 409 (state conflict / precondition),
-//   - ErrGenesisHashRequired / ErrCommitteeMemberNotFound / ErrInvalidCommitteeChange → 400.
+// failure kinds and map them to an HTTP status — the authoritative mapping lives in the
+// services' mapLaunchDomainErr (state conflicts → 409, bad input → 400, not-found → 404).
 var (
 	ErrInvalidStatusTransition  = errors.New("operation not allowed from the current launch status")
 	ErrGenesisHashRequired      = errors.New("genesis hash must be set")
@@ -149,7 +147,7 @@ type Launch struct {
 	MonitorRPCURL string
 
 	// RehearsalServicePubKey is the base64 Ed25519 public key coordd trusts for this launch's
-	// rehearsal result facts (bridge contract D2). RehearsalEndpoint is the advertised URL of
+	// rehearsal result facts. RehearsalEndpoint is the advertised URL of
 	// the rehearsal service for this launch. Both are operational config, set by the coordinator
 	// via PATCH /launch/:id at any status (like MonitorRPCURL); empty when the bridge is unused.
 	RehearsalServicePubKey string
@@ -303,9 +301,9 @@ func (l *Launch) EnsureOpenForApplications() error {
 // IsVisibleTo reports whether the launch is visible to the given operator address.
 // An empty address represents an unauthenticated caller.
 func (l *Launch) IsVisibleTo(addr string) bool {
-	// Every launch is discovery-private (D5b): visible only to its committee and its
-	// validator allowlist (invited viewers are added in D5a). There is no public kind —
-	// an empty/unparseable caller sees nothing.
+	// Every launch is discovery-private: visible only to its committee and its
+	// validator allowlist. There is no public kind — an empty/unparseable caller
+	// sees nothing.
 	if addr == "" {
 		return false
 	}
@@ -324,7 +322,7 @@ func (l *Launch) IsVisibleToAddr(addr AccountID) bool {
 
 // membersEditable reports whether the member list may be modified in the current status.
 // Membership governs who can see + submit, which is only meaningful before the application
-// window closes (E1): DRAFT, PUBLISHED, WINDOW_OPEN. After that the set is frozen.
+// window closes: DRAFT, PUBLISHED, WINDOW_OPEN. After that the set is frozen.
 func (l *Launch) membersEditable() bool {
 	switch l.Status {
 	case StatusDraft, StatusPublished, StatusWindowOpen:

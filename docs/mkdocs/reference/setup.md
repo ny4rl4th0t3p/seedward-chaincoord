@@ -2,9 +2,10 @@
 
 This document covers how to run and configure the `coordd` server in both development and production environments.
 
-!!! danger "Proof of concept — not for production use"
-seedward-chaincoord is research-grade software. APIs, data formats, and behaviours may change without notice. **Do not
-use it for mainnet launches or any environment where correctness and availability are required.**
+!!! danger "Not production-ready yet"
+seedward-chaincoord is a **complete, capable v1** that is **not production-ready yet** — APIs, data formats, and
+behaviours may still change. **Do not use it for mainnet launches or any environment where correctness and availability
+are required.**
 
 ---
 
@@ -179,6 +180,7 @@ Plain HTTP on loopback (`127.0.0.1` or `::1`) suppresses the warning automatical
 | `rehearsal_ops_token`      | `COORD_REHEARSAL_OPS_TOKEN`      | —                          | *(bridge disabled)*   | No       |
 | `rehearsal_ops_token_file` | `COORD_REHEARSAL_OPS_TOKEN_FILE` | —                          | *(bridge disabled)*   | No       |
 | `rehearsal_lease_ttl`      | `COORD_REHEARSAL_LEASE_TTL`      | —                          | `45m`                 | No       |
+| `rehearsal_gate`           | `COORD_REHEARSAL_GATE`           | —                          | `off`                 | No       |
 
 ¹ Exactly one of `audit_private_key` (inline base64) or `audit_private_key_file` (path) must be set.  
 ² Exactly one of `jwt_private_key` (inline base64) or `jwt_private_key_file` (path) must be set.
@@ -275,6 +277,26 @@ lease before it is treated as stale and re-claimable. A crashed runner self-heal
 operator intervention; set it comfortably above your longest rehearsal. Accepts a Go duration string
 (`45m`, `1h`, `90m`). Defaults to **45m** when unset. For an immediate override of a stuck lease, a committee
 coordinator can call `POST /launch/{id}/rehearsal/{attempt_id}/reset` instead of waiting for expiry.
+
+### `rehearsal_gate`
+
+Opt-in policy for whether a launch may finalize genesis (`WINDOW_CLOSED → GENESIS_READY`) only after a
+passing rehearsal. **Default `off` — coordd runs fully standalone; rehearsal is an optional bolt-on, never a
+hard dependency.**
+
+- `off` (default) — the gate is never consulted. A deployment with no rehearsal service is unaffected.
+- `advisory` — the gate is evaluated and, when unsatisfied, recorded in the audit log, but never blocks.
+- `required` — publishing genesis is rejected (409) unless the launch's **latest** rehearsal fact is `PASS`
+  **and current** (its `input_set_hash` still matches the present approved set). Enforced when the
+  `PUBLISH_GENESIS` proposal is raised, with a re-check when it executes.
+
+`required` needs the rehearsal bridge enabled (a `rehearsal_ops_token`) — coordd **refuses to start** with
+`rehearsal_gate=required` and no ops token. It also requires a per-launch trusted rehearsal service pubkey
+(set via `PATCH /launch/{id}`); a `required` launch with no configured service is rejected at publish time.
+
+> Independent of this gate, coordd always enforces that a published genesis matches the approved validator
+> set it was assembled from (the set can change in `WINDOW_CLOSED` via approve/remove) — a correctness
+> invariant, not an opt-in.
 
 ### `log_level`
 

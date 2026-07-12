@@ -161,7 +161,7 @@ func TestNew_NilPayload(t *testing.T) {
 	assert.ErrorIs(t, err, proposal.ErrProposalPayloadRequired, "expected error for nil payload")
 }
 
-// ---- ValidatePayload: valid payloads for all action types -------------------
+// ---- ValidatePayload: valid payloads for the main action types --------------
 
 func TestValidatePayload_RejectValidator_Valid(t *testing.T) {
 	err := proposal.ValidatePayload(proposal.ActionRejectValidator, mustPayload(proposal.RejectValidatorPayload{
@@ -425,7 +425,7 @@ func TestPopEvents_EmptyOnNewProposal(t *testing.T) {
 	assert.Empty(t, events, "expected no events on fresh proposal")
 }
 
-// ---- Domain events for each action type -------------------------------------
+// ---- Domain events for several action types ---------------------------------
 
 func TestProposal_EmitsDomainEvent_RejectValidator(t *testing.T) {
 	jrID := uuid.New()

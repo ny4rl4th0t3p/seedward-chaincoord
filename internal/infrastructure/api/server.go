@@ -43,7 +43,7 @@ type Server struct {
 	auditPubKey          ed25519.PublicKey // nil if no audit signing key is configured
 	coordinatorAllowlist ports.CoordinatorAllowlistRepository
 	// rehearsalOpsToken is the shared ops-plane bearer token for the /bridge/* endpoints
-	// (bridge contract D6). Empty → the bridge is disabled (requireOps fails closed).
+	// Empty → the bridge is disabled (requireOps fails closed).
 	rehearsalOpsToken string
 }
 
@@ -140,7 +140,7 @@ func (s *Server) jsonAdminPOST(h http.HandlerFunc) http.HandlerFunc {
 	return s.requireAdmin(requireJSONBody(h))
 }
 
-// jsonPOSTPublic composes requireJSONBody for unauthenticated JSON endpoints.
+// requireJSONPOST composes requireJSONBody for unauthenticated JSON endpoints.
 func requireJSONPOST(h http.HandlerFunc) http.HandlerFunc {
 	return requireJSONBody(h)
 }
@@ -222,8 +222,9 @@ func (s *Server) Handler() http.Handler {
 	r.Post("/launch/{id}/rehearsal/{attempt_id}/reset", s.requireAuth(s.handleRehearsalReset))
 	r.Get("/launch/{id}/members", s.requireAuth(s.handleMemberList))
 
-	// Unauthenticated chain metadata — bypasses allowlist so validators can add
-	// the chain to their wallet before being granted access.
+	// Chain metadata a member needs to register the chain with a wallet. optionalAuth +
+	// visibility-gated in the handler: a non-member (committee ∪ members) gets 404, so the
+	// launch's existence is not revealed.
 	r.Get("/launch/{id}/chain-hint", s.optionalAuth(s.handleChainHint))
 
 	// Genesis endpoints — default is attestor mode (JSON ref); host mode must be explicitly enabled.

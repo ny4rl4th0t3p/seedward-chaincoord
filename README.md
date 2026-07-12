@@ -1,151 +1,71 @@
 # chaincoord
 
-Self-hosted coordination system for **Cosmos SDK** chain launches.
+Self-hosted coordination server for **Cosmos SDK** chain launches — M-of-N committee governance, a guarded
+launch-lifecycle state machine, gentx intake with pre-acceptance validation, and a tamper-evident,
+offline-verifiable audit log.
 
-`chaincoord` is the coordination server in **Seedward**, the self-hostable operator suite I'm building
-for the **Cosmos SDK** chain lifecycle. Its siblings:
+`chaincoord` is the coordination server (`coordd`) in **Seedward**, the self-hostable operator suite I'm
+building for the Cosmos SDK chain lifecycle. Its siblings:
 
-- [seedward-gentool](https://github.com/ny4rl4th0t3p/seedward-gentool) — deterministic genesis-file construction (also the genesis engine `rehearsal` embeds)
-- [seedward-rehearsal](https://github.com/ny4rl4th0t3p/seedward-rehearsal) — a pre-flight service that assembles a launch's real inputs and boots a throwaway chain to prove the genesis initializes and advances before anyone commits
-- [seedward-cli](https://github.com/ny4rl4th0t3p/seedward-cli) — the unified suite CLI (`seedward genesis`, `gentx validate`, `join`, `audit verify`, `rehearse`)
+- [seedward-gentool](https://github.com/ny4rl4th0t3p/seedward-gentool) — deterministic genesis-file construction (also the engine `rehearsal` embeds)
+- [seedward-rehearsal](https://github.com/ny4rl4th0t3p/seedward-rehearsal) — a pre-flight service that boots a throwaway chain to prove a genesis initializes and advances before anyone commits
+- [seedward-cli](https://github.com/ny4rl4th0t3p/seedward-cli) — the unified suite CLI (**planned, post-v1**; its coordd-facing commands are stubs today)
 - [pour](https://github.com/ny4rl4th0t3p/pour) — a pure-Go multi-chain faucet
 
-*Together they cover the painful, usually ad-hoc workflows of launching and operating a Cosmos chain.
-Published components are Apache-2.0 and self-hostable.*
+*Published components are Apache-2.0 and self-hostable.*
 
 > **Spec-Driven Development (SDD) project.** The design is mine — the protocol, the M-of-N committee
 > governance model, the launch-lifecycle state machine, the threat model, and the offline-verifiable
 > audit-log security design — authored as a spec and then implemented with AI assistance under my review.
-> It is research-grade — not for production use; the reasoning behind each decision is in the 
-> **[design document](docs/DESIGN.md)**.
+> The result is a complete, capable v1 — **not production-ready _yet_**, but built to get there with
+> real-world testing.
 
-🏗️ **[Design document](docs/DESIGN.md)** · 📖 **[Full documentation](https://ny4rl4th0t3p.github.io/seedward-chaincoord)**
+📖 **[Full documentation](https://ny4rl4th0t3p.github.io/seedward-chaincoord/)** · 🏗️ **[Design document](docs/DESIGN.md)**
 
 ---
 
 ## What it does
 
-Launching a Cosmos SDK chain requires assembling a genesis file from validator contributions, reaching
-multi-party agreement on its content, and ensuring every participant starts from the same file at the
-same time. Doing this informally — over chat or shared drives — is error-prone and unaccountable.
+Launching a Cosmos SDK chain means assembling a genesis file from validator contributions, reaching M-of-N
+agreement on its content, and making sure every participant starts from the same file at the same time.
+Done informally — over chat or shared drives — that's error-prone and unaccountable.
 
-**seedward-chaincoord** makes the process explicit, auditable, and multi-party. It covers the full launch lifecycle:
+`coordd` makes it explicit, auditable, and multi-party: every lifecycle transition
+(`DRAFT → PUBLISHED → WINDOW_OPEN → WINDOW_CLOSED → GENESIS_READY → LAUNCHED`) is driven by a **committee
+proposal** requiring M-of-N coordinator signatures, and every action lands in a signed, offline-verifiable
+**audit log**. See the [concepts overview](https://ny4rl4th0t3p.github.io/seedward-chaincoord/concepts/overview/)
+for the full model.
 
-```mermaid
-flowchart LR
-    DRAFT --> PUBLISHED --> WINDOW_OPEN --> WINDOW_CLOSED --> GENESIS_READY --> LAUNCHED
-    GENESIS_READY --> WINDOW_CLOSED
-    DRAFT & PUBLISHED & WINDOW_OPEN & WINDOW_CLOSED & GENESIS_READY --> CANCELED
-```
-
-Every state transition is driven by a **committee proposal** that requires M-of-N coordinator signatures
-before it executes. A tamper-evident audit log records every action and can be verified offline.
-
----
-
-## Key concepts
-
-| Concept          | Description                                                                                                                         |
-|------------------|-------------------------------------------------------------------------------------------------------------------------------------|
-| **Committee**    | M-of-N group of coordinators governing a launch. Any member can raise a proposal; M must sign for it to execute; one VETO kills it. |
-| **Proposal**     | A signed, time-limited action (validator approval, lifecycle transition, genesis update, committee change).                         |
-| **Join Request** | A validator's application carrying their `gentx`, operator address, and self-delegation amount.                                     |
-| **Audit Log**    | Append-only JSONL file; each entry is Ed25519-signed by the server and verifiable offline with `coordd audit verify`.               |
-
----
-
-## Components
-
-| Component      | Role                                                                                                                                                  |
-|----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `coordd`       | Coordination server — HTTP API + background block monitor                                                                                             |
-| `smoke-signer` | Test utility for signing committee and validator actions in E2E / smoke tests                                                                         |
+**Scope:** Cosmos SDK chains only (secp256k1, gentx-based genesis, CometBFT RPC). `coordd` never runs a
+chain node, never holds a private key (signing is client-side), and never assembles the final genesis — the
+coordinator builds that locally with the chain binary (`<chaind> genesis collect-gentxs`). SQLite by
+default; storage and RPC layers are interface-backed.
 
 ---
 
 ## Quick start
 
-### Browser (Docker)
+`coordd` is a headless coordination server — it has no UI of its own. Two ways to run it:
 
-Requires Docker with Compose v2, `make`, and a Keplr or Leap wallet extension in your browser.
+- **The server alone (this repo).** Run the published image from GHCR — the
+  **[Run with Docker](https://ny4rl4th0t3p.github.io/seedward-chaincoord/getting-started/docker/)** guide has
+  the `keygen → migrate → serve` sequence and env reference — or build locally with `make build` (see the
+  **[Quickstart](https://ny4rl4th0t3p.github.io/seedward-chaincoord/getting-started/quickstart/)**).
+- **The full stack — coordd + the web UI, one command.** That lives in
+  **[seedward-suite](https://github.com/ny4rl4th0t3p/seedward-suite)** (`make dev-up` runs both). The web
+  front end on its own is **[seedward-chaincoord-web](https://github.com/ny4rl4th0t3p/seedward-chaincoord-web)**.
 
-```bash
-git clone https://github.com/ny4rl4th0t3p/seedward-chaincoord.git
-cd seedward-chaincoord
-cp .env.example .env          # set COORD_ADMIN_ADDRESSES to your wallet address
-make dev-up
-```
-
-Open **http://localhost:3000**. Keys are generated automatically on first boot.
-
-Setting `COORD_ADMIN_ADDRESSES` is optional but required to access the admin panel. Use the address you will sign in
-with (Cosmos Hub, Osmosis, or Juno).
-
-### API only (local Go build)
-
-```bash
-# Build
-git clone https://github.com/ny4rl4th0t3p/seedward-chaincoord.git
-cd seedward-chaincoord
-make build
-
-# Generate keys
-mkdir -p data
-bin/coordd keygen > data/audit_key
-bin/coordd keygen > data/jwt_key
-chmod 600 data/audit_key data/jwt_key
-
-# Configure (minimal)
-cat > config.yaml <<EOF
-listen_addr: ":8080"
-db_path: "./data/coord.db"
-audit_log_path: "./data/audit.jsonl"
-files_path: "./data/genesis"
-log_level: "debug"
-audit_private_key_file: "./data/audit_key"
-jwt_private_key_file: "./data/jwt_key"
-EOF
-
-# Migrate and run
-bin/coordd migrate --config config.yaml
-bin/coordd serve --config config.yaml
-
-# Verify
-curl http://localhost:8080/healthz
-# → {"status":"ok"}
-```
+Health check once it's up: `curl http://localhost:8080/healthz` → `{"status":"ok"}`. For TLS and production
+configuration, see **[Setup & Configuration](https://ny4rl4th0t3p.github.io/seedward-chaincoord/reference/setup/)**.
 
 ---
 
 ## Documentation
 
-Full documentation is available at **https://ny4rl4th0t3p.github.io/seedward-chaincoord/**
+Full docs: **https://ny4rl4th0t3p.github.io/seedward-chaincoord/**
 
-- [Dev Environment](https://ny4rl4th0t3p.github.io/seedward-chaincoord/getting-started/dev-environment/) — full-stack setup,
-  admin config, local dev
-- [Concepts overview](https://ny4rl4th0t3p.github.io/seedward-chaincoord/concepts/overview/) — roles, proposals, and the audit
-  log
-- [Launch lifecycle](https://ny4rl4th0t3p.github.io/seedward-chaincoord/concepts/lifecycle/) — all seven states in detail
-- [Roles](https://ny4rl4th0t3p.github.io/seedward-chaincoord/concepts/roles/) — lead coordinator, coordinator, validator
-- [Proposals & M-of-N](https://ny4rl4th0t3p.github.io/seedward-chaincoord/concepts/proposals/) — all action types and signing
-  rules
-- [Setup & Configuration](https://ny4rl4th0t3p.github.io/seedward-chaincoord/reference/setup/) — full config reference, TLS,
-  CORS, production options
-- [Quickstart](https://ny4rl4th0t3p.github.io/seedward-chaincoord/getting-started/quickstart/) — step-by-step local setup
-- [Smoke test](https://ny4rl4th0t3p.github.io/seedward-chaincoord/getting-started/smoke-test/) — end-to-end protocol against a
-  live chain
-- [API reference](https://ny4rl4th0t3p.github.io/seedward-chaincoord/reference/api/) — HTTP endpoints
-- [Audit CLI](https://ny4rl4th0t3p.github.io/seedward-chaincoord/reference/audit/) — offline log verification
-
----
-
-## Limitations
-
-- Cosmos SDK chains only (secp256k1 keys, `gentx`-based genesis, CometBFT RPC)
-- Does not run or connect to a chain node during the launch phase
-- Does not store private keys — all signing happens client-side
-- Does not assemble the final genesis file — that step is done locally by the coordinator using the chain's node
-  binary (e.g. `gaiad genesis collect-gentxs`, `evmosd genesis collect-gentxs`, etc.)
-- SQLite-backed by default; not designed for high availability
-- Storage and RPC layers are interface-backed — adding PostgreSQL, MySQL, or a different chain RPC adapter requires only
-  implementing the relevant interface and wiring it at startup
+- **Getting started** — [Quickstart](https://ny4rl4th0t3p.github.io/seedward-chaincoord/getting-started/quickstart/) · [Run with Docker](https://ny4rl4th0t3p.github.io/seedward-chaincoord/getting-started/docker/) · [Smoke test](https://ny4rl4th0t3p.github.io/seedward-chaincoord/getting-started/smoke-test/)
+- **Concepts** — [overview](https://ny4rl4th0t3p.github.io/seedward-chaincoord/concepts/overview/): roles, lifecycle, proposals, genesis, readiness, trust model
+- **Reference** — [setup & config](https://ny4rl4th0t3p.github.io/seedward-chaincoord/reference/setup/) · [API](https://ny4rl4th0t3p.github.io/seedward-chaincoord/reference/api/) · [audit CLI](https://ny4rl4th0t3p.github.io/seedward-chaincoord/reference/audit/)
+- **Decisions** — the [ADR-style record](https://ny4rl4th0t3p.github.io/seedward-chaincoord/decisions/)
+</content>

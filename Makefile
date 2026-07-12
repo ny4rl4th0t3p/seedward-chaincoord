@@ -123,27 +123,40 @@ lint-openapi: swagger ## Lint the OpenAPI spec with vacuum
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Docs (mkdocs)
-# mkdocs is a Python tool; its deps live in docs/requirements.txt — run `make docs-deps` once.
+# mkdocs is a Python tool. To keep system Python clean, its deps install into a
+# repo-local virtualenv (.venv) from docs/requirements.txt. `docs-serve`/`docs-build`
+# depend on the venv stamp, so the first run bootstraps it automatically; the stamp
+# re-triggers only when docs/requirements.txt changes.
 # The API reference page renders docs/mkdocs/api/swagger.yaml (keep it fresh with `make swagger`).
 # ──────────────────────────────────────────────────────────────────────────────
+PYTHON     ?= python3
+VENV       := .venv
+VENV_PY    := $(VENV)/bin/python
+VENV_STAMP := $(VENV)/.docs-deps.stamp
+
+$(VENV_STAMP): docs/requirements.txt
+	$(PYTHON) -m venv $(VENV)
+	$(VENV_PY) -m pip install --quiet --upgrade pip
+	$(VENV_PY) -m pip install --quiet -r docs/requirements.txt
+	@touch $@
+
 .PHONY: docs-deps
-docs-deps: ## Install the Python deps for the docs site (mkdocs + plugins)
-	pip install -r docs/requirements.txt
+docs-deps: $(VENV_STAMP) ## Create .venv and install the docs deps (mkdocs + plugins)
 
 .PHONY: docs-serve
-docs-serve: ## Serve the docs site locally with live reload (http://localhost:8000)
-	mkdocs serve -f docs/mkdocs.yml
+docs-serve: $(VENV_STAMP) ## Serve the docs site locally with live reload (http://localhost:8000)
+	$(VENV_PY) -m mkdocs serve -f docs/mkdocs.yml
 
 .PHONY: docs-build
-docs-build: ## Build the static docs site into site/ (--strict: fail on broken links/nav)
-	mkdocs build -f docs/mkdocs.yml --strict
+docs-build: $(VENV_STAMP) ## Build the static docs site into docs/site/ (strict mode set in mkdocs.yml)
+	$(VENV_PY) -m mkdocs build -f docs/mkdocs.yml
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Docker / smoke
 # ──────────────────────────────────────────────────────────────────────────────
 .PHONY: docker-build
-docker-build: ## Build the docker images
-	docker compose -f docker/docker-compose.yml build
+docker-build: ## Build the coordd image locally (same Dockerfile the GHCR image publishes from)
+	docker build -f docker/Dockerfile -t seedward-chaincoord .
 
 .PHONY: test-secrets-smoke
 test-secrets-smoke: build-server ## Generate audit/jwt keys for the smoke stack (if absent)
@@ -161,21 +174,6 @@ test-smoke: test-down-smoke test-secrets-smoke ## Run the dockerized smoke test
 .PHONY: test-down-smoke
 test-down-smoke: ## Tear down the smoke stack and its volumes
 	docker compose -f docker/docker-compose.smoke.yml down --volumes
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Dev environment (coordd)
-# ──────────────────────────────────────────────────────────────────────────────
-.PHONY: dev-build
-dev-build: ## Build the dev docker image
-	docker compose -f docker/docker-compose.yml build
-
-.PHONY: dev-up
-dev-up: ## Start the dev environment (coordd)
-	docker compose -f docker/docker-compose.yml up --build
-
-.PHONY: dev-down
-dev-down: ## Stop the dev environment and delete its volumes
-	docker compose -f docker/docker-compose.yml down --volumes
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Release / clean

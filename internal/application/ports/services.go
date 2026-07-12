@@ -125,8 +125,8 @@ type GentxValidationOutcome struct {
 }
 
 // GentxValidator runs the shared gentxvalidate server invariant set over a gentx.
-// Implemented by an infrastructure adapter wrapping the library (DEC-16), so the
-// pure domain stays free of the validation/SDK weight and there is one
+// Implemented by an infrastructure adapter wrapping the library, so the
+// pure domain stays free of the validation/SDK weight, and there is one
 // authoritative implementation shared by coordd, the CLI, and the WASM validator.
 type GentxValidator interface {
 	Validate(gentxJSON []byte, p gentxvalidate.Params) GentxValidationOutcome

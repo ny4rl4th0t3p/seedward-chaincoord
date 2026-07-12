@@ -2,9 +2,10 @@
 
 Run `coordd` locally in a few minutes. This guide assumes you have Go 1.25+ installed.
 
-!!! danger "Proof of concept — not for production use"
-seedward-chaincoord is research-grade software. APIs, data formats, and behaviours may change without notice. **Do not
-use it for mainnet launches or any environment where correctness and availability are required.**
+!!! danger "Not production-ready yet"
+seedward-chaincoord is a **complete, capable v1** that is **not production-ready yet** — APIs, data formats, and
+behaviours may still change. **Do not use it for mainnet launches or any environment where correctness and availability
+are required.**
 
 ---
 
@@ -92,6 +93,6 @@ curl http://localhost:8080/healthz
 
 ## Next steps
 
-- [Dev Environment](dev-environment.md) — run `coordd` with Docker in one command (the web frontend runs separately)
+- [Run with Docker](docker.md) — run `coordd` from the published image. (The full stack — coordd + web — lives in seedward-suite.)
 - [Smoke Test](smoke-test.md) — run the full end-to-end protocol against a live Cosmos SDK chain
 - [Setup & Configuration](../reference/setup.md) — TLS, CORS, production options

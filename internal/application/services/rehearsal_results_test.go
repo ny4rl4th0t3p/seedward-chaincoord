@@ -17,8 +17,9 @@ import (
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/launch"
 )
 
-// resultSvc builds a LaunchService for result-recording tests and returns it with the attempt and
-// result fakes so tests can inspect stored state. The launch trusts the returned public key.
+// resultSvc builds a LaunchService for result-recording tests and returns it with the result fake
+// (so tests can inspect stored state) and the trusted key's private half (so tests can sign facts the
+// launch will accept — the launch is configured to trust the matching public key).
 func resultSvc(t *testing.T, l *launch.Launch) (*LaunchService, *fakeRehearsalResultRepo, ed25519.PrivateKey) {
 	t.Helper()
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)

@@ -93,7 +93,7 @@ type CreateLaunchInput struct {
 }
 
 // CreateLaunch creates a new Launch in DRAFT status. Launches are private-always:
-// discovery is gated to committee ∪ allowlist ∪ viewers; there is no public/browsable kind.
+// discovery is gated to the committee ∪ the launch's members list; there is no public/browsable kind.
 func (s *LaunchService) CreateLaunch(ctx context.Context, input CreateLaunchInput) (*launch.Launch, error) {
 	al := launch.NewAllowlist(input.Allowlist)
 	l, err := launch.New(uuid.New(), input.Record, input.LaunchType, input.Committee)
@@ -114,10 +114,9 @@ func (s *LaunchService) CreateLaunch(ctx context.Context, input CreateLaunchInpu
 	return l, nil
 }
 
-// UploadInitialGenesis stores the initial (pre-gentx) genesis file, computes its
-// SHA256, and transitions the launch to PUBLISHED once committee quorum is reached.
-// For now this method stores the genesis and records the hash; the PUBLISH transition
-// is triggered by the ProposalService when the PUBLISH_GENESIS proposal executes.
+// UploadInitialGenesis stores the initial (pre-gentx) genesis file and records its
+// SHA256 on the launch. It does not transition status — the PUBLISH transition is
+// triggered by the ProposalService when the PUBLISH_GENESIS proposal executes.
 func (s *LaunchService) UploadInitialGenesis(
 	ctx context.Context,
 	launchID uuid.UUID,
@@ -409,10 +408,10 @@ func mapAllocationDomainErr(op string, err error) error {
 }
 
 // mapLaunchDomainErr maps the launch aggregate's state-machine and committee sentinels to the
-// matching client-facing sentinel (see domain/launch/launch.go). Status transitions, an already-
-// present member, and the window-close preconditions are state conflicts (409); a required hash,
-// an absent member, and an invalid committee change are malformed input (400). Used at the
-// proposal apply boundary, where executed-proposal side effects touch the launch aggregate.
+// matching client-facing sentinel (see the switch below and domain/launch/launch.go): state
+// conflicts → 409, a not-a-member error → 404, and malformed input (missing hash / unknown
+// committee member / invalid committee change) → 400. Used at the proposal apply boundary, where
+// executed-proposal side effects touch the launch aggregate.
 func mapLaunchDomainErr(op string, err error) error {
 	switch {
 	case errors.Is(err, launch.ErrInvalidStatusTransition),
@@ -433,7 +432,7 @@ func mapLaunchDomainErr(op string, err error) error {
 }
 
 // validateEd25519PubKeyB64 accepts an empty string (clearing the trusted key) or a base64
-// standard-encoded 32-byte Ed25519 public key. Used for the rehearsal bridge's trusted key (D2).
+// standard-encoded 32-byte Ed25519 public key. Used for the rehearsal bridge's trusted key.
 func validateEd25519PubKeyB64(s string) error {
 	if s == "" {
 		return nil
@@ -549,8 +548,8 @@ func extractGenTxPubKey(genTx json.RawMessage) (string, error) {
 
 // PatchLaunchInput carries the mutable fields for a PATCH /launch/:id call.
 // Only non-nil fields are applied.
-// MonitorRPCURL may be set on launches in any status; all other fields are
-// restricted to DRAFT launches only.
+// MonitorRPCURL and the rehearsal bridge fields may be set on launches in any status;
+// all other fields are restricted to DRAFT launches only.
 type PatchLaunchInput struct {
 	ChainName         *string
 	BinaryVersion     *string
@@ -562,14 +561,14 @@ type PatchLaunchInput struct {
 	TotalSupply       *string            // draft-only chain-record field (bigint string)
 	Allowlist         []launch.AccountID // nil = no change; empty slice = clear
 	MonitorRPCURL     *string            // settable in any status
-	// RehearsalServicePubKey/RehearsalEndpoint are operational (bridge D2), settable in any status.
+	// RehearsalServicePubKey/RehearsalEndpoint are operational, settable in any status.
 	RehearsalServicePubKey *string
 	RehearsalEndpoint      *string
 }
 
 // PatchLaunch applies a partial update to mutable fields of a launch.
-// MonitorRPCURL may be updated at any status. All other fields require DRAFT status.
-// The caller must be a committee member.
+// MonitorRPCURL and the rehearsal bridge fields may be updated at any status; all other fields
+// require DRAFT status. The caller must be a committee member.
 func (s *LaunchService) PatchLaunch(
 	ctx context.Context, launchID uuid.UUID, input PatchLaunchInput, callerAddr string,
 ) (*launch.Launch, error) {
@@ -590,8 +589,8 @@ func (s *LaunchService) PatchLaunch(
 		l.MonitorRPCURL = *input.MonitorRPCURL
 	}
 
-	// Rehearsal bridge fields (D2) are operational, also status-independent. Empty clears.
-	// rehearsal_endpoint is advertised metadata coordd never dials (DEC-7), so it gets a
+	// Rehearsal bridge fields are operational, also status-independent. Empty clears.
+	// rehearsal_endpoint is advertised metadata coordd never dials, so it gets a
 	// format-only check — NOT the SSRF/DNS-resolving validator used for MonitorRPCURL (which
 	// coordd polls). The endpoint may be an internal host or not yet resolvable at patch time.
 	if input.RehearsalEndpoint != nil {
@@ -837,8 +836,8 @@ func (s *LaunchService) GetLaunch(ctx context.Context, id uuid.UUID, callerAddr 
 	if err != nil {
 		return nil, err
 	}
-	// ALLOWLIST chains are invisible to callers not on the list — return ErrNotFound,
-	// not ErrForbidden, so as not to reveal the chain's existence.
+	// Every launch is private — a caller not visible to it (committee ∪ members list) gets
+	// ErrNotFound, not ErrForbidden, so as not to reveal the launch's existence.
 	if !l.IsVisibleTo(callerAddr) {
 		return nil, ports.ErrNotFound
 	}

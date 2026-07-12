@@ -23,16 +23,16 @@ type LaunchRepository interface {
 	// FindByID returns the Launch with the given ID, or ErrNotFound.
 	FindByID(ctx context.Context, id uuid.UUID) (*launch.Launch, error)
 
-	// FindAll returns all launches visible to the given operator address.
-	// An empty operatorAddr represents an unauthenticated caller — only PUBLIC launches
-	// are returned. Authenticated callers also receive ALLOWLIST launches they appear on.
+	// FindAll returns the launches visible to the given operator address: those where the
+	// caller is a committee member or on the launch's members list. An empty operatorAddr
+	// (unauthenticated) sees nothing — every launch is private; there is no public kind.
 	FindAll(ctx context.Context, operatorAddr string, page, perPage int) ([]*launch.Launch, int, error)
 
 	// FindByChainID returns the Launch with the given chain_id, or ErrNotFound.
 	// chain_id is unique per server instance.
 	FindByChainID(ctx context.Context, chainID string) (*launch.Launch, error)
 
-	// FindByStatus returns all launches in the given status, across all visibilities.
+	// FindByStatus returns all launches in the given status, regardless of caller visibility.
 	// Used by background jobs that need to act on launches regardless of who owns them.
 	FindByStatus(ctx context.Context, status launch.Status) ([]*launch.Launch, error)
 }
@@ -57,7 +57,7 @@ type JoinRequestRepository interface {
 
 	// FindActiveByValidator returns the single ACTIVE (PENDING or APPROVED) join request for a
 	// validator in a launch, or ErrNotFound. Used by Submit to decide whether to supersede a
-	// PENDING request or reject against a locked APPROVED one (D4). At most one active request
+	// PENDING request or reject against a locked APPROVED one. At most one active request
 	// can exist per validator (enforced by a partial unique index).
 	FindActiveByValidator(ctx context.Context, launchID uuid.UUID, validatorAddr string) (*joinrequest.JoinRequest, error)
 
@@ -74,7 +74,7 @@ type JoinRequestRepository interface {
 	CountBySubmitter(ctx context.Context, launchID uuid.UUID, submitterAddr string) (int, error)
 
 	// CountByConsensusPubKey returns the number of join requests with the given
-	// consensus pubkey for a launch (spec §2.4: no duplicate consensus pubkey).
+	// consensus pubkey for a launch (enforces no duplicate consensus pubkey).
 	CountByConsensusPubKey(ctx context.Context, launchID uuid.UUID, consensusPubKey string) (int, error)
 }
 
@@ -140,6 +140,6 @@ type RehearsalResultRepository interface {
 	// Save stores a result. It is idempotent on the fact signature — re-submitting the same signed
 	// fact must not create a duplicate.
 	Save(ctx context.Context, res *launch.RehearsalResult) error
-	// FindByLaunch returns a launch's results, newest first (committee read-back, B4).
+	// FindByLaunch returns a launch's results, newest first (committee read-back).
 	FindByLaunch(ctx context.Context, launchID uuid.UUID) ([]*launch.RehearsalResult, error)
 }

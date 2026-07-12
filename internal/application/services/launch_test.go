@@ -151,7 +151,7 @@ func TestLaunchService_UploadFinalGenesis_Success(t *testing.T) {
 	assert.True(t, stored.Record.GenesisTime.Equal(wantTime), "GenesisTime: want %s, got %s", wantTime, stored.Record.GenesisTime)
 }
 
-// --- UploadFinalGenesis structural validation (M2) ---
+// --- UploadFinalGenesis structural validation ---
 
 // newLaunchSvcWithJR creates a LaunchService with a custom join request repo.
 func newLaunchSvcWithJR(launchRepo *fakeLaunchRepo, jrRepo *fakeJoinRequestRepo, genesisStore *fakeGenesisStore) *LaunchService {
@@ -337,7 +337,7 @@ func TestLaunchService_PatchLaunch_NotCommitteeMember(t *testing.T) {
 	require.ErrorIs(t, err, ports.ErrForbidden)
 }
 
-// ---- M2 members management ----
+// ---- members management ----
 
 func TestLaunchService_AddMember_Success(t *testing.T) {
 	l := test1of1Launch() // committee = testAddr1; status DRAFT
@@ -359,7 +359,7 @@ func TestLaunchService_AddMember_Success(t *testing.T) {
 
 func TestLaunchService_AddMember_UsableDuringWindowOpen(t *testing.T) {
 	l := test1of1Launch()
-	l.Status = launch.StatusWindowOpen // onboarding during the open window is the point (E1)
+	l.Status = launch.StatusWindowOpen // onboarding during the open window is the point
 	repo := newFakeLaunchRepo(l)
 	svc := newLaunchSvc(repo, newFakeGenesisStore())
 
@@ -376,7 +376,7 @@ func TestLaunchService_AddMember_NotCommittee(t *testing.T) {
 
 func TestLaunchService_AddMember_WrongStatus(t *testing.T) {
 	l := test1of1Launch()
-	l.Status = launch.StatusWindowClosed // frozen (E1)
+	l.Status = launch.StatusWindowClosed // frozen
 	svc := newLaunchSvc(newFakeLaunchRepo(l), newFakeGenesisStore())
 	_, err := svc.AddMember(context.Background(), l.ID, testAddr2, "x", testAddr1)
 	require.ErrorIs(t, err, ports.ErrConflict, "members list is frozen after WINDOW_OPEN")
@@ -519,7 +519,7 @@ func TestLaunchService_PatchLaunch_DraftSuccess(t *testing.T) {
 }
 
 func TestLaunchService_PatchLaunch_AllDraftFields(t *testing.T) {
-	// Exercises every branch of applyDraftFields in one PATCH.
+	// Exercises every applyDraftFields branch except TotalSupply in one PATCH.
 	l := testLaunch() // DRAFT
 	repo := newFakeLaunchRepo(l)
 	svc := newLaunchSvc(repo, newFakeGenesisStore())
@@ -568,7 +568,7 @@ func TestLaunchService_UploadFinalGenesis_GentxNoMessages(t *testing.T) {
 	require.ErrorIs(t, err, ports.ErrBadRequest, "a gentx with no messages is a 400")
 }
 
-// --- PatchLaunch bridge fields (B0) ---
+// --- PatchLaunch bridge fields ---
 
 func TestLaunchService_PatchLaunch_RehearsalFields(t *testing.T) {
 	l := testLaunch()

@@ -60,14 +60,15 @@ blocked once the genesis is published — revert to `WINDOW_CLOSED` via `REVISE_
 
 ### Genesis metadata & allocations
 
-`UPDATE_GENESIS_TIME` is blocked only after `LAUNCHED` (it is designed to run at `GENESIS_READY` as part of the revise
-flow, where it invalidates existing readiness confirmations). `APPROVE_ALLOCATION_FILE` is rejected once the genesis is
+`UPDATE_GENESIS_TIME` is blocked once the launch is terminal (`LAUNCHED` or `CANCELED`); it is designed to run at
+`GENESIS_READY` as part of the revise flow, where it invalidates existing readiness confirmations.
+`APPROVE_ALLOCATION_FILE` is rejected once the genesis is
 published (`GENESIS_READY`, `LAUNCHED`, or `CANCELED`) — an approval could no longer affect the published file.
 
-| Action                    | Effect                                                                    | Allowed status         |
-|---------------------------|---------------------------------------------------------------------------|------------------------|
-| `UPDATE_GENESIS_TIME`     | Updates the `genesis_time` field; invalidates all readiness confirmations | any pre-`LAUNCHED`     |
-| `APPROVE_ALLOCATION_FILE` | Approves the curated allocation file of one type, bound to its SHA-256    | before `GENESIS_READY` |
+| Action                    | Effect                                                                    | Allowed status          |
+|---------------------------|---------------------------------------------------------------------------|-------------------------|
+| `UPDATE_GENESIS_TIME`     | Updates the `genesis_time` field; invalidates all readiness confirmations | any non-terminal status |
+| `APPROVE_ALLOCATION_FILE` | Approves the curated allocation file of one type, bound to its SHA-256    | before `GENESIS_READY`  |
 
 #### Allocation files
 
@@ -85,6 +86,20 @@ Each file is then governed by its own `APPROVE_ALLOCATION_FILE` proposal, carryi
 
 This supersedes the old per-entry `ADD`/`REMOVE`/`MODIFY_GENESIS_ACCOUNT` proposals, which no longer exist — curated
 files are reviewed and approved as a unit by humans, with the hash as the integrity anchor.
+
+### Finalizing genesis: consistency guards + the optional rehearsal gate
+
+`PUBLISH_GENESIS` carries safety beyond the status guard, because the approved set can still change in
+`WINDOW_CLOSED` (a validator approve/remove) after a final genesis was uploaded:
+
+- **Genesis ↔ approved-set consistency (always on).** The final genesis is bound at upload to an
+  `input_set_hash` over the approved gentxs + allocation files + chain params. `PUBLISH_GENESIS` re-checks that
+  hash at both raise and execute and refuses a genesis that no longer matches the current set. While a
+  `PUBLISH_GENESIS` is pending, validator approve/remove proposals are frozen (and vice-versa), so the set
+  cannot drift underneath it.
+- **Rehearsal gate (opt-in).** `COORD_REHEARSAL_GATE` (default `off`) can additionally require the latest
+  rehearsal to be a current `PASS` before the transition is allowed — see
+  [`rehearsal_gate`](../reference/setup.md) in the configuration reference.
 
 ### Committee management
 

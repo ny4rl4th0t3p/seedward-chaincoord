@@ -122,7 +122,7 @@ func (s *ReadinessService) Confirm(ctx context.Context, launchID uuid.UUID, inpu
 		return nil, fmt.Errorf("confirm readiness: signature value: %w", err)
 	}
 
-	// Spec §11.4: max 1 active confirmation per operator per genesis version.
+	// Max 1 active confirmation per operator per genesis version.
 	// If one already exists and is valid, reject the duplicate.
 	existing, err := s.readiness.FindByOperator(ctx, launchID, input.OperatorAddress)
 	if err != nil && !isNotFound(err) {

@@ -150,7 +150,8 @@ func (e2eGentxValidator) Validate(gentxJSON []byte, _ gentxvalidate.Params) port
 
 // sign returns the base64-encoded secp256k1 ECDSA compact signature (r‖s, 64 bytes)
 // over sha256(ADR-036 amino bytes of canonical JSON of body), with "signature" and
-// "nonce" fields stripped. This matches the ADR-036 verification done by Secp256k1Verifier.
+// "pubkey_b64" stripped and "nonce" retained (bound into the signature). This matches
+// the ADR-036 verification done by Secp256k1Verifier.
 func (a actor) sign(body any) string {
 	msg, err := canonicaljson.MarshalForSigning(body)
 	if err != nil {
@@ -402,8 +403,6 @@ func startServer(t *testing.T) *testServer {
 	return buildTestServer(t, nil)
 }
 
-// setWindowOpen loads the launch from the repo, sets status to WINDOW_OPEN,
-
 // ---- The test ---------------------------------------------------------------
 
 func TestE2E_HappyPath(t *testing.T) {
@@ -422,7 +421,7 @@ func TestE2E_HappyPath(t *testing.T) {
 	coordToken := authenticate(t, c, coord)
 	coordClient := c.withToken(coordToken)
 
-	// 4. Create launch (1-of-1 committee, min_validator_count=2).
+	// 4. Create launch (1-of-1 committee, min_validator_count=4).
 	maxCommRate := "0.20"
 	maxCommChange := "0.01"
 	gentxDeadline := time.Now().Add(48 * time.Hour).UTC().Format(time.RFC3339)
@@ -471,7 +470,7 @@ func TestE2E_HappyPath(t *testing.T) {
 		Status string `json:"status"`
 	}
 
-	// 5. Upload initial genesis, then raise PUBLISH_CHAIN_RECORD proposal (§1.2/§1.3).
+	// 5. Upload initial genesis, then raise a PUBLISH_CHAIN_RECORD proposal.
 	// The 1-of-1 committee means the proposal auto-executes on raise.
 	initialGenesis := []byte(`{"chain_id":"testchain-1"}`)
 	initialGenesisHash := sha256hex(initialGenesis)
@@ -1203,7 +1202,7 @@ func TestE2E_PrivateLaunch(t *testing.T) {
 	outsiderClient := c.withToken(outsiderToken)
 	invitedClient := c.withToken(invitedToken)
 
-	// Create ALLOWLIST launch.
+	// Create a launch (private-always).
 	gentxDeadline := time.Now().Add(48 * time.Hour).UTC().Format(time.RFC3339)
 	launchBody := map[string]any{
 		"record": map[string]any{
@@ -1236,7 +1235,7 @@ func TestE2E_PrivateLaunch(t *testing.T) {
 	mustDecode(t, coordClient.do("POST", "/launch", launchBody), http.StatusCreated, &launchResp)
 	launchID := launchResp.ID
 
-	// Outsider gets 404 — ALLOWLIST launches are invisible to non-members.
+	// Outsider gets 404 — a launch is invisible to non-members (private-always).
 	resp := outsiderClient.do("GET", "/launch/"+launchID, nil)
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("outsider GET private launch: want 404, got %d", resp.StatusCode)
@@ -1276,7 +1275,7 @@ func TestE2E_PrivateLaunch(t *testing.T) {
 
 // ── TestE2E_MembersManagement ─────────────────────────────────────────────────
 
-// TestE2E_MembersManagement drives the M2 members endpoints end-to-end through the
+// TestE2E_MembersManagement drives the members endpoints end-to-end through the
 // real server and auth: a committee member adds a hot address (granting see access),
 // the added member can then see the launch, the member list is committee-only, and
 // removal revokes access.

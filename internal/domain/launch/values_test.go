@@ -9,25 +9,25 @@ import (
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/launch"
 )
 
-// ---- OperatorAddress --------------------------------------------------------
+// ---- AccountID --------------------------------------------------------
 
-func TestNewOperatorAddress_Empty(t *testing.T) {
+func TestNewAccountID_Empty(t *testing.T) {
 	_, err := launch.NewAccountID("")
 	require.Error(t, err, "expected error for empty string")
 }
 
-func TestNewOperatorAddress_InvalidBech32(t *testing.T) {
+func TestNewAccountID_InvalidBech32(t *testing.T) {
 	_, err := launch.NewAccountID("not-a-bech32-string")
 	require.Error(t, err, "expected error for invalid bech32")
 }
 
-func TestNewOperatorAddress_Valid(t *testing.T) {
+func TestNewAccountID_Valid(t *testing.T) {
 	addr, err := launch.NewAccountID(testAddr1)
 	require.NoError(t, err)
 	assert.Equal(t, testAddr1, addr.String())
 }
 
-func TestOperatorAddress_Equal(t *testing.T) {
+func TestAccountID_Equal(t *testing.T) {
 	a, _ := launch.NewAccountID(testAddr1)
 	b, _ := launch.NewAccountID(testAddr1)
 	c, _ := launch.NewAccountID(testAddr2)
@@ -36,9 +36,9 @@ func TestOperatorAddress_Equal(t *testing.T) {
 }
 
 // TestAccountID_SameSeedAcrossChains uses two real addresses derived from the SAME
-// seed on different chains. Their bech32 strings differ only in the 6-char checksum
-// (which is HRP-dependent by design); the 20 account bytes are identical, so they
-// are one identity.
+// seed on different chains. Their bech32 strings differ in the HRP prefix (osmo vs
+// cosmos) and the 6-char checksum; the 20 account bytes in between are identical, so
+// they are one identity.
 func TestAccountID_SameSeedAcrossChains(t *testing.T) {
 	osmo, err := launch.NewAccountID("osmo1am058pdux3hyulcmfgj4m3hhrlfn8nzm0u0hej")
 	require.NoError(t, err)
@@ -163,7 +163,7 @@ func TestNewSignature_InvalidBase64(t *testing.T) {
 }
 
 func TestNewSignature_WrongLength(t *testing.T) {
-	// Valid base64 but only 4 bytes (not 64).
+	// Valid base64 (4 chars → 3 decoded bytes), not the required 64.
 	_, err := launch.NewSignature("AAAA")
 	require.Error(t, err, "expected error: decoded length ≠ 64 bytes")
 }

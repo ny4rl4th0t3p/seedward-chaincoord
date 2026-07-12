@@ -26,14 +26,14 @@ Each line is a JSON object:
 }
 ```
 
-| Field         | Type                 | Description                                                                                                                |
-|---------------|----------------------|----------------------------------------------------------------------------------------------------------------------------|
-| `launch_id`   | string (UUID)        | The launch this event belongs to                                                                                           |
-| `event_name`  | string               | Event type (see table below)                                                                                               |
-| `occurred_at` | RFC3339 timestamp    | When the event occurred                                                                                                    |
-| `payload`     | object               | Event-specific data                                                                                                        |
-| `prev_hash`   | string (hex SHA-256) | SHA-256 of the previous line's raw JSON bytes. Empty for the first entry in each server session. Covered by the signature. |
-| `signature`   | string (base64)      | Ed25519 signature over canonical JSON of the entry *without* the `signature` field (but *with* `prev_hash`)                |
+| Field         | Type                 | Description                                                                                                                                                                         |
+|---------------|----------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `launch_id`   | string (UUID)        | The launch this event belongs to                                                                                                                                                    |
+| `event_name`  | string               | Event type (see table below)                                                                                                                                                        |
+| `occurred_at` | RFC3339 timestamp    | When the event occurred                                                                                                                                                             |
+| `payload`     | object               | Event-specific data                                                                                                                                                                 |
+| `prev_hash`   | string (hex SHA-256) | SHA-256 of the previous line's raw JSON bytes. Empty only for the very first entry in the log; across restarts it continues from the persisted chain tip. Covered by the signature. |
+| `signature`   | string (base64)      | Ed25519 signature over canonical JSON of the entry *without* the `signature` field (but *with* `prev_hash`)                                                                         |
 
 Timestamps are monotonically non-decreasing within a log file. A timestamp that moves backward is flagged as an anomaly
 by `coordd audit verify`.
@@ -42,27 +42,27 @@ by `coordd audit verify`.
 
 ## Event types
 
-| Event                     | Trigger                                                                               |
-|---------------------------|---------------------------------------------------------------------------------------|
-| `LaunchCreated`           | Launch created — committee and chain record set                                       |
-| `ChainRecordPublished`    | `PUBLISH_CHAIN_RECORD` proposal executed — launch moves to `PUBLISHED`                |
-| `WindowOpened`            | Lead coordinator calls `POST /launch/:id/open-window` — launch moves to `WINDOW_OPEN` |
-| `WindowClosed`            | `CLOSE_APPLICATION_WINDOW` proposal executed — launch moves to `WINDOW_CLOSED`        |
-| `InitialGenesisUploaded`  | Initial genesis file uploaded or registered via attestor URL                          |
-| `FinalGenesisUploaded`    | Final genesis file uploaded or registered via attestor URL                            |
-| `GenesisPublished`        | `PUBLISH_GENESIS` proposal executed — launch moves to `GENESIS_READY`                 |
-| `GenesisTimeUpdated`      | `UPDATE_GENESIS_TIME` proposal executed                                               |
-| `GenesisRevisionApproved` | `REVISE_GENESIS` proposal executed — launch reverts to `WINDOW_CLOSED`                |
-| `ValidatorApproved`       | `APPROVE_VALIDATOR` proposal executed                                                 |
-| `ValidatorRejected`       | `REJECT_VALIDATOR` proposal executed                                                  |
-| `ValidatorRemoved`        | `REMOVE_APPROVED_VALIDATOR` proposal executed                                         |
-| `AllocationFileUploaded`  | Allocation file uploaded or registered via attestor URL (status → `PENDING`)          |
-| `AllocationFileApproved`  | `APPROVE_ALLOCATION_FILE` proposal executed — file approved                           |
-| `AllocationFileRejected`  | `APPROVE_ALLOCATION_FILE` proposal vetoed — file rejected                             |
-| `LaunchCancelled`         | Lead coordinator cancels the launch                                                   |
-| `LaunchDetected`          | Block monitor observes block 1 — launch moves to `LAUNCHED`                           |
+| Event                     | Trigger                                                                                                                                                          |
+|---------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `LaunchCreated`           | Launch created — committee and chain record set                                                                                                                  |
+| `ChainRecordPublished`    | `PUBLISH_CHAIN_RECORD` proposal executed — launch moves to `PUBLISHED`                                                                                           |
+| `WindowOpened`            | A committee member calls `POST /launch/:id/open-window` — launch moves to `WINDOW_OPEN`                                                                          |
+| `WindowClosed`            | `CLOSE_APPLICATION_WINDOW` proposal executed — launch moves to `WINDOW_CLOSED`                                                                                   |
+| `InitialGenesisUploaded`  | Initial genesis file uploaded or registered via attestor URL                                                                                                     |
+| `FinalGenesisUploaded`    | Final genesis file uploaded or registered via attestor URL                                                                                                       |
+| `GenesisPublished`        | `PUBLISH_GENESIS` proposal executed — launch moves to `GENESIS_READY`                                                                                            |
+| `GenesisTimeUpdated`      | `UPDATE_GENESIS_TIME` proposal executed                                                                                                                          |
+| `GenesisRevisionApproved` | `REVISE_GENESIS` proposal executed — launch reverts to `WINDOW_CLOSED`                                                                                           |
+| `ValidatorApproved`       | `APPROVE_VALIDATOR` proposal executed                                                                                                                            |
+| `ValidatorRejected`       | `REJECT_VALIDATOR` proposal executed                                                                                                                             |
+| `ValidatorRemoved`        | `REMOVE_APPROVED_VALIDATOR` proposal executed                                                                                                                    |
+| `AllocationFileUploaded`  | Allocation file uploaded or registered via attestor URL (status → `PENDING`)                                                                                     |
+| `AllocationFileApproved`  | `APPROVE_ALLOCATION_FILE` proposal executed — file approved                                                                                                      |
+| `AllocationFileRejected`  | `APPROVE_ALLOCATION_FILE` proposal vetoed — file rejected                                                                                                        |
+| `LaunchCancelled`         | Lead coordinator cancels the launch                                                                                                                              |
+| `LaunchDetected`          | Block monitor observes block 1 — launch moves to `LAUNCHED`                                                                                                      |
 | `RehearsalResultRecorded` | A signature-verified rehearsal result is recorded via the bridge (`POST .../rehearsal-results`); payload carries the outcome, input-set hash, and a `stale` flag |
-| `RehearsalAttemptReset`   | A coordinator force-releases a stuck rehearsal run lease (`POST .../rehearsal/{attempt_id}/reset`) |
+| `RehearsalAttemptReset`   | A coordinator force-releases a stuck rehearsal run lease (`POST .../rehearsal/{attempt_id}/reset`)                                                               |
 
 !!! note
 Proposal actions that do not directly transition launch state (e.g. `REPLACE_COMMITTEE_MEMBER`, `EXPAND_COMMITTEE`,

@@ -3,12 +3,16 @@
 **seedward-chaincoord** is a self-hosted coordination server for **Cosmos SDK** chain genesis launches.
 
 It manages the full launch lifecycle — from assembling a coordinator committee, through validator applications and
-M-of-N approval, to genesis assembly and block monitoring — with a tamper-evident audit log at every step.
+M-of-N approval, to M-of-N agreement on the final genesis and block monitoring — with a tamper-evident audit log at
+every step. `coordd` never runs a node, never holds a private key, and never assembles the final genesis itself — the
+coordinator builds that locally with the chain binary once the committee has agreed.
 
-!!! danger "Proof of concept — not for production use"
-seedward-chaincoord is research-grade software. It was built to explore the problem space of decentralized genesis
-coordination. APIs, data formats, and behaviours may change without notice. **Do not use it for mainnet launches or any
-environment where correctness and availability are required.**
+!!! danger "Not production-ready yet"
+seedward-chaincoord is a **complete, capable v1** — a Spec-Driven Development project: the protocol, the M-of-N
+committee governance model, the launch-lifecycle state machine, the threat model, and the offline-verifiable audit-log
+design were authored as a spec and implemented with AI assistance under review. It is **not production-ready yet** —
+built to get there with real-world testing, and APIs, data formats, and behaviours may still change. **Do not use it
+for mainnet launches or any environment where correctness and availability are required.**
 
 !!! warning "Cosmos SDK only"
 seedward-chaincoord is purpose-built for Cosmos SDK chains. It works with standard `gentx`-based genesis files,
@@ -58,7 +62,7 @@ Once M SIGN decisions are collected it executes immediately.
 **Join request** — A member's application to participate, carrying their `gentx` and self-delegation amount; the
 operator address is derived from the gentx's signer, not supplied as a trusted field.
 
-**Audit log** — An append-only JSONL file recording every state transition, proposal, and signature. Each entry is
+**Audit log** — An append-only JSONL file recording every state transition and committee proposal. Each entry is
 signed with the server's Ed25519 key and can be verified offline with `coordd audit verify`.
 
 ---
@@ -75,8 +79,8 @@ signed with the server's Ed25519 key and can be verified offline with `coordd au
 
 ## Next steps
 
-- [Dev Environment](getting-started/dev-environment.md) — run `coordd` with `make dev-up` (the web frontend runs
-  separately)
+- [Run with Docker](getting-started/docker.md) — run `coordd` from the published image. (The full stack —
+  coordd + web — lives in seedward-suite.)
 - [Quickstart](getting-started/quickstart.md) — run `coordd` locally in five minutes
 - [Setup & Configuration](reference/setup.md) — full configuration reference
 - [Concepts](concepts/overview.md) — deeper explanation of roles, proposals, and the lifecycle

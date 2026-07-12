@@ -26,7 +26,9 @@ jobs:
           python-version: '3.x'
 
       - name: Install dependencies
-        run: pip install "mkdocs-material[api]" mkdocs-swagger-ui-tag
+        run: pip install -r docs/requirements.txt
 
       - name: Deploy
+        # strict mode is set in mkdocs.yml, so a broken nav/link fails this build
+        # before it publishes.
         run: mkdocs gh-deploy --force -f docs/mkdocs.yml

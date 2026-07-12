@@ -9,7 +9,7 @@ body, and response shape (grouped by tag: auth, launches, join-requests, proposa
 allocations, audit, admin, events). This page covers only the cross-cutting conventions the spec can't explain on its
 own.
 
-<swagger-ui src="../../api/swagger.yaml"/>
+<swagger-ui src="../api/swagger.yaml"/>
 
 ---
 

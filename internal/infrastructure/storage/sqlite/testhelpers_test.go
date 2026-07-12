@@ -16,7 +16,7 @@ import (
 )
 
 // openTestDB opens an in-memory SQLite database and runs all migrations.
-// Caller must close it when done.
+// It is closed automatically via t.Cleanup.
 func openTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 	db, err := Open(":memory:")
@@ -96,7 +96,8 @@ func testJoinRequest(t *testing.T, launchID uuid.UUID) *joinrequest.JoinRequest 
 	rpc, _ := launch.NewRPCEndpoint("https://192.168.1.1:26657")
 
 	// Two random UUIDs concatenated give 32 bytes of entropy for a unique Ed25519 pubkey per call.
-	// Uniqueness matters because the DB enforces consensus_pubkey uniqueness per launch.
+	// Uniqueness matters because the DB enforces consensus_pubkey uniqueness among
+	// ACTIVE (PENDING/APPROVED) requests per launch (partial unique index, migration 0006).
 	id1, id2 := uuid.New(), uuid.New()
 	uniquePubKey := base64.StdEncoding.EncodeToString(append(id1[:], id2[:]...))
 

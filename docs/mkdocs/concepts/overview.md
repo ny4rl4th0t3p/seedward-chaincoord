@@ -31,7 +31,7 @@ A **Launch** is the top-level object that represents one chain's genesis coordin
 - The current **lifecycle status**
 
 A launch moves through a fixed sequence of states. No state can be skipped; all transitions are driven by committee
-action (except opening the application window, which the lead coordinator triggers directly).
+action (except opening the application window, which any committee member triggers directly).
 
 ### Committee
 
@@ -45,8 +45,8 @@ member is absent) is enforced only when the committee is modified via `EXPAND_CO
 
 ### Proposal
 
-A **Proposal** is a signed, time-limited committee action. Every state transition and governance decision goes through a
-proposal. See [Proposals & M-of-N](proposals.md) for the full list of action types and how signing works.
+A **Proposal** is a signed, time-limited committee action. Every governance decision — and every state transition except
+opening the application window — goes through a proposal. See [Proposals & M-of-N](proposals.md) for the full list of action types and how signing works.
 
 ### Membership & privacy
 
@@ -85,7 +85,8 @@ down, and posts back a **signed** PASS/FAIL result. `coordd` never boots a chain
 (`/bridge/*`) that serves the approved input, mints a single-writer **claim** so two runs can't collide, and records the
 signed result (rejecting any it didn't itself serve). The committee reads results back at `GET /launch/{id}/rehearsal`.
 A PASS certifies the input set assembles and a representative chain advances — it is **not** a guarantee the real
-network produces blocks. (In v1 rehearsal is advisory and manually triggered; making it a gate is v1.1.)
+network produces blocks. (Rehearsal defaults to off and is manually triggered; the opt-in gate can require a current
+passing rehearsal before publishing genesis — advisory records the check, required blocks — with auto-triggering a later addition.)
 
 ---
 

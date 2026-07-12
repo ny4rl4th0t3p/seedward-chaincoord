@@ -1,6 +1,6 @@
 // Package gentxvalidation adapts the shared seedward-libs/gentxvalidate library
 // to the ports.GentxValidator interface, keeping the SDK/validation weight out of
-// the domain and application layers (DEC-16).
+// the domain and application layers.
 package gentxvalidation
 
 import (

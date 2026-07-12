@@ -11,8 +11,8 @@ import (
 // ErrAttemptLeased a rehearsal run is already claimed by a different runner with an unexpired lease.
 var ErrAttemptLeased = errors.New("rehearsal attempt is leased by another runner")
 
-// RehearsalAttemptStatus is the lifecycle of a rehearsal attempt (the run lease). Lease
-// enforcement (claim-before-run) lands in B3.5; in B3 an attempt is minted OPEN and stays there.
+// RehearsalAttemptStatus is the lifecycle of a rehearsal attempt (the run lease): OPEN when
+// minted, RUNNING while a runner holds the lease, DONE once a result is recorded.
 type RehearsalAttemptStatus string
 
 const (
@@ -24,7 +24,8 @@ const (
 // RehearsalAttempt is coordd's record that it served a specific approved input set for a launch.
 // It is the anti-fabrication anchor: coordd only records a result whose input_set_hash it minted an
 // attempt for. Identity is (LaunchID, InputSetHash) — the same input set maps to one attempt
-// (get-or-create). The lease fields are inert in B3 and enforced in B3.5 (claim-before-run).
+// (get-or-create). The lease fields (Status/ClaimedAt/LeaseExpiresAt/RunnerID) enforce
+// single-writer claim-before-run.
 type RehearsalAttempt struct {
 	ID           uuid.UUID
 	LaunchID     uuid.UUID
@@ -76,7 +77,7 @@ func (a *RehearsalAttempt) Reset() {
 	a.RunnerID = ""
 }
 
-// RehearsalOutcome is a result verdict (§4). SKIPPED is informational (the rehearsal service's
+// RehearsalOutcome is a result verdict. SKIPPED is informational (the rehearsal service's
 // status filter declined to run) — tracked so a console operator sees "skipped: status X excluded",
 // not a misleading FAIL.
 type RehearsalOutcome string
@@ -105,9 +106,9 @@ type RehearsalResultStep struct {
 	Detail string
 }
 
-// RehearsalResult is a stored, signature-verified result fact (§4), bound to the attempt it ran
+// RehearsalResult is a stored, signature-verified result fact, bound to the attempt it ran
 // against. Stale is true when the attempt's input set is no longer the launch's current one — the
-// result is genuine (coordd minted the attempt) but the approved inputs have since drifted.
+// result is genuine (coordd minted the attempt), but the approved inputs have since drifted.
 type RehearsalResult struct {
 	ID           uuid.UUID
 	AttemptID    uuid.UUID

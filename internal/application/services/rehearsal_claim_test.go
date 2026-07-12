@@ -59,7 +59,7 @@ func TestClaimRehearsalRun_SameRunnerReclaims(t *testing.T) {
 	require.NoError(t, err)
 	second, err := svc.ClaimRehearsalRun(context.Background(), l.ID, "runner-1")
 	require.NoError(t, err)
-	assert.Equal(t, first.AttemptID, second.AttemptID, "same runner refreshes its own lease")
+	assert.Equal(t, first.AttemptID, second.AttemptID, "same runner may re-claim its own attempt (idempotent; lease deadline unchanged)")
 }
 
 func TestResetRehearsalAttempt_FreesLease(t *testing.T) {

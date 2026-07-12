@@ -75,7 +75,7 @@ func TestHandleMemberAdd_InvalidAddress(t *testing.T) {
 func TestHandleMemberAdd_FrozenStatus(t *testing.T) {
 	h := newHarness(t)
 	l := soloCommitteeLaunch()
-	l.Status = launch.StatusWindowClosed // members list frozen (E1)
+	l.Status = launch.StatusWindowClosed // members list frozen
 	h.launches.data[l.ID] = l
 	tok := h.seedSession(testAddr1)
 	w := h.doAuthJSON("POST", "/launch/"+l.ID.String()+"/members",

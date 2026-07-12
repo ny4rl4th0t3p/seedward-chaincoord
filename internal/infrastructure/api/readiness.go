@@ -161,7 +161,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 }
 
 // GET /launch/{id}/peers
-// Returns peer addresses of all approved validators (post-window).
+// Returns peer addresses of all approved validators.
 //
 // @Summary      Get approved validator peers
 // @Description  Returns peer addresses of all approved validators. Use ?format=text for persistent_peers format (comma-separated).
@@ -194,7 +194,7 @@ func (s *Server) handlePeers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// ?format=text returns a comma-separated plain-text list for use in
-	// persistent_peers (spec §4.3). Default is JSON.
+	// persistent_peers. Default is JSON.
 	if r.URL.Query().Get("format") == "text" {
 		addrs := make([]string, len(peers))
 		for i, p := range peers {

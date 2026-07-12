@@ -465,7 +465,7 @@ func TestJoinRequestRepository_CountBySubmitter(t *testing.T) {
 			},
 		},
 		{
-			// D2 anti-flood semantic: the cap must count ALL statuses, so that
+			// anti-flood semantic: the cap must count ALL statuses, so that
 			// rejected/expired submissions consume the budget and are never
 			// refunded — a noisy submitter cannot reset the counter by getting
 			// rejected. (Distinct from the active-only consensus-pubkey check.)

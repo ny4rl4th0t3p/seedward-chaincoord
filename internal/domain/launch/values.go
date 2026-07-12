@@ -47,8 +47,8 @@ func NewAccountID(s string) (AccountID, error) {
 	if s == "" {
 		return AccountID{}, ErrAccountIDEmpty
 	}
-	// Decode validates the checksum, HRP, and base32 data encoding. The limit of
-	// 1023 is the maximum bech32 length per BIP-0173; Cosmos addresses are well under.
+	// Decode validates the checksum, HRP, and base32 data encoding. 1023 is the maximum
+	// input length accepted here; Cosmos addresses (~45 chars) are well under it.
 	hrp, data5, err := bech32.Decode(s, 1023)
 	if err != nil {
 		return AccountID{}, fmt.Errorf("%w %q: %w", ErrAccountIDInvalid, s, err)
@@ -255,7 +255,7 @@ type memberMeta struct {
 
 // Allowlist is an immutable set of member accounts, keyed on the HRP-independent
 // AccountID (so a member added under one prefix is recognized under any), each carrying
-// a label and add-provenance. The zero value is an empty (open) allowlist.
+// a label and add-provenance. The zero value is an empty allowlist (contains no one).
 type Allowlist struct {
 	members map[string]memberMeta // account hex → metadata
 }

@@ -107,6 +107,7 @@ func (s *Server) handleRehearsalResultsList(w http.ResponseWriter, r *http.Reque
 // @Param        attempt_id  path  string  true  "Attempt UUID"
 // @Success      204  "Lease reset"
 // @Failure      400  {object}  errorEnvelope
+// @Failure      401  {object}  errorEnvelope
 // @Failure      403  {object}  errorEnvelope
 // @Failure      404  {object}  errorEnvelope
 // @Router       /launch/{id}/rehearsal/{attempt_id}/reset [post]

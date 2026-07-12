@@ -24,7 +24,7 @@ const (
 	testAddr2 = "cosmos1yy3zxfp9ycnjs2f29vkz6t30xqcnyve5j4ep6w"
 	testAddr3 = "cosmos1g9pyx3z9ger5sj22fdxy6nj02pg4y5657yq8y0"
 
-	// 64-byte all-zeros Ed25519 signature, base64-encoded (88 chars).
+	// 64-byte all-zeros secp256k1 signature, base64-encoded (88 chars).
 	testSig = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
 )
 
@@ -95,7 +95,7 @@ func testLaunch() *launch.Launch {
 	return l
 }
 
-// test1of1Launch returns a DRAFT launch with a 1-of-1 committee and MinValidatorCount=0.
+// test1of1Launch returns a DRAFT launch with a 1-of-1 committee and MinValidatorCount=1.
 func test1of1Launch() *launch.Launch {
 	maxComm, _ := launch.NewCommissionRate("0.20")
 	maxCommChange, _ := launch.NewCommissionRate("0.01")
@@ -450,7 +450,7 @@ func (f *fakeJoinRequestRepo) FindActiveByValidator(_ context.Context, launchID 
 }
 
 // isActiveStatus mirrors the partial-index predicate: PENDING/APPROVED are active,
-// REJECTED/EXPIRED are terminal (D4).
+// REJECTED/EXPIRED are terminal.
 func isActiveStatus(s joinrequest.Status) bool {
 	return s == joinrequest.StatusPending || s == joinrequest.StatusApproved
 }

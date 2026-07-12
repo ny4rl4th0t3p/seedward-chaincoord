@@ -64,7 +64,7 @@ func TestHandleJoinGrouped_CommitteeSuccess(t *testing.T) {
 	assert.Equal(t, "acme", acme.Label)
 	assert.Equal(t, 2, acme.RequestCount)
 	require.Len(t, acme.Requests, 2)
-	assert.Equal(t, testAddr2, acme.Requests[0].SubmitterAddress, "flat DTO exposes submitter_address (FU-2)")
+	assert.Equal(t, testAddr2, acme.Requests[0].SubmitterAddress, "flat DTO exposes submitter_address")
 
 	beta, ok := byAddr[testAddr3]
 	require.True(t, ok)

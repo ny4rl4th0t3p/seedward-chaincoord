@@ -48,7 +48,8 @@ Keys and policy are only configurable via env vars or config file — they have 
 | `COORD_LAUNCH_POLICY`          | `open` or `restricted` (default)                   |
 | `COORD_INSECURE_NO_SSRF_CHECK` | Disable SSRF check on RPC URLs (trusted envs only) |
 
-See [Setup & Configuration](setup.md) for the full reference.
+The rehearsal/bridge keys (`COORD_REHEARSAL_OPS_TOKEN[_FILE]`, `COORD_REHEARSAL_GATE`,
+`COORD_REHEARSAL_LEASE_TTL`) are also env-only. See [Setup & Configuration](setup.md) for the full reference.
 
 ---
 

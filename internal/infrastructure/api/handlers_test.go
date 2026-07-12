@@ -802,7 +802,7 @@ func TestHandleJoinSubmit_BadJSON(t *testing.T) {
 
 func TestHandleJoinSubmit_Success(t *testing.T) {
 	h := newHarness(t)
-	l := windowOpenLaunch() // WINDOW_OPEN, PUBLIC
+	l := windowOpenLaunch() // WINDOW_OPEN
 	h.launches.data[l.ID] = l
 	tok := h.seedSession(testAddr2)
 	body := []byte(`{
@@ -852,7 +852,7 @@ func TestHandleJoinList_NotCoordinator(t *testing.T) {
 
 func TestHandleJoinList_Success(t *testing.T) {
 	h := newHarness(t)
-	l := testLaunch() // testAddr1 is a coordinator
+	l := testLaunch() // testAddr1 is a committee member
 	h.launches.data[l.ID] = l
 	tok := h.seedSession(testAddr1)
 	w := h.do("GET", "/launch/"+l.ID.String()+"/join", nil,
@@ -905,7 +905,7 @@ func TestHandleJoinGet_Success(t *testing.T) {
 	h.launches.data[l.ID] = l
 	jr := testJoinRequest(l.ID, testAddr2)
 	h.joinReqs.data[jr.ID] = jr
-	tok := h.seedSession(testAddr1) // coordinator sees any join request
+	tok := h.seedSession(testAddr1) // committee member sees any join request
 	w := h.do("GET", "/launch/"+l.ID.String()+"/join/"+jr.ID.String(), nil,
 		map[string]string{"Authorization": "Bearer " + tok})
 	assertStatusCode(t, w, http.StatusOK)

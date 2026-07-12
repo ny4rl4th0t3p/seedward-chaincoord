@@ -75,8 +75,8 @@ type Config struct {
 	JWTPrivKeyFile string `mapstructure:"jwt_private_key_file"`
 
 	// RehearsalOpsToken is the shared bearer token authenticating the ops plane on the
-	// rehearsal bridge endpoints (/bridge/*) — deployment-wide, not per-launch (bridge
-	// contract D6). Prefer the _file variant so the secret is never a plain env var.
+	// rehearsal bridge endpoints (/bridge/*) — deployment-wide, not per-launch. Prefer
+	// the _file variant so the secret is never a plain env var.
 	// Empty disables the bridge (requireOps fails closed).
 	RehearsalOpsToken     string `mapstructure:"rehearsal_ops_token"`
 	RehearsalOpsTokenFile string `mapstructure:"rehearsal_ops_token_file"`
