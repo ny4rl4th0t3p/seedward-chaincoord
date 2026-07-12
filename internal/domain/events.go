@@ -300,3 +300,19 @@ func (e RehearsalAttemptReset) WithTime(t time.Time) RehearsalAttemptReset {
 	e.base = e.withTime(t)
 	return e
 }
+
+// RehearsalServiceKeyChanged is emitted when a PATCH changes a launch's trusted rehearsal
+// service public key. It is recorded in the tamper-evident audit log because this key is the
+// trust anchor for rehearsal result facts: swapping it (any status, a single committee member,
+// no proposal) would otherwise let a forged PASS satisfy the required gate with no auditable
+// trace. Carries the old and new keys for forensics.
+type RehearsalServiceKeyChanged struct {
+	base
+	LaunchID  uuid.UUID
+	OldPubKey string
+	NewPubKey string
+	ChangedBy string
+}
+
+func (RehearsalServiceKeyChanged) EventName() string        { return "RehearsalServiceKeyChanged" }
+func (e RehearsalServiceKeyChanged) GetLaunchID() uuid.UUID { return e.LaunchID }

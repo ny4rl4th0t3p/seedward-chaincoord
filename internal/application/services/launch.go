@@ -599,9 +599,15 @@ func (s *LaunchService) PatchLaunch(
 		}
 		l.RehearsalEndpoint = *input.RehearsalEndpoint
 	}
+	rehearsalKeyChanged := false
+	var oldRehearsalKey string
 	if input.RehearsalServicePubKey != nil {
 		if err := validateEd25519PubKeyB64(*input.RehearsalServicePubKey); err != nil {
 			return nil, fmt.Errorf("patch launch: rehearsal_service_pubkey: %w: %w", err, ports.ErrBadRequest)
+		}
+		if *input.RehearsalServicePubKey != l.RehearsalServicePubKey {
+			rehearsalKeyChanged = true
+			oldRehearsalKey = l.RehearsalServicePubKey
 		}
 		l.RehearsalServicePubKey = *input.RehearsalServicePubKey
 	}
@@ -621,6 +627,18 @@ func (s *LaunchService) PatchLaunch(
 
 	if err := s.launches.Save(ctx, l); err != nil {
 		return nil, fmt.Errorf("patch launch: save: %w", err)
+	}
+
+	// Swapping the trusted rehearsal key changes whose result facts coordd will trust, so it
+	// must leave a tamper-evident trace (old→new keys) even though the PATCH is not an M-of-N
+	// proposal. Audited after a successful save.
+	if rehearsalKeyChanged {
+		_ = s.writeAudit(ctx, l.ID.String(), domain.RehearsalServiceKeyChanged{
+			LaunchID:  l.ID,
+			OldPubKey: oldRehearsalKey,
+			NewPubKey: l.RehearsalServicePubKey,
+			ChangedBy: callerAddr,
+		})
 	}
 	return l, nil
 }

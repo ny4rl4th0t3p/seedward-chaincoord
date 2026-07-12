@@ -596,6 +596,39 @@ func TestLaunchService_PatchLaunch_BadRehearsalPubKey(t *testing.T) {
 	require.ErrorIs(t, err, ports.ErrBadRequest, "a malformed trusted pubkey is a 400")
 }
 
+func TestLaunchService_PatchLaunch_RehearsalKeyChange_Audited(t *testing.T) {
+	l := testLaunch()
+	l.Status = launch.StatusWindowOpen
+	l.RehearsalServicePubKey = osmosisPubKey // an existing trusted key
+	audit := &fakeAuditLogWriter{}
+	svc := newLaunchSvcWithAudit(newFakeLaunchRepo(l), newFakeGenesisStore(), audit)
+
+	newKey := "AQIDAQIDAQIDAQIDAQIDAQIDAQIDAQIDAQIDAQIDAQI=" // a distinct valid 32-byte ed25519 key
+	_, err := svc.PatchLaunch(context.Background(), l.ID,
+		PatchLaunchInput{RehearsalServicePubKey: &newKey}, testAddr1)
+	require.NoError(t, err)
+
+	require.Len(t, audit.events, 1, "changing the trusted rehearsal key must be audited")
+	ev := audit.events[0]
+	assert.Equal(t, "RehearsalServiceKeyChanged", ev.EventName)
+	assert.Contains(t, string(ev.Payload), osmosisPubKey, "audit payload must record the old key")
+	assert.Contains(t, string(ev.Payload), newKey, "audit payload must record the new key")
+}
+
+func TestLaunchService_PatchLaunch_RehearsalKeyUnchanged_NotAudited(t *testing.T) {
+	l := testLaunch()
+	l.Status = launch.StatusWindowOpen
+	l.RehearsalServicePubKey = osmosisPubKey
+	audit := &fakeAuditLogWriter{}
+	svc := newLaunchSvcWithAudit(newFakeLaunchRepo(l), newFakeGenesisStore(), audit)
+
+	same := osmosisPubKey
+	_, err := svc.PatchLaunch(context.Background(), l.ID,
+		PatchLaunchInput{RehearsalServicePubKey: &same}, testAddr1)
+	require.NoError(t, err)
+	assert.Empty(t, audit.events, "a no-op key PATCH must emit no audit event")
+}
+
 func TestLaunchService_PatchLaunch_BadTotalSupply(t *testing.T) {
 	l := testLaunch() // DRAFT — total_supply is a draft-only field
 	svc := newLaunchSvc(newFakeLaunchRepo(l), newFakeGenesisStore())
