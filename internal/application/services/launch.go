@@ -752,7 +752,8 @@ func (s *LaunchService) SetCommittee(ctx context.Context, launchID uuid.UUID, co
 	if err != nil {
 		return err
 	}
-	if l.Committee.LeadAddress.String() != callerAddr {
+	callerID, err := launch.NewAccountID(callerAddr)
+	if err != nil || !l.Committee.LeadAddress.Equal(callerID) {
 		// Authorization first (403) so an unauthorized caller cannot probe launch state.
 		return fmt.Errorf("set committee: only the lead coordinator may replace the committee: %w", ports.ErrForbidden)
 	}
@@ -947,7 +948,8 @@ func (s *LaunchService) CancelLaunch(ctx context.Context, launchID uuid.UUID, ca
 	if err != nil {
 		return err
 	}
-	if l.Committee.LeadAddress.String() != callerAddr {
+	callerID, err := launch.NewAccountID(callerAddr)
+	if err != nil || !l.Committee.LeadAddress.Equal(callerID) {
 		return fmt.Errorf("cancel launch: only the committee lead may cancel: %w", ports.ErrForbidden)
 	}
 	prevStatus := l.Status

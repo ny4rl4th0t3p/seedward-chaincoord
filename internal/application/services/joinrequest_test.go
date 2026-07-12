@@ -506,6 +506,30 @@ func makeJoinRequestSplit(t *testing.T, launchID uuid.UUID, validatorAddr, submi
 	)
 }
 
+func TestJoinRequestService_GetByID_CrossHRPParty(t *testing.T) {
+	// operator (validator) = testAddr1, submitter = testAddr2.
+	jr := makeJoinRequestSplit(t, uuid.New(), testAddr1, testAddr2)
+	svc := newJoinReqSvc(newFakeLaunchRepo(), newFakeJoinRequestRepo(jr))
+	ctx := context.Background()
+
+	// The operator authenticating under a DIFFERENT HRP than stored is still the party → 200.
+	osmoOperator, err := mustAddr(testAddr1).Bech32("osmo")
+	require.NoError(t, err)
+	got, err := svc.GetByID(ctx, jr.ID, osmoOperator, false)
+	require.NoError(t, err, "operator under a different HRP must be authorized")
+	assert.Equal(t, jr.ID, got.ID)
+
+	// The submitter under a different HRP is likewise authorized.
+	osmoSubmitter, err := mustAddr(testAddr2).Bech32("osmo")
+	require.NoError(t, err)
+	_, err = svc.GetByID(ctx, jr.ID, osmoSubmitter, false)
+	require.NoError(t, err, "submitter under a different HRP must be authorized")
+
+	// A true non-party (not operator, not submitter, not committee) → 403.
+	_, err = svc.GetByID(ctx, jr.ID, testAddr3, false)
+	require.ErrorIs(t, err, ports.ErrForbidden)
+}
+
 // ---- grouped-by-submitter read-model ----
 
 func TestJoinRequestService_ListGroupedBySubmitter(t *testing.T) {

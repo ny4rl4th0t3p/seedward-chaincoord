@@ -240,6 +240,27 @@ func TestReadinessService_GetDashboard_Confirmed(t *testing.T) {
 	assert.Equal(t, 2, dash.ConfirmedReady)
 }
 
+func TestReadinessService_GetDashboard_CrossHRPConfirmationMatches(t *testing.T) {
+	l := testLaunch()
+	l.Status = launch.StatusGenesisReady
+	l.FinalGenesisSHA256 = "hash"
+
+	// One approved validator whose operator is a cosmos address...
+	jr := approvedJoinRequest(t, l.ID, testAddr1)
+	jrRepo := newFakeJoinRequestRepo(jr)
+
+	// ...but whose readiness confirmation carries the SAME account under a different HRP.
+	osmo, err := mustAddr(testAddr1).Bech32("osmo")
+	require.NoError(t, err)
+	rc := &launch.ReadinessConfirmation{ID: uuid.New(), LaunchID: l.ID, OperatorAddress: mustAddr(osmo), ConfirmedAt: time.Now()}
+	rcRepo := newFakeReadinessRepo(rc)
+
+	svc := newReadinessSvc(newFakeLaunchRepo(l), jrRepo, rcRepo, newFakeNonceStore(), &fakeVerifier{})
+	dash, err := svc.GetDashboard(context.Background(), l.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, dash.ConfirmedReady, "confirmation under a different HRP must still match its join request")
+}
+
 func TestReadinessService_GetDashboard_AtRisk(t *testing.T) {
 	l := testLaunch()
 	jr1 := approvedJoinRequest(t, l.ID, testAddr1)

@@ -492,7 +492,14 @@ func (r *LaunchRepository) loadVotingPower(ctx context.Context, l *launch.Launch
 		if err := rows.Scan(&addr, &amount); err != nil {
 			return fmt.Errorf("scan voting power: %w", err)
 		}
-		powers[addr] = amount
+		// Normalize the stored operator bech32 to the canonical account hex so the key
+		// matches the in-memory map (AccountID.Hex()); a persisted address that ever
+		// carried a different HRP still resolves to one entry.
+		id, err := launch.NewAccountID(addr)
+		if err != nil {
+			return fmt.Errorf("voting power: invalid operator address %q: %w", addr, err)
+		}
+		powers[id.Hex()] = amount
 	}
 	if err := rows.Err(); err != nil {
 		return err

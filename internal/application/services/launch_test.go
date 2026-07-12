@@ -887,6 +887,21 @@ func TestLaunchService_CancelLaunch_NonLeadForbidden(t *testing.T) {
 	require.ErrorIs(t, err, ports.ErrForbidden)
 }
 
+func TestLaunchService_CancelLaunch_CrossHRPLead(t *testing.T) {
+	l := testLaunch() // lead = testAddr1
+	lRepo := newFakeLaunchRepo(l)
+	svc := newLaunchSvcWithReadiness(lRepo, newFakeReadinessRepo())
+
+	// The lead authenticating under a DIFFERENT HRP than the stored LeadAddress still passes
+	// the lead-only authz (compared on the account, not the display bech32). SetCommittee uses
+	// the identical .Equal() check.
+	osmoLead, err := mustAddr(testAddr1).Bech32("osmo")
+	require.NoError(t, err)
+	require.NoError(t, svc.CancelLaunch(context.Background(), l.ID, osmoLead))
+	stored, _ := lRepo.FindByID(context.Background(), l.ID)
+	assert.Equal(t, launch.StatusCancelled, stored.Status)
+}
+
 func TestLaunchService_CancelLaunch_AlreadyCancelled(t *testing.T) {
 	l := testLaunch()
 	l.Status = launch.StatusCancelled

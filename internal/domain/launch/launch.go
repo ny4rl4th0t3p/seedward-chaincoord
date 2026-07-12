@@ -162,7 +162,9 @@ type Launch struct {
 
 	// approvedVotingPower tracks the sum of self-delegations of approved validators
 	// in base denom (as int64 for calculation purposes). Maintained by the application layer.
-	approvedVotingPower map[string]int64 // operator_address → self_delegation
+	// Keyed by AccountID.Hex() (canonical account, HRP-independent) — NOT the display bech32 —
+	// so the same account under different prefixes is a single entry.
+	approvedVotingPower map[string]int64 // account hex → self_delegation
 }
 
 // New creates a new Launch in DRAFT status.
@@ -539,26 +541,28 @@ func (l *Launch) RejectAllocationFile(t AllocationType, hash string) (rejected b
 // RecordValidatorApproval records the voting power contribution of an approved validator.
 // Returns a warning string if any single entity now holds ≥33% voting power.
 func (l *Launch) RecordValidatorApproval(operatorAddr AccountID, selfDelegation int64) string {
-	l.approvedVotingPower[operatorAddr.String()] = selfDelegation
+	l.approvedVotingPower[operatorAddr.Hex()] = selfDelegation
 	dominant, pct := l.dominantVotingPowerPct()
 	if pct >= bftSafetyThreshold {
-		return fmt.Sprintf("WARNING: operator %s now holds %.1f%% of committed voting power", dominant, pct)
+		return fmt.Sprintf("WARNING: operator %s now holds %.1f%% of committed voting power", l.displayAccount(dominant), pct)
 	}
 	return ""
 }
 
 // RemoveValidatorApproval removes a validator's voting power contribution.
 func (l *Launch) RemoveValidatorApproval(operatorAddr AccountID) {
-	delete(l.approvedVotingPower, operatorAddr.String())
+	delete(l.approvedVotingPower, operatorAddr.Hex())
 }
 
 // ApprovedVotingPowerOf returns the self-delegation of an approved validator (0 if not found).
 func (l *Launch) ApprovedVotingPowerOf(operatorAddr AccountID) int64 {
-	return l.approvedVotingPower[operatorAddr.String()]
+	return l.approvedVotingPower[operatorAddr.Hex()]
 }
 
 // InitVotingPower hydrates the in-memory voting power map from persisted data.
-// Called exclusively by repository implementations — not for domain or application use.
+// Keys MUST be AccountID.Hex() (canonical account) to match record/lookup; repositories
+// normalize the stored address before calling. Called exclusively by repository
+// implementations — not for domain or application use.
 func (l *Launch) InitVotingPower(powers map[string]int64) {
 	l.approvedVotingPower = powers
 }
@@ -567,10 +571,11 @@ func (l *Launch) touch() {
 	l.UpdatedAt = time.Now().UTC()
 }
 
-// dominantVotingPowerPct returns the operator address and percentage (0–100) of the
-// operator with the highest share of total committed voting power.
+// dominantVotingPowerPct returns the account hex and percentage (0–100) of the operator
+// with the highest share of total committed voting power. The returned key is an
+// AccountID.Hex(); callers render it for display via displayAccount.
 // Uses big.Int arithmetic to handle chains with large token supplies without overflow.
-func (l *Launch) dominantVotingPowerPct() (dominantAddr string, pct float64) {
+func (l *Launch) dominantVotingPowerPct() (dominantAccountHex string, pct float64) {
 	total := new(big.Int)
 	powers := make(map[string]*big.Int)
 
@@ -603,6 +608,16 @@ func (l *Launch) dominantVotingPowerPct() (dominantAddr string, pct float64) {
 	)
 	result, _ := bigintPct.Float64()
 	return dominant, result
+}
+
+// displayAccount renders an account-hex map key as bech32 under the launch's prefix for
+// human-readable warnings, falling back to the raw hex if rendering fails.
+func (l *Launch) displayAccount(accountHex string) string {
+	s, err := AccountID{acct: accountHex}.Bech32(l.Record.Bech32Prefix)
+	if err != nil {
+		return accountHex
+	}
+	return s
 }
 
 func validateChainRecord(r ChainRecord) error {

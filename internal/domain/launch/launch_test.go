@@ -411,8 +411,46 @@ func TestApprovedVotingPowerOf_NotFound(t *testing.T) {
 func TestInitVotingPower(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	addr := launch.MustNewAccountID(testAddr1)
-	l.InitVotingPower(map[string]int64{addr.String(): 500})
+	// Keys are the canonical account hex (repositories normalize before hydrating).
+	l.InitVotingPower(map[string]int64{addr.Hex(): 500})
 	assert.Equal(t, int64(500), l.ApprovedVotingPowerOf(addr))
+}
+
+// otherHRP re-renders a cosmos test address under a different HRP: the SAME account,
+// a different display prefix. Used to assert identity boundaries are HRP-independent.
+func otherHRP(t *testing.T, cosmosAddr, hrp string) launch.AccountID {
+	t.Helper()
+	s, err := launch.MustNewAccountID(cosmosAddr).Bech32(hrp)
+	require.NoError(t, err)
+	id, err := launch.NewAccountID(s)
+	require.NoError(t, err)
+	return id
+}
+
+func TestVotingPower_CrossHRP_OneEntryAcrossForms(t *testing.T) {
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
+	cosmos := launch.MustNewAccountID(testAddr1)
+	osmo := otherHRP(t, testAddr1, "osmo")
+	require.True(t, cosmos.Equal(osmo), "fixture: both forms must be the same account")
+	require.NotEqual(t, cosmos.String(), osmo.String(), "fixture: display forms must differ")
+
+	// Record under one HRP, then read / update / remove under another — all one entry.
+	l.RecordValidatorApproval(cosmos, 100)
+	assert.Equal(t, int64(100), l.ApprovedVotingPowerOf(osmo), "cross-HRP lookup must find the entry")
+	l.RecordValidatorApproval(osmo, 250) // update, not a second entry
+	assert.Equal(t, int64(250), l.ApprovedVotingPowerOf(cosmos))
+	l.RemoveValidatorApproval(otherHRP(t, testAddr1, "network"))
+	assert.Equal(t, int64(0), l.ApprovedVotingPowerOf(cosmos), "removal under any HRP form clears the shared entry")
+}
+
+func TestRecordValidatorApproval_WarningRendersBech32UnderLaunchPrefix(t *testing.T) {
+	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
+	// A single dominant entity trips the ≥1/3 warning. The dominant is keyed internally by
+	// account hex; the warning must render it as bech32 under the launch prefix, not raw hex.
+	warning := l.RecordValidatorApproval(launch.MustNewAccountID(testAddr1), 100)
+	require.NotEmpty(t, warning)
+	assert.Contains(t, warning, testAddr1, "warning renders the account under the launch (cosmos) prefix")
+	assert.NotContains(t, warning, launch.MustNewAccountID(testAddr1).Hex(), "warning must not leak raw account hex")
 }
 
 // ---- Committee.HasMember ----------------------------------------------------

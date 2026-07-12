@@ -197,11 +197,12 @@ func (s *ReadinessService) GetDashboard(ctx context.Context, launchID uuid.UUID)
 		return nil, fmt.Errorf("readiness dashboard: %w", err)
 	}
 
-	// Index valid confirmations by operator address.
+	// Index valid confirmations by canonical account (hex), so a confirmation and its
+	// join request match even if their operator addresses render under different HRPs.
 	confirmed := make(map[string]*launch.ReadinessConfirmation)
 	for _, rc := range confirmations {
 		if rc.IsValid() {
-			confirmed[rc.OperatorAddress.String()] = rc
+			confirmed[rc.OperatorAddress.Hex()] = rc
 		}
 	}
 
@@ -220,7 +221,7 @@ func (s *ReadinessService) GetDashboard(ctx context.Context, launchID uuid.UUID)
 			pct = float64(stake) / float64(totalStake) * 100
 		}
 
-		rc, ready := confirmed[jr.OperatorAddress.String()]
+		rc, ready := confirmed[jr.OperatorAddress.Hex()]
 		var confirmedAt *time.Time
 		var genesisHashConfirmed, binaryHashConfirmed string
 		if ready {

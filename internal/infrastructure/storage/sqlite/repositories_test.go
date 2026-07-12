@@ -364,6 +364,34 @@ func TestLaunchRepository_VotingPowerHydrated(t *testing.T) {
 				assert.NotZero(t, got.ApprovedVotingPowerOf(mustAddr(addr1)), "expected non-zero voting power after hydration")
 			},
 		},
+		{
+			name: "cross-HRP: hydrated power is found by a different HRP form of the operator",
+			run: func(t *testing.T, lRepo *LaunchRepository, jrRepo *JoinRequestRepository) {
+				ctx := context.Background()
+
+				l := testLaunch(t)
+				require.NoError(t, lRepo.Save(ctx, l))
+
+				jr := testJoinRequest(t, l.ID) // operator persisted as a cosmos address
+				require.NoError(t, jrRepo.Save(ctx, jr))
+				require.NoError(t, jr.Approve(uuid.New()))
+				require.NoError(t, jrRepo.Save(ctx, jr))
+
+				got, err := lRepo.FindByID(ctx, l.ID)
+				require.NoError(t, err, "FindByID")
+
+				// Look up the SAME account under a different HRP. Record and hydrate keys agree
+				// on the canonical account hex, so the power must be found and match the
+				// same-HRP lookup — i.e. no split across prefixes.
+				osmo, err := mustAddr(addr1).Bech32("osmo")
+				require.NoError(t, err)
+				assert.NotZero(t, got.ApprovedVotingPowerOf(mustAddr(osmo)), "cross-HRP lookup found no power")
+				assert.Equal(t,
+					got.ApprovedVotingPowerOf(mustAddr(addr1)),
+					got.ApprovedVotingPowerOf(mustAddr(osmo)),
+					"same account under different HRPs must return the same power")
+			},
+		},
 	}
 
 	for _, tc := range tests {

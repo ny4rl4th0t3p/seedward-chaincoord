@@ -306,10 +306,13 @@ func (s *JoinRequestService) GetByID(
 	if err != nil {
 		return nil, err
 	}
-	if !isCommitteeMember &&
-		jr.OperatorAddress.String() != callerAddr &&
-		jr.SubmitterAddress.String() != callerAddr {
-		return nil, ports.ErrForbidden
+	if !isCommitteeMember {
+		// Compare on the account (HRP-independent), not the display bech32: a party
+		// authing under a different prefix than their stored address is still the party.
+		callerID, err := launch.NewAccountID(callerAddr)
+		if err != nil || (!jr.OperatorAddress.Equal(callerID) && !jr.SubmitterAddress.Equal(callerID)) {
+			return nil, ports.ErrForbidden
+		}
 	}
 	return jr, nil
 }
