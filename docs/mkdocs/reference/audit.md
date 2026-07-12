@@ -42,33 +42,38 @@ by `coordd audit verify`.
 
 ## Event types
 
-| Event                     | Trigger                                                                                                                                                          |
-|---------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `LaunchCreated`           | Launch created — committee and chain record set                                                                                                                  |
-| `ChainRecordPublished`    | `PUBLISH_CHAIN_RECORD` proposal executed — launch moves to `PUBLISHED`                                                                                           |
-| `WindowOpened`            | A committee member calls `POST /launch/:id/open-window` — launch moves to `WINDOW_OPEN`                                                                          |
-| `WindowClosed`            | `CLOSE_APPLICATION_WINDOW` proposal executed — launch moves to `WINDOW_CLOSED`                                                                                   |
-| `InitialGenesisUploaded`  | Initial genesis file uploaded or registered via attestor URL                                                                                                     |
-| `FinalGenesisUploaded`    | Final genesis file uploaded or registered via attestor URL                                                                                                       |
-| `GenesisPublished`        | `PUBLISH_GENESIS` proposal executed — launch moves to `GENESIS_READY`                                                                                            |
-| `GenesisTimeUpdated`      | `UPDATE_GENESIS_TIME` proposal executed                                                                                                                          |
-| `GenesisRevisionApproved` | `REVISE_GENESIS` proposal executed — launch reverts to `WINDOW_CLOSED`                                                                                           |
-| `ValidatorApproved`       | `APPROVE_VALIDATOR` proposal executed                                                                                                                            |
-| `ValidatorRejected`       | `REJECT_VALIDATOR` proposal executed                                                                                                                             |
-| `ValidatorRemoved`        | `REMOVE_APPROVED_VALIDATOR` proposal executed                                                                                                                    |
-| `AllocationFileUploaded`  | Allocation file uploaded or registered via attestor URL (status → `PENDING`)                                                                                     |
-| `AllocationFileApproved`  | `APPROVE_ALLOCATION_FILE` proposal executed — file approved                                                                                                      |
-| `AllocationFileRejected`  | `APPROVE_ALLOCATION_FILE` proposal vetoed — file rejected                                                                                                        |
-| `LaunchCancelled`         | Lead coordinator cancels the launch                                                                                                                              |
-| `LaunchDetected`          | Block monitor observes block 1 — launch moves to `LAUNCHED`                                                                                                      |
-| `RehearsalResultRecorded` | A signature-verified rehearsal result is recorded via the bridge (`POST .../rehearsal-results`); payload carries the outcome, input-set hash, and a `stale` flag |
-| `RehearsalAttemptReset`   | A coordinator force-releases a stuck rehearsal run lease (`POST .../rehearsal/{attempt_id}/reset`)                                                               |
+| Event                        | Trigger                                                                                                                                                          |
+|------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `LaunchCreated`              | Launch created — committee and chain record set                                                                                                                  |
+| `ChainRecordPublished`       | `PUBLISH_CHAIN_RECORD` proposal executed — launch moves to `PUBLISHED`                                                                                           |
+| `WindowOpened`               | A committee member calls `POST /launch/:id/open-window` — launch moves to `WINDOW_OPEN`                                                                          |
+| `WindowClosed`               | `CLOSE_APPLICATION_WINDOW` proposal executed — launch moves to `WINDOW_CLOSED`                                                                                   |
+| `InitialGenesisUploaded`     | Initial genesis file uploaded or registered via attestor URL                                                                                                     |
+| `FinalGenesisUploaded`       | Final genesis file uploaded or registered via attestor URL                                                                                                       |
+| `GenesisPublished`           | `PUBLISH_GENESIS` proposal executed — launch moves to `GENESIS_READY`                                                                                            |
+| `GenesisTimeUpdated`         | `UPDATE_GENESIS_TIME` proposal executed                                                                                                                          |
+| `GenesisRevisionApproved`    | `REVISE_GENESIS` proposal executed — launch reverts to `WINDOW_CLOSED`                                                                                           |
+| `ValidatorApproved`          | `APPROVE_VALIDATOR` proposal executed                                                                                                                            |
+| `ValidatorRejected`          | `REJECT_VALIDATOR` proposal executed                                                                                                                             |
+| `ValidatorRemoved`           | `REMOVE_APPROVED_VALIDATOR` proposal executed                                                                                                                    |
+| `CommitteeMemberReplaced`    | `REPLACE_COMMITTEE_MEMBER` proposal executed — payload carries the committee membership and threshold before and after                                           |
+| `CommitteeExpanded`          | `EXPAND_COMMITTEE` proposal executed — payload carries the committee membership and threshold before and after                                                   |
+| `CommitteeShrunk`            | `SHRINK_COMMITTEE` proposal executed — payload carries the committee membership and threshold before and after                                                   |
+| `AllocationFileUploaded`     | Allocation file uploaded or registered via attestor URL (status → `PENDING`)                                                                                     |
+| `AllocationFileApproved`     | `APPROVE_ALLOCATION_FILE` proposal executed — file approved                                                                                                      |
+| `AllocationFileRejected`     | `APPROVE_ALLOCATION_FILE` proposal vetoed — file rejected                                                                                                        |
+| `LaunchCancelled`            | Lead coordinator cancels the launch                                                                                                                              |
+| `LaunchDetected`             | Block monitor observes block 1 — launch moves to `LAUNCHED`                                                                                                      |
+| `RehearsalResultRecorded`    | A signature-verified rehearsal result is recorded via the bridge (`POST .../rehearsal-results`); payload carries the outcome, input-set hash, and a `stale` flag |
+| `RehearsalAttemptReset`      | A coordinator force-releases a stuck rehearsal run lease (`POST .../rehearsal/{attempt_id}/reset`)                                                               |
+| `RehearsalServiceKeyChanged` | A committee member changes the launch's trusted rehearsal service key via `PATCH /launch/{id}` — payload carries the old and new keys                            |
 
-!!! note
-Proposal actions that do not directly transition launch state (e.g. `REPLACE_COMMITTEE_MEMBER`, `EXPAND_COMMITTEE`,
-`SHRINK_COMMITTEE`) are recorded in the database but do not produce audit log entries in the current implementation.
-Members-list changes (`POST`/`DELETE /launch/{id}/members`) are likewise persisted with add-provenance
-(`added_by`/`added_at`) but do not emit a domain event, so they do not appear in the audit log.
+!!! note "Not yet in the audit log"
+A few non-transition mutations are persisted but do not yet emit an audited event: members-list changes
+(`POST`/`DELETE /launch/{id}/members`, kept with `added_by`/`added_at` provenance), the initial DRAFT
+committee (`SetCommittee`) and other DRAFT chain-field patches, and the advertised `monitor_rpc_url` /
+`rehearsal_endpoint`. Admin-plane actions (coordinator allowlist, session revocation) are global rather than
+launch-scoped, so they do not fit the launch-scoped log either. These are tracked follow-ups.
 
 ---
 
