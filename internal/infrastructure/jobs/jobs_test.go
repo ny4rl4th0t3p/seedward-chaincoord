@@ -95,11 +95,14 @@ func (p *fakePublisher) firstEvent() domain.DomainEvent {
 }
 
 // genesisReadyLaunch builds a minimal Launch in GENESIS_READY status.
+const testChainID = "testchain-1"
+
 func genesisReadyLaunch(rpcURL string) *launch.Launch {
 	return &launch.Launch{
 		ID:            uuid.New(),
 		Status:        launch.StatusGenesisReady,
 		MonitorRPCURL: rpcURL,
+		Record:        launch.ChainRecord{ChainID: testChainID},
 	}
 }
 
@@ -108,7 +111,7 @@ func block1JSON() []byte {
 	body := map[string]any{
 		"result": map[string]any{
 			"block": map[string]any{
-				"header": map[string]any{"height": "1"},
+				"header": map[string]any{"chain_id": testChainID, "height": "1"},
 			},
 		},
 	}
@@ -119,6 +122,57 @@ func block1JSON() []byte {
 // nullBlockJSON returns a response with a null block (node not ready).
 func nullBlockJSON() []byte {
 	return []byte(`{"result":{"block":null}}`)
+}
+
+// craftedBlockServer returns a test RPC server that answers /block?height=1 with a block
+// carrying the given header chain_id and height — used to exercise the monitor's identity check.
+func craftedBlockServer(t *testing.T, chainID, height string) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		b, _ := json.Marshal(map[string]any{
+			"result": map[string]any{
+				"block": map[string]any{
+					"header": map[string]any{"chain_id": chainID, "height": height},
+				},
+			},
+		})
+		_, _ = w.Write(b)
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func TestRunMonitorTick_VerifiesChainIDAndHeight(t *testing.T) {
+	tests := []struct {
+		name         string
+		chainID      string
+		height       string
+		wantLaunched bool
+	}{
+		{"matching block launches", testChainID, "1", true},
+		{"wrong chain_id does not launch", "otherchain-1", "1", false},
+		{"wrong height does not launch", testChainID, "2", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := craftedBlockServer(t, tc.chainID, tc.height)
+			l := genesisReadyLaunch(srv.URL) // launch ChainID = testChainID
+			repo := &fakeMonitorRepo{launches: []*launch.Launch{l}}
+			pub := &fakePublisher{}
+
+			runMonitorTick(context.Background(), repo, pub, zerolog.Nop(), &http.Client{Timeout: time.Second}, nil)
+
+			if tc.wantLaunched {
+				assert.Equal(t, launch.StatusLaunched, l.Status)
+				assert.Equal(t, 1, repo.saveCount())
+				assert.Equal(t, 1, pub.eventCount())
+			} else {
+				assert.Equal(t, launch.StatusGenesisReady, l.Status, "must not flip to LAUNCHED")
+				assert.Zero(t, repo.saveCount())
+				assert.Zero(t, pub.eventCount())
+			}
+		})
+	}
 }
 
 // ---- RunProposalExpiry ------------------------------------------------------
@@ -389,7 +443,7 @@ func TestPollBlock1_Returns200WithBlock(t *testing.T) {
 	defer srv.Close()
 
 	client := &http.Client{Timeout: 2 * time.Second}
-	detected, err := pollBlock1(context.Background(), client, srv.URL)
+	detected, err := pollBlock1(context.Background(), client, srv.URL, testChainID)
 	require.NoError(t, err)
 	assert.True(t, detected, "expected block to be detected")
 }
@@ -403,7 +457,7 @@ func TestPollBlock1_Returns200NullBlock(t *testing.T) {
 	defer srv.Close()
 
 	client := &http.Client{Timeout: 2 * time.Second}
-	detected, err := pollBlock1(context.Background(), client, srv.URL)
+	detected, err := pollBlock1(context.Background(), client, srv.URL, testChainID)
 	require.NoError(t, err)
 	assert.False(t, detected, "null block should not be detected")
 }
@@ -415,7 +469,7 @@ func TestPollBlock1_Returns503(t *testing.T) {
 	defer srv.Close()
 
 	client := &http.Client{Timeout: 2 * time.Second}
-	detected, err := pollBlock1(context.Background(), client, srv.URL)
+	detected, err := pollBlock1(context.Background(), client, srv.URL, testChainID)
 	require.NoError(t, err, "unexpected error for non-200")
 	assert.False(t, detected, "non-200 response should not be detected as block found")
 }
@@ -429,13 +483,13 @@ func TestPollBlock1_InvalidJSON(t *testing.T) {
 	defer srv.Close()
 
 	client := &http.Client{Timeout: 2 * time.Second}
-	_, err := pollBlock1(context.Background(), client, srv.URL)
+	_, err := pollBlock1(context.Background(), client, srv.URL, testChainID)
 	assert.Error(t, err, "expected error for invalid JSON response")
 }
 
 func TestPollBlock1_BadURL(t *testing.T) {
 	client := &http.Client{Timeout: 100 * time.Millisecond}
-	_, err := pollBlock1(context.Background(), client, "http://127.0.0.1:1") // nothing listening
+	_, err := pollBlock1(context.Background(), client, "http://127.0.0.1:1", testChainID) // nothing listening
 	assert.Error(t, err, "expected error for unreachable URL")
 }
 

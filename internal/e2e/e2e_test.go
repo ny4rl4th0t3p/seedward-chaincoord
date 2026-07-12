@@ -689,7 +689,7 @@ func TestE2E_HappyPath(t *testing.T) {
 	mockRPC := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.RawQuery, "height=1") {
 			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, `{"result":{"block":{"header":{"height":"1"}}}}`)
+			fmt.Fprint(w, `{"result":{"block":{"header":{"chain_id":"testchain-1","height":"1"}}}}`)
 			return
 		}
 		http.NotFound(w, r)

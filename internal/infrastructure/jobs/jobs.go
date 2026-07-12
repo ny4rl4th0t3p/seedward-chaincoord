@@ -36,8 +36,11 @@ type eventPublisher interface {
 // fixed interval and transitions them to LAUNCHED when block 1 is observed.
 //
 // For each GENESIS_READY launch with a non-empty MonitorRPCURL the job issues
-// GET <MonitorRPCURL>/block?height=1 and, on a 200 response, calls
+// GET <MonitorRPCURL>/block?height=1 and, when the response carries a block at
+// height 1 whose header chain_id matches the launch's ChainID, calls
 // l.MarkLaunched(), saves the aggregate, and publishes a LaunchDetected event.
+// The chain_id + height check keeps a wrong-chain or fabricated block from the
+// content-trusted RPC from flipping the launch to LAUNCHED.
 //
 // The URL is re-read from the repository on every tick so that PATCH updates
 // take effect without a server restart.
@@ -87,7 +90,7 @@ func runMonitorTick(
 				continue
 			}
 		}
-		if detected, err := pollBlock1(ctx, httpClient, l.MonitorRPCURL); err != nil {
+		if detected, err := pollBlock1(ctx, httpClient, l.MonitorRPCURL, l.Record.ChainID); err != nil {
 			log.Error().Err(err).Str("rpc", l.MonitorRPCURL).Stringer("launch_id", l.ID).Msg("launch monitor: poll block1")
 		} else if detected {
 			markLaunched(ctx, repo, pub, log, l, l.MonitorRPCURL)
@@ -95,8 +98,11 @@ func runMonitorTick(
 	}
 }
 
-// pollBlock1 returns true if block 1 is available at the given CometBFT RPC URL.
-func pollBlock1(ctx context.Context, httpClient *http.Client, rpcURL string) (bool, error) {
+// pollBlock1 reports whether the CometBFT node at rpcURL has produced block 1 for THIS launch:
+// a block at height 1 whose header chain_id equals expectedChainID. Verifying the chain_id and
+// height (not merely that some blocks exist) stops a wrong-chain or fabricated block from the
+// committee-set, content-trusted MonitorRPCURL from flipping the launch to LAUNCHED (NHP-5).
+func pollBlock1(ctx context.Context, httpClient *http.Client, rpcURL, expectedChainID string) (bool, error) {
 	url := fmt.Sprintf("%s/block?height=1", rpcURL)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
@@ -113,16 +119,23 @@ func pollBlock1(ctx context.Context, httpClient *http.Client, rpcURL string) (bo
 		return false, nil // node not ready yet — not an error
 	}
 
-	// Minimal parse: just confirm the response is valid JSON with a non-null block.
+	// CometBFT encodes header.height as a string. A null/absent block leaves the header fields
+	// empty, so it fails the chain_id match below — no separate non-null check needed.
 	var body struct {
 		Result struct {
-			Block json.RawMessage `json:"block"`
+			Block struct {
+				Header struct {
+					ChainID string `json:"chain_id"`
+					Height  string `json:"height"`
+				} `json:"header"`
+			} `json:"block"`
 		} `json:"result"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		return false, fmt.Errorf("decode response: %w", err)
 	}
-	return len(body.Result.Block) > 0 && string(body.Result.Block) != "null", nil
+	h := body.Result.Block.Header
+	return expectedChainID != "" && h.ChainID == expectedChainID && h.Height == "1", nil
 }
 
 func markLaunched(ctx context.Context, repo launchMonitorRepo, pub eventPublisher, log zerolog.Logger, l *launch.Launch, sourceRPC string) {
