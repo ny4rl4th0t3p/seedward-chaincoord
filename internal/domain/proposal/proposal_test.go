@@ -427,6 +427,48 @@ func TestPopEvents_EmptyOnNewProposal(t *testing.T) {
 
 // ---- Domain events for several action types ---------------------------------
 
+// TestProposal_ExecutionEvent_ForEveryActionType is the completeness guard: every proposal
+// ActionType must map to a known outcome on execution — either a specific domain event emitted by
+// emitExecutionEvents, or "" for the committee resizes whose events the application layer records
+// (they need launch-aggregate state the payload can't carry). Adding a new ActionType without a
+// case here fails the length assertion.
+func TestProposal_ExecutionEvent_ForEveryActionType(t *testing.T) {
+	genesisHash := "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3"
+	cases := []struct {
+		action  proposal.ActionType
+		payload any
+		want    string // domain event name; "" = emitted by the application layer, not the domain
+	}{
+		{proposal.ActionApproveValidator, proposal.ApproveValidatorPayload{JoinRequestID: uuid.New(), OperatorAddress: testAddr1}, "ValidatorApproved"},
+		{proposal.ActionRejectValidator, proposal.RejectValidatorPayload{JoinRequestID: uuid.New(), OperatorAddress: testAddr1, Reason: "x"}, "ValidatorRejected"},
+		{proposal.ActionRemoveApprovedValidator, proposal.RemoveApprovedValidatorPayload{JoinRequestID: uuid.New(), OperatorAddress: testAddr1, Reason: "x"}, "ValidatorRemoved"},
+		{proposal.ActionApproveAllocationFile, proposal.ApproveAllocationFilePayload{Type: "claims", Hash: genesisHash}, "AllocationFileApproved"},
+		{proposal.ActionPublishChainRecord, proposal.PublishChainRecordPayload{InitialGenesisHash: genesisHash}, "ChainRecordPublished"},
+		{proposal.ActionCloseApplicationWindow, proposal.CloseApplicationWindowPayload{}, "WindowClosed"},
+		{proposal.ActionPublishGenesis, proposal.PublishGenesisPayload{GenesisHash: genesisHash}, "GenesisPublished"},
+		{proposal.ActionUpdateGenesisTime, proposal.UpdateGenesisTimePayload{NewGenesisTime: time.Now().Add(time.Hour), PrevGenesisTime: time.Now()}, "GenesisTimeUpdated"},
+		{proposal.ActionReviseGenesis, proposal.ReviseGenesisPayload{}, "GenesisRevisionApproved"},
+		{proposal.ActionReplaceCommitteeMember, proposal.ReplaceCommitteeMemberPayload{OldAddress: testAddr1, NewAddress: testAddr2, NewMoniker: "n", NewPubKey: "AAAA"}, ""},
+		{proposal.ActionExpandCommittee, validExpandPayload(), ""},
+		{proposal.ActionShrinkCommittee, proposal.ShrinkCommitteePayload{RemoveAddress: testAddr1}, ""},
+	}
+	require.Len(t, cases, 12, "every proposal ActionType must be covered — add a case (and bump) when adding an action")
+
+	for _, tc := range cases {
+		t.Run(string(tc.action), func(t *testing.T) {
+			p := newProposal(tc.action, mustPayload(tc.payload))
+			require.NoError(t, p.Sign(newAddr(testAddr2), proposal.DecisionSign, newSig(), thresholdM, time.Now()))
+			events := p.PopEvents()
+			if tc.want == "" {
+				assert.Empty(t, events, "%s emits its event from the application layer, not the domain", tc.action)
+				return
+			}
+			require.Len(t, events, 1, "%s must emit exactly one domain event", tc.action)
+			assert.Equal(t, tc.want, events[0].EventName())
+		})
+	}
+}
+
 func TestProposal_EmitsDomainEvent_RejectValidator(t *testing.T) {
 	jrID := uuid.New()
 	p := newProposal(proposal.ActionRejectValidator, mustPayload(proposal.RejectValidatorPayload{

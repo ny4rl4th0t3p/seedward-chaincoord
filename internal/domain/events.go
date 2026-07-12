@@ -316,3 +316,62 @@ type RehearsalServiceKeyChanged struct {
 
 func (RehearsalServiceKeyChanged) EventName() string        { return "RehearsalServiceKeyChanged" }
 func (e RehearsalServiceKeyChanged) GetLaunchID() uuid.UUID { return e.LaunchID }
+
+// CommitteeMemberReplaced is emitted when a REPLACE_COMMITTEE_MEMBER proposal executes, swapping
+// one committee member for another. Carries the committee membership and threshold before and
+// after so this governance change is fully reconstructable from the tamper-evident audit log.
+type CommitteeMemberReplaced struct {
+	base
+	LaunchID      uuid.UUID
+	OldAddress    string
+	NewAddress    string
+	OldMembers    []string
+	NewMembers    []string
+	OldThresholdM int
+	NewThresholdM int
+}
+
+func (CommitteeMemberReplaced) EventName() string        { return "CommitteeMemberReplaced" }
+func (e CommitteeMemberReplaced) GetLaunchID() uuid.UUID { return e.LaunchID }
+func (e CommitteeMemberReplaced) WithTime(t time.Time) CommitteeMemberReplaced {
+	e.base = e.withTime(t)
+	return e
+}
+
+// CommitteeExpanded is emitted when an EXPAND_COMMITTEE proposal executes, adding a member and
+// (possibly) changing the M-of-N threshold. Carries membership + threshold before and after.
+type CommitteeExpanded struct {
+	base
+	LaunchID      uuid.UUID
+	AddedAddress  string
+	OldMembers    []string
+	NewMembers    []string
+	OldThresholdM int
+	NewThresholdM int
+}
+
+func (CommitteeExpanded) EventName() string        { return "CommitteeExpanded" }
+func (e CommitteeExpanded) GetLaunchID() uuid.UUID { return e.LaunchID }
+func (e CommitteeExpanded) WithTime(t time.Time) CommitteeExpanded {
+	e.base = e.withTime(t)
+	return e
+}
+
+// CommitteeShrunk is emitted when a SHRINK_COMMITTEE proposal executes, removing a member and
+// (possibly) changing the M-of-N threshold. Carries membership + threshold before and after.
+type CommitteeShrunk struct {
+	base
+	LaunchID       uuid.UUID
+	RemovedAddress string
+	OldMembers     []string
+	NewMembers     []string
+	OldThresholdM  int
+	NewThresholdM  int
+}
+
+func (CommitteeShrunk) EventName() string        { return "CommitteeShrunk" }
+func (e CommitteeShrunk) GetLaunchID() uuid.UUID { return e.LaunchID }
+func (e CommitteeShrunk) WithTime(t time.Time) CommitteeShrunk {
+	e.base = e.withTime(t)
+	return e
+}

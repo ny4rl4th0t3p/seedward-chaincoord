@@ -696,8 +696,9 @@ func (s *ProposalService) applyApproveAllocationFile(ctx context.Context, l *lau
 // bound file REJECTED (if it still matches the proposed hash) and records the
 // AllocationFileRejected event. A stale veto (file re-uploaded since the proposal was
 // raised, or never uploaded) leaves the file untouched and only persists the vetoed
-// proposal — the veto itself always stands. Unlike executed proposals, the rejection
-// event is built here because the proposal aggregate only emits events on execution.
+// proposal — the veto itself always stands. A veto is not an execution, so the domain's
+// emitExecutionEvents does not fire; the app records the AllocationFileRejected event on the
+// proposal and dispatches it through the standard dispatchEvents path.
 func (s *ProposalService) applyAllocationVeto(ctx context.Context, l *launch.Launch, p *proposal.Proposal) error {
 	var pl proposal.ApproveAllocationFilePayload
 	if err := json.Unmarshal(p.Payload, &pl); err != nil {
@@ -718,13 +719,12 @@ func (s *ProposalService) applyAllocationVeto(ctx context.Context, l *launch.Lau
 		return err
 	}
 
-	ev := domain.AllocationFileRejected{
+	p.RecordEvent(domain.AllocationFileRejected{
 		LaunchID:       l.ID,
 		AllocationType: pl.Type,
 		SHA256:         pl.Hash,
-	}.WithTime(time.Now().UTC())
-	s.events.Publish(ev)
-	if err := s.writeAudit(ctx, p, ev); err != nil {
+	}.WithTime(time.Now().UTC()))
+	if err := s.dispatchEvents(ctx, p); err != nil {
 		return fmt.Errorf("apply allocation veto: %w", err)
 	}
 	return nil
@@ -748,9 +748,20 @@ func (s *ProposalService) applyReplaceCommitteeMember(ctx context.Context, l *la
 		Moniker:   pl.NewMoniker,
 		PubKeyB64: pl.NewPubKey,
 	}
+	oldMembers := committeeMemberAddrs(l.Committee)
+	oldM := l.Committee.ThresholdM
 	if err := l.ReplaceCommitteeMember(oldAddr, newMember); err != nil {
 		return mapLaunchDomainErr("apply replace committee member", err)
 	}
+	p.RecordEvent(domain.CommitteeMemberReplaced{
+		LaunchID:      l.ID,
+		OldAddress:    oldAddr.String(),
+		NewAddress:    newAddr.String(),
+		OldMembers:    oldMembers,
+		NewMembers:    committeeMemberAddrs(l.Committee),
+		OldThresholdM: oldM,
+		NewThresholdM: l.Committee.ThresholdM,
+	}.WithTime(time.Now().UTC()))
 	return s.saveLaunchAndProposal(ctx, l, p)
 }
 
@@ -782,9 +793,19 @@ func (s *ProposalService) applyExpandCommittee(ctx context.Context, l *launch.La
 	if err := s.expirePendingProposals(ctx, l.ID); err != nil {
 		return fmt.Errorf("apply expand committee: expire pending proposals: %w", err)
 	}
+	oldMembers := committeeMemberAddrs(l.Committee)
+	oldM := l.Committee.ThresholdM
 	if err := l.ExpandCommittee(newMember, effectiveM); err != nil {
 		return mapLaunchDomainErr("apply expand committee", err)
 	}
+	p.RecordEvent(domain.CommitteeExpanded{
+		LaunchID:      l.ID,
+		AddedAddress:  newAddr.String(),
+		OldMembers:    oldMembers,
+		NewMembers:    committeeMemberAddrs(l.Committee),
+		OldThresholdM: oldM,
+		NewThresholdM: l.Committee.ThresholdM,
+	}.WithTime(time.Now().UTC()))
 	return s.saveLaunchAndProposal(ctx, l, p)
 }
 
@@ -801,9 +822,19 @@ func (s *ProposalService) applyShrinkCommittee(ctx context.Context, l *launch.La
 	if err := s.expirePendingProposals(ctx, l.ID); err != nil {
 		return fmt.Errorf("apply shrink committee: expire pending proposals: %w", err)
 	}
+	oldMembers := committeeMemberAddrs(l.Committee)
+	oldM := l.Committee.ThresholdM
 	if err := l.ShrinkCommittee(removeAddr, effectiveM); err != nil {
 		return mapLaunchDomainErr("apply shrink committee", err)
 	}
+	p.RecordEvent(domain.CommitteeShrunk{
+		LaunchID:       l.ID,
+		RemovedAddress: removeAddr.String(),
+		OldMembers:     oldMembers,
+		NewMembers:     committeeMemberAddrs(l.Committee),
+		OldThresholdM:  oldM,
+		NewThresholdM:  l.Committee.ThresholdM,
+	}.WithTime(time.Now().UTC()))
 	return s.saveLaunchAndProposal(ctx, l, p)
 }
 
@@ -883,6 +914,16 @@ func (s *ProposalService) writeAudit(ctx context.Context, p *proposal.Proposal, 
 		OccurredAt: ev.OccurredAt(),
 		Payload:    payload,
 	})
+}
+
+// committeeMemberAddrs returns the committee members' account addresses (display form) in
+// membership order — used to snapshot committee state in governance audit events.
+func committeeMemberAddrs(c launch.Committee) []string {
+	addrs := make([]string, len(c.Members))
+	for i, m := range c.Members {
+		addrs[i] = m.Address.String()
+	}
+	return addrs
 }
 
 func committeeMemberPubKey(c launch.Committee, addr launch.AccountID) string {

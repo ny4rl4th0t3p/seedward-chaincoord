@@ -222,6 +222,13 @@ func (p *Proposal) PopEvents() []domain.DomainEvent {
 	return ev
 }
 
+// RecordEvent appends a domain event to be dispatched (published and audited) after the proposal's
+// execution is persisted. Used by the application layer for events that need launch-aggregate
+// state the proposal payload alone doesn't carry — e.g. committee before/after snapshots.
+func (p *Proposal) RecordEvent(ev domain.DomainEvent) {
+	p.events = append(p.events, ev)
+}
+
 // emitExecutionEvents emits the appropriate domain event based on action type.
 func (p *Proposal) emitExecutionEvents() {
 	now := *p.ExecutedAt

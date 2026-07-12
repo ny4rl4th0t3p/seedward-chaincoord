@@ -1026,6 +1026,105 @@ func TestProposalService_ApplyReplaceCommitteeMember_LeadReplaced(t *testing.T) 
 	assert.Equal(t, testAddr2, stored.Committee.LeadAddress.String(), "lead address not updated")
 }
 
+// ---- Committee-resize audit events ------------------------------------------
+
+// auditPayload returns the unmarshalled payload of the first audit event with the given name.
+func auditPayload(t *testing.T, evs []ports.AuditEvent, name string) map[string]any {
+	t.Helper()
+	for _, e := range evs {
+		if e.EventName == name {
+			var m map[string]any
+			require.NoError(t, json.Unmarshal(e.Payload, &m))
+			return m
+		}
+	}
+	t.Fatalf("no audit event %q found", name)
+	return nil
+}
+
+func newAuditingProposalSvc(l *launch.Launch, audit *fakeAuditLogWriter) *ProposalService {
+	return NewProposalService(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(),
+		newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{},
+		&fakeEventPublisher{}, audit, &fakeTransactor{})
+}
+
+func TestProposalService_ExpandCommittee_Audited(t *testing.T) {
+	l := test1of1Launch() // 1-of-1 → raise executes immediately
+	audit := &fakeAuditLogWriter{}
+	svc := newAuditingProposalSvc(l, audit)
+
+	_, err := raiseWith(t, svc, l.ID, proposal.ActionExpandCommittee, proposal.ExpandCommitteePayload{
+		NewMember: proposal.CommitteeMemberSpec{Address: testAddr2, Moniker: "coord-2", PubKeyB64: "BBBB"},
+	})
+	require.NoError(t, err)
+
+	pl := auditPayload(t, audit.events, "CommitteeExpanded")
+	assert.Equal(t, testAddr2, pl["AddedAddress"])
+	assert.Len(t, pl["OldMembers"], 1, "old committee snapshot")
+	assert.Len(t, pl["NewMembers"], 2, "new committee snapshot")
+}
+
+func TestProposalService_ShrinkCommittee_Audited(t *testing.T) {
+	l := test1of3Launch() // members testAddr1/2/3, M=1
+	audit := &fakeAuditLogWriter{}
+	svc := newAuditingProposalSvc(l, audit)
+
+	_, err := raiseWith(t, svc, l.ID, proposal.ActionShrinkCommittee, proposal.ShrinkCommitteePayload{
+		RemoveAddress: testAddr3,
+	})
+	require.NoError(t, err)
+
+	pl := auditPayload(t, audit.events, "CommitteeShrunk")
+	assert.Equal(t, testAddr3, pl["RemovedAddress"])
+	assert.Len(t, pl["OldMembers"], 3)
+	assert.Len(t, pl["NewMembers"], 2)
+}
+
+func TestProposalService_ReplaceCommitteeMember_Audited(t *testing.T) {
+	l := test1of3Launch()
+	audit := &fakeAuditLogWriter{}
+	svc := newAuditingProposalSvc(l, audit)
+
+	const newAddr = "cosmos1v93xxer9venks6t2ddkx6mn0wpchyum5nn4cca" // valid, not already a member
+	_, err := raiseWith(t, svc, l.ID, proposal.ActionReplaceCommitteeMember, proposal.ReplaceCommitteeMemberPayload{
+		OldAddress: testAddr3,
+		NewAddress: newAddr,
+		NewMoniker: "coord-new",
+		NewPubKey:  "DDDD",
+	})
+	require.NoError(t, err)
+
+	pl := auditPayload(t, audit.events, "CommitteeMemberReplaced")
+	assert.Equal(t, testAddr3, pl["OldAddress"])
+	assert.Equal(t, newAddr, pl["NewAddress"])
+	assert.Len(t, pl["NewMembers"], 3, "replacement keeps the committee size")
+}
+
+func TestProposalService_DispatchEvents_PublishesAndAudits(t *testing.T) {
+	// dispatchEvents is the single sink for proposal events: every event it pops must be BOTH
+	// published (SSE) and written to the audit log. The dispatch loop treats all events uniformly,
+	// so proving it for one executing proposal generalizes to every proposal event.
+	l := test1of1Launch()
+	audit := &fakeAuditLogWriter{}
+	pub := &fakeEventPublisher{}
+	svc := NewProposalService(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(),
+		newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{}, pub, audit, &fakeTransactor{})
+
+	_, err := raiseWith(t, svc, l.ID, proposal.ActionExpandCommittee, proposal.ExpandCommitteePayload{
+		NewMember: proposal.CommitteeMemberSpec{Address: testAddr2, Moniker: "coord-2", PubKeyB64: "BBBB"},
+	})
+	require.NoError(t, err)
+
+	assert.True(t, hasAuditEvent(audit.events, "CommitteeExpanded"), "event must be audited")
+	published := false
+	for _, ev := range pub.events {
+		if ev.EventName() == "CommitteeExpanded" {
+			published = true
+		}
+	}
+	assert.True(t, published, "the same event must also be published (dispatch publishes AND audits)")
+}
+
 // ---- ExpandCommittee --------------------------------------------------------
 
 func TestProposalService_ApplyExpandCommittee_DefaultThreshold(t *testing.T) {
