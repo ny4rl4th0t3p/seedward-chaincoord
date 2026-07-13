@@ -53,13 +53,24 @@ func TestClaimRehearsalRun_BusyDifferentRunner(t *testing.T) {
 
 func TestClaimRehearsalRun_SameRunnerReclaims(t *testing.T) {
 	l := testLaunch()
-	svc, _ := claimSvc(t, l)
+	svc, attempts := claimSvc(t, l)
 
 	first, err := svc.ClaimRehearsalRun(context.Background(), l.ID, "runner-1")
 	require.NoError(t, err)
+	claimed, err := attempts.FindByID(context.Background(), first.AttemptID)
+	require.NoError(t, err)
+	require.NotNil(t, claimed.LeaseExpiresAt, "a claim sets the lease deadline")
+	firstDeadline := *claimed.LeaseExpiresAt // snapshot the value before re-claim
+
 	second, err := svc.ClaimRehearsalRun(context.Background(), l.ID, "runner-1")
 	require.NoError(t, err)
-	assert.Equal(t, first.AttemptID, second.AttemptID, "same runner may re-claim its own attempt (idempotent; lease deadline unchanged)")
+	assert.Equal(t, first.AttemptID, second.AttemptID, "same runner may re-claim its own attempt (idempotent)")
+
+	reclaimed, err := attempts.FindByID(context.Background(), second.AttemptID)
+	require.NoError(t, err)
+	require.NotNil(t, reclaimed.LeaseExpiresAt)
+	assert.Equal(t, firstDeadline, *reclaimed.LeaseExpiresAt,
+		"re-claim by the same runner must not extend the lease deadline")
 }
 
 func TestResetRehearsalAttempt_FreesLease(t *testing.T) {

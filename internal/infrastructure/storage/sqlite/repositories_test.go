@@ -361,7 +361,8 @@ func TestLaunchRepository_VotingPowerHydrated(t *testing.T) {
 
 				got, err := lRepo.FindByID(ctx, l.ID)
 				require.NoError(t, err, "FindByID")
-				assert.NotZero(t, got.ApprovedVotingPowerOf(mustAddr(addr1)), "expected non-zero voting power after hydration")
+				assert.Equal(t, jr.SelfDelegationAmount(), got.ApprovedVotingPowerOf(mustAddr(addr1)),
+					"hydrated voting power must equal the approved join request's self-delegation")
 			},
 		},
 		{
@@ -385,7 +386,8 @@ func TestLaunchRepository_VotingPowerHydrated(t *testing.T) {
 				// same-HRP lookup — i.e. no split across prefixes.
 				osmo, err := mustAddr(addr1).Bech32("osmo")
 				require.NoError(t, err)
-				assert.NotZero(t, got.ApprovedVotingPowerOf(mustAddr(osmo)), "cross-HRP lookup found no power")
+				assert.Equal(t, jr.SelfDelegationAmount(), got.ApprovedVotingPowerOf(mustAddr(osmo)),
+					"cross-HRP lookup must return the JR's self-delegation, not zero")
 				assert.Equal(t,
 					got.ApprovedVotingPowerOf(mustAddr(addr1)),
 					got.ApprovedVotingPowerOf(mustAddr(osmo)),

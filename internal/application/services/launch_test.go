@@ -46,7 +46,35 @@ func TestLaunchService_CreateLaunch_SaveFails(t *testing.T) {
 		Record:    testChainRecord(),
 		Committee: testCommittee(1, 1),
 	})
-	require.Error(t, err, "expected error when save fails")
+	require.ErrorIs(t, err, repo.saveErr, "the failure must be the injected save error, not a masked one")
+}
+
+func TestLaunchService_CreateLaunch_InvalidRecord_BadRequest(t *testing.T) {
+	svc := newLaunchSvc(newFakeLaunchRepo(), newFakeGenesisStore())
+
+	rec := testChainRecord()
+	rec.ChainID = "" // invalid — record validation must fail
+	_, err := svc.CreateLaunch(context.Background(), CreateLaunchInput{
+		Record:     rec,
+		LaunchType: launch.LaunchTypeTestnet,
+		Committee:  testCommittee(1, 1),
+	})
+	require.ErrorIs(t, err, ports.ErrBadRequest, "an invalid chain record is a client 400, not a 500")
+	require.ErrorIs(t, err, launch.ErrChainIDRequired, "the specific validation cause is preserved")
+}
+
+func TestLaunchService_CreateLaunch_InvalidCommittee_BadRequest(t *testing.T) {
+	svc := newLaunchSvc(newFakeLaunchRepo(), newFakeGenesisStore())
+
+	c := testCommittee(1, 1)
+	c.ThresholdM = 0 // invalid threshold
+	_, err := svc.CreateLaunch(context.Background(), CreateLaunchInput{
+		Record:     testChainRecord(),
+		LaunchType: launch.LaunchTypeTestnet,
+		Committee:  c,
+	})
+	require.ErrorIs(t, err, ports.ErrBadRequest, "an invalid committee is a client 400, not a 500")
+	require.ErrorIs(t, err, launch.ErrCommitteeThresholdRange, "the specific validation cause is preserved")
 }
 
 // --- UploadInitialGenesis ---
@@ -101,9 +129,10 @@ func TestLaunchService_UploadInitialGenesis_Success(t *testing.T) {
 	genesis := newFakeGenesisStore()
 	svc := newLaunchSvc(repo, genesis)
 
-	hash, err := svc.UploadInitialGenesis(context.Background(), l.ID, validGenesisJSON(l.Record.ChainID), testAddr1)
+	genesisBytes := validGenesisJSON(l.Record.ChainID)
+	hash, err := svc.UploadInitialGenesis(context.Background(), l.ID, genesisBytes, testAddr1)
 	require.NoError(t, err)
-	require.NotEmpty(t, hash, "expected non-empty SHA256 hash")
+	assert.Equal(t, sha256Hex(genesisBytes), hash, "returned hash must be the SHA-256 of the uploaded bytes")
 	_, ok := genesis.initial[l.ID.String()]
 	require.True(t, ok, "genesis not stored")
 	stored, _ := repo.FindByID(context.Background(), l.ID)
@@ -138,9 +167,10 @@ func TestLaunchService_UploadFinalGenesis_Success(t *testing.T) {
 	genesis := newFakeGenesisStore()
 	svc := newLaunchSvc(repo, genesis)
 
-	hash, err := svc.UploadFinalGenesis(context.Background(), l.ID, validFinalGenesisJSON(l.Record.ChainID), testAddr1)
+	genesisBytes := validFinalGenesisJSON(l.Record.ChainID)
+	hash, err := svc.UploadFinalGenesis(context.Background(), l.ID, genesisBytes, testAddr1)
 	require.NoError(t, err)
-	require.NotEmpty(t, hash, "expected non-empty SHA256 hash")
+	assert.Equal(t, sha256Hex(genesisBytes), hash, "returned hash must be the SHA-256 of the uploaded bytes")
 	_, ok := genesis.final[l.ID.String()]
 	require.True(t, ok, "final genesis not stored")
 
@@ -215,7 +245,7 @@ func TestLaunchService_UploadFinalGenesis_ValidWithApprovedValidator(t *testing.
 	data := []byte(`{"chain_id":"` + l.Record.ChainID + `","genesis_time":"2030-01-01T00:00:00Z","app_state":{"genutil":{"gen_txs":[{"body":{"messages":[{"pubkey":{"key":"` + pubKey + `"}}]}}]}}}`)
 	hash, err := svc.UploadFinalGenesis(context.Background(), l.ID, data, testAddr1)
 	require.NoError(t, err)
-	require.NotEmpty(t, hash, "expected non-empty hash")
+	assert.Equal(t, sha256Hex(data), hash, "returned hash must be the SHA-256 of the uploaded bytes")
 }
 
 // --- UploadInitialGenesisRef ---

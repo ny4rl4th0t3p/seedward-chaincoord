@@ -346,6 +346,40 @@ func TestHandleLaunchCreate_BadCommissionRate(t *testing.T) {
 	assertStatusCode(t, w, http.StatusBadRequest)
 }
 
+func TestHandleLaunchCreate_InvalidRecord_BadRequest(t *testing.T) {
+	// A body that decodes to a well-shaped record but fails domain validation (empty chain_id)
+	// must render a 400 "bad_request" envelope — not a 500 "internal_error". Regression guard for
+	// the CreateLaunch mapping that previously surfaced New's validation error with no status.
+	h := newHarness(t)
+	tok := h.seedSession(testAddr1)
+	body := []byte(`{
+		"record":{
+			"chain_id":"","chain_name":"New Chain","bech32_prefix":"cosmos",
+			"binary_name":"newchaind","binary_version":"v1.0.0","binary_sha256":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			"denom":"unew","min_self_delegation":"1000000",
+			"max_commission_rate":"0.20","max_commission_change_rate":"0.01",
+			"gentx_deadline":"2026-12-01T00:00:00Z",
+			"min_validator_count":1
+		},
+		"launch_type":"TESTNET",
+		"committee":{
+			"members":[{"address":"` + testAddr1 + `","moniker":"c1","pub_key_b64":"AAAA"}],
+			"threshold_m":1,"total_n":1,
+			"lead_address":"` + testAddr1 + `",
+			"creation_signature":"` + testSig + `"
+		}
+	}`)
+	w := h.doAuthJSON("POST", "/launch", body, tok)
+	assertStatusCode(t, w, http.StatusBadRequest)
+
+	var resp map[string]any
+	_ = json.NewDecoder(w.Body).Decode(&resp)
+	errObj, _ := resp["error"].(map[string]any)
+	if code, _ := errObj["code"].(string); code != "bad_request" {
+		t.Errorf("want error code bad_request, got %q", code)
+	}
+}
+
 func TestHandleLaunchCreate_Success(t *testing.T) {
 	h := newHarness(t)
 	tok := h.seedSession(testAddr1)

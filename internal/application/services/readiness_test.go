@@ -251,6 +251,7 @@ func TestReadinessService_GetDashboard_Confirmed(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "CONFIRMED", dash.ThresholdStatus, "all validators ready")
 	assert.Equal(t, 2, dash.ConfirmedReady)
+	assert.InDelta(t, 100.0, dash.VotingPowerConfirmed, 0.01, "both validators confirmed → 100% of voting power")
 }
 
 func TestReadinessService_GetDashboard_CrossHRPConfirmationMatches(t *testing.T) {
@@ -285,6 +286,7 @@ func TestReadinessService_GetDashboard_AtRisk(t *testing.T) {
 	dash, err := svc.GetDashboard(context.Background(), l.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "AT_RISK", dash.ThresholdStatus)
+	assert.Zero(t, dash.VotingPowerConfirmed, "no confirmations → zero confirmed voting power")
 }
 
 // --- GetPeers ---

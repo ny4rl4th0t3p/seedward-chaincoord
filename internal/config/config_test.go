@@ -282,56 +282,66 @@ func TestLoad_FromEnvVars(t *testing.T) {
 
 func TestLoad_MissingDBPath(t *testing.T) {
 	v := newViper()
-	v.Set("audit_log_path", "/tmp/audit.jsonl")
-	v.Set("files_path", "/tmp/genesis")
+	allRequired(v)
+	v.Set("db_path", "") // clear exactly the field under test; all others stay valid
 	_, err := config.Load(v, "")
 	if err == nil {
 		t.Fatal("expected validation error for missing db_path")
+	}
+	if !strings.Contains(err.Error(), "db_path") {
+		t.Errorf("error should name the missing field db_path, got: %v", err)
 	}
 }
 
 func TestLoad_MissingAuditLogPath(t *testing.T) {
 	v := newViper()
-	v.Set("db_path", "/tmp/coord.db")
-	v.Set("audit_private_key", testAuditKey)
-	v.Set("files_path", "/tmp/genesis")
+	allRequired(v)
+	v.Set("audit_log_path", "")
 	_, err := config.Load(v, "")
 	if err == nil {
 		t.Fatal("expected validation error for missing audit_log_path")
+	}
+	if !strings.Contains(err.Error(), "audit_log_path") {
+		t.Errorf("error should name the missing field audit_log_path, got: %v", err)
 	}
 }
 
 func TestLoad_MissingAuditPrivateKey(t *testing.T) {
 	v := newViper()
-	v.Set("db_path", "/tmp/coord.db")
-	v.Set("audit_log_path", "/tmp/audit.jsonl")
-	v.Set("files_path", "/tmp/genesis")
+	allRequired(v)
+	v.Set("audit_private_key", "")
 	_, err := config.Load(v, "")
 	if err == nil {
 		t.Fatal("expected validation error for missing audit_private_key")
+	}
+	if !strings.Contains(err.Error(), "audit_private_key") {
+		t.Errorf("error should name the missing field audit_private_key, got: %v", err)
 	}
 }
 
 func TestLoad_InvalidAuditPrivateKey(t *testing.T) {
 	v := newViper()
-	v.Set("db_path", "/tmp/coord.db")
-	v.Set("audit_log_path", "/tmp/audit.jsonl")
-	v.Set("audit_private_key", "not-valid-base64!!!")
-	v.Set("files_path", "/tmp/genesis")
+	allRequired(v)
+	v.Set("audit_private_key", "not-valid-base64!!!") // valid everything else, only this is malformed
 	_, err := config.Load(v, "")
 	if err == nil {
 		t.Fatal("expected validation error for invalid audit_private_key base64")
+	}
+	if !strings.Contains(err.Error(), "audit_private_key") {
+		t.Errorf("error should name audit_private_key, got: %v", err)
 	}
 }
 
 func TestLoad_MissingFilesPath(t *testing.T) {
 	v := newViper()
-	v.Set("db_path", "/tmp/coord.db")
-	v.Set("audit_log_path", "/tmp/audit.jsonl")
-	v.Set("audit_private_key", testAuditKey)
+	allRequired(v)
+	v.Set("files_path", "")
 	_, err := config.Load(v, "")
 	if err == nil {
 		t.Fatal("expected validation error for missing files_path")
+	}
+	if !strings.Contains(err.Error(), "files_path") {
+		t.Errorf("error should name the missing field files_path, got: %v", err)
 	}
 }
 

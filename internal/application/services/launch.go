@@ -110,7 +110,8 @@ func (s *LaunchService) CreateLaunch(ctx context.Context, input CreateLaunchInpu
 	al := launch.NewAllowlist(input.Allowlist)
 	l, err := launch.New(uuid.New(), input.Record, input.LaunchType, input.Committee)
 	if err != nil {
-		return nil, fmt.Errorf("create launch: %w", err)
+		// New fails only on record/committee validation — invalid input, so map to 400 not 500.
+		return nil, fmt.Errorf("create launch: %w: %w", err, ports.ErrBadRequest)
 	}
 	l.Allowlist = al
 

@@ -802,6 +802,27 @@ func TestProposalService_applyUpdateGenesisTime_InvalidatesReadiness(t *testing.
 	assert.False(t, readinessRepo.data[rc.ID].IsValid(), "readiness confirmation should have been invalidated")
 }
 
+func TestProposalService_UpdateGenesisTime_Audited(t *testing.T) {
+	l := test1of1Launch() // 1-of-1 → raise executes immediately
+	l.Status = launch.StatusGenesisReady
+	audit := &fakeAuditLogWriter{}
+	svc := newAuditingProposalSvc(l, audit)
+
+	prevTime := time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC)
+	newTime := time.Date(2030, 2, 1, 0, 0, 0, 0, time.UTC)
+	_, err := raiseWith(t, svc, l.ID, proposal.ActionUpdateGenesisTime, proposal.UpdateGenesisTimePayload{
+		NewGenesisTime:  newTime,
+		PrevGenesisTime: prevTime,
+	})
+	require.NoError(t, err)
+
+	// Both times must propagate from the payload into the audit event — PrevGenesisTime especially,
+	// which production copies through unaltered and no other test asserts.
+	pl := auditPayload(t, audit.events, "GenesisTimeUpdated")
+	assert.Equal(t, newTime.Format(time.RFC3339), pl["NewGenesisTime"], "event records the new genesis time")
+	assert.Equal(t, prevTime.Format(time.RFC3339), pl["PrevGenesisTime"], "event propagates the previous genesis time")
+}
+
 func TestProposalService_applyUpdateGenesisTime_AfterLaunched(t *testing.T) {
 	// UPDATE_GENESIS_TIME is blocked once the chain has LAUNCHED.
 	l := test1of1Launch()

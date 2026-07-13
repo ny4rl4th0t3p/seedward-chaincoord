@@ -61,6 +61,23 @@ var (
 	ErrGenesisPublishInProgress = errors.New("a genesis publication is in progress")
 	ErrRehearsalGateUnsatisfied = errors.New("rehearsal gate not satisfied: a current passing rehearsal is required")
 	ErrRehearsalGateNoService   = errors.New("rehearsal gate is required but no rehearsal service is configured for this launch")
+
+	// Chain-record field validation (New / ChainRecord.Validate) — invalid input.
+	ErrChainIDRequired            = errors.New("chain_id is required")
+	ErrBech32PrefixRequired       = errors.New("bech32_prefix is required")
+	ErrBinaryNameRequired         = errors.New("binary_name is required")
+	ErrDenomRequired              = errors.New("denom is required")
+	ErrMinValidatorCountTooLow    = errors.New("min_validator_count must be at least 1")
+	ErrGentxDeadlineRequired      = errors.New("gentx_deadline is required")
+	ErrCommissionChangeExceedsMax = errors.New("max_commission_change_rate must not exceed max_commission_rate")
+	ErrInvalidRepoURL             = errors.New("repo_url must be a valid http(s) URL")
+	ErrInvalidBinarySHA256        = errors.New("binary_sha256 must be a 64-character lowercase hex SHA-256 digest")
+	ErrInvalidMinSelfDelegation   = errors.New("min_self_delegation must be a non-negative integer in base denom")
+	ErrInvalidTotalSupply         = errors.New("total_supply must be a non-negative integer in base denom")
+
+	// Committee construction validation (New).
+	ErrCommitteeThresholdRange = errors.New("committee threshold out of range [1, TotalN]")
+	ErrCommitteeSizeMismatch   = errors.New("committee member count does not match TotalN")
 )
 
 // CommitteeMember is an individual coordinator in the M-of-N committee.
@@ -173,10 +190,12 @@ func New(id uuid.UUID, record ChainRecord, lt LaunchType, committee Committee) (
 		return nil, fmt.Errorf("launch: invalid chain record: %w", err)
 	}
 	if committee.ThresholdM < 1 || committee.ThresholdM > committee.TotalN {
-		return nil, fmt.Errorf("launch: committee threshold %d out of range [1, %d]", committee.ThresholdM, committee.TotalN)
+		return nil, fmt.Errorf("launch: committee threshold %d out of range [1, %d]: %w",
+			committee.ThresholdM, committee.TotalN, ErrCommitteeThresholdRange)
 	}
 	if len(committee.Members) != committee.TotalN {
-		return nil, fmt.Errorf("launch: committee has %d members but TotalN is %d", len(committee.Members), committee.TotalN)
+		return nil, fmt.Errorf("launch: committee has %d members but TotalN is %d: %w",
+			len(committee.Members), committee.TotalN, ErrCommitteeSizeMismatch)
 	}
 	now := time.Now().UTC()
 	return &Launch{
@@ -622,40 +641,40 @@ func (l *Launch) displayAccount(accountHex string) string {
 
 func validateChainRecord(r ChainRecord) error {
 	if r.ChainID == "" {
-		return fmt.Errorf("chain_id is required")
+		return ErrChainIDRequired
 	}
 	if r.Bech32Prefix == "" {
-		return fmt.Errorf("bech32_prefix is required")
+		return ErrBech32PrefixRequired
 	}
 	if r.BinaryName == "" {
-		return fmt.Errorf("binary_name is required")
+		return ErrBinaryNameRequired
 	}
 	if r.Denom == "" {
-		return fmt.Errorf("denom is required")
+		return ErrDenomRequired
 	}
 	if r.MinValidatorCount < 1 {
-		return fmt.Errorf("min_validator_count must be at least 1")
+		return ErrMinValidatorCountTooLow
 	}
 	if r.GentxDeadline.IsZero() {
-		return fmt.Errorf("gentx_deadline is required")
+		return ErrGentxDeadlineRequired
 	}
 	if !r.MaxCommissionChangeRate.LessThanOrEqual(r.MaxCommissionRate) {
-		return fmt.Errorf("max_commission_change_rate must not exceed max_commission_rate")
+		return ErrCommissionChangeExceedsMax
 	}
 	if r.RepoURL != "" && !IsValidHTTPURL(r.RepoURL) {
-		return fmt.Errorf("repo_url must be a valid http(s) URL")
+		return ErrInvalidRepoURL
 	}
 	if r.BinarySHA256 != "" && !isSHA256HexLower(r.BinarySHA256) {
-		return fmt.Errorf("binary_sha256 must be a 64-character lowercase hex SHA-256 digest")
+		return ErrInvalidBinarySHA256
 	}
 	if r.MinSelfDelegation != "" {
 		if n, ok := new(big.Int).SetString(r.MinSelfDelegation, 10); !ok || n.Sign() < 0 {
-			return fmt.Errorf("min_self_delegation must be a non-negative integer in base denom")
+			return ErrInvalidMinSelfDelegation
 		}
 	}
 	if r.TotalSupply != "" {
 		if n, ok := new(big.Int).SetString(r.TotalSupply, 10); !ok || n.Sign() < 0 {
-			return fmt.Errorf("total_supply must be a non-negative integer in base denom")
+			return ErrInvalidTotalSupply
 		}
 	}
 	return nil

@@ -65,14 +65,14 @@ func TestNewLaunch_InvalidRecord(t *testing.T) {
 	r := testRecord()
 	r.ChainID = ""
 	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
-	require.Error(t, err, "expected error for empty chain_id")
+	require.ErrorIs(t, err, launch.ErrChainIDRequired)
 }
 
 func TestNewLaunch_InvalidCommitteeThreshold(t *testing.T) {
 	c := testCommittee()
 	c.ThresholdM = 0
 	_, err := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, c)
-	require.Error(t, err, "expected error for threshold 0")
+	require.ErrorIs(t, err, launch.ErrCommitteeThresholdRange)
 }
 
 func TestStateMachine_HappyPath(t *testing.T) {
@@ -155,49 +155,49 @@ func TestNewLaunch_ThresholdExceedsN(t *testing.T) {
 	c := testCommittee()
 	c.ThresholdM = 4 // TotalN is 3
 	_, err := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, c)
-	require.Error(t, err, "threshold (4) > TotalN (3)")
+	require.ErrorIs(t, err, launch.ErrCommitteeThresholdRange)
 }
 
 func TestNewLaunch_MemberCountMismatch(t *testing.T) {
 	c := testCommittee()
 	c.TotalN = 5 // Members has only 3 elements
 	_, err := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, c)
-	require.Error(t, err, "member count (3) != TotalN (5)")
+	require.ErrorIs(t, err, launch.ErrCommitteeSizeMismatch)
 }
 
 func TestNewLaunch_EmptyBinaryName(t *testing.T) {
 	r := testRecord()
 	r.BinaryName = ""
 	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
-	require.Error(t, err, "expected error for empty binary_name")
+	require.ErrorIs(t, err, launch.ErrBinaryNameRequired)
 }
 
 func TestNewLaunch_EmptyDenom(t *testing.T) {
 	r := testRecord()
 	r.Denom = ""
 	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
-	require.Error(t, err, "expected error for empty denom")
+	require.ErrorIs(t, err, launch.ErrDenomRequired)
 }
 
 func TestNewLaunch_MinValidatorCountZero(t *testing.T) {
 	r := testRecord()
 	r.MinValidatorCount = 0
 	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
-	require.Error(t, err, "expected error for min_validator_count = 0")
+	require.ErrorIs(t, err, launch.ErrMinValidatorCountTooLow)
 }
 
 func TestNewLaunch_ZeroGentxDeadline(t *testing.T) {
 	r := testRecord()
 	r.GentxDeadline = time.Time{}
 	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
-	require.Error(t, err, "expected error for zero gentx_deadline")
+	require.ErrorIs(t, err, launch.ErrGentxDeadlineRequired)
 }
 
 func TestNewLaunch_BadBinarySHA256(t *testing.T) {
 	r := testRecord()
 	r.BinarySHA256 = "not-a-64-char-hex"
 	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
-	require.Error(t, err, "expected error for malformed binary_sha256")
+	require.ErrorIs(t, err, launch.ErrInvalidBinarySHA256)
 }
 
 func TestNewLaunch_ValidBinarySHA256(t *testing.T) {
@@ -211,28 +211,36 @@ func TestNewLaunch_BadMinSelfDelegation(t *testing.T) {
 	r := testRecord()
 	r.MinSelfDelegation = "-1"
 	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
-	require.Error(t, err, "expected error for negative min_self_delegation")
+	require.ErrorIs(t, err, launch.ErrInvalidMinSelfDelegation)
 }
 
 func TestNewLaunch_BadTotalSupply(t *testing.T) {
 	r := testRecord()
 	r.TotalSupply = "not-a-number"
 	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
-	require.Error(t, err, "expected error for non-numeric total_supply")
+	require.ErrorIs(t, err, launch.ErrInvalidTotalSupply)
 }
 
 func TestNewLaunch_BadRepoURL(t *testing.T) {
 	r := testRecord()
 	r.RepoURL = "not a url"
 	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
-	require.Error(t, err, "expected error for a malformed repo_url")
+	require.ErrorIs(t, err, launch.ErrInvalidRepoURL)
 }
 
 func TestChainRecord_Validate_ExportedMatchesNew(t *testing.T) {
-	r := testRecord()
-	require.NoError(t, r.Validate(), "a valid record validates")
-	r.RepoURL = "://bad"
-	require.Error(t, r.Validate(), "an invalid record fails Validate")
+	// Validate (exported) must agree with New's internal record validation on accept AND reject —
+	// call both and assert their verdicts match, so a divergence between them is caught.
+	valid := testRecord()
+	require.NoError(t, valid.Validate(), "a valid record validates")
+	_, err := launch.New(uuid.New(), valid, launch.LaunchTypeTestnet, testCommittee())
+	require.NoError(t, err, "New accepts the same valid record")
+
+	invalid := testRecord()
+	invalid.RepoURL = "://bad"
+	require.Error(t, invalid.Validate(), "an invalid record fails Validate")
+	_, err = launch.New(uuid.New(), invalid, launch.LaunchTypeTestnet, testCommittee())
+	require.Error(t, err, "New rejects the same invalid record")
 }
 
 func TestNewLaunch_ChangeRateExceedsMaxRate(t *testing.T) {
@@ -240,7 +248,7 @@ func TestNewLaunch_ChangeRateExceedsMaxRate(t *testing.T) {
 	r.MaxCommissionRate, _ = launch.NewCommissionRate("0.10")
 	r.MaxCommissionChangeRate, _ = launch.NewCommissionRate("0.20") // change > max
 	_, err := launch.New(uuid.New(), r, launch.LaunchTypeTestnet, testCommittee())
-	require.Error(t, err, "expected error when max_commission_change_rate exceeds max_commission_rate")
+	require.ErrorIs(t, err, launch.ErrCommissionChangeExceedsMax)
 }
 
 // ---- Publish error paths ----------------------------------------------------
