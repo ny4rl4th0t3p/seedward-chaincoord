@@ -4,6 +4,7 @@
 package api
 
 import (
+	"context"
 	"crypto/ed25519"
 	"net/http"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 	"github.com/go-chi/httprate"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/hlog"
 
@@ -45,6 +47,41 @@ type Server struct {
 	// rehearsalOpsToken is the shared ops-plane bearer token for the /bridge/* endpoints
 	// Empty → the bridge is disabled (requireOps fails closed).
 	rehearsalOpsToken string
+
+	// tlsEnabled reports whether coordd terminates TLS itself; when true the security-headers
+	// middleware adds HSTS.
+	tlsEnabled bool
+	// healthCheck probes liveness dependencies (DB, audit log) for /healthz. nil → the endpoint
+	// reports a basic OK without probing.
+	healthCheck func(context.Context) error
+}
+
+// WithTLS records whether coordd terminates TLS itself, so the security-headers middleware adds
+// HSTS. Defaults to false (TLS handled by an upstream proxy, or plain HTTP).
+func (s *Server) WithTLS(enabled bool) *Server {
+	s.tlsEnabled = enabled
+	return s
+}
+
+// WithHealthCheck sets the liveness probe run by /healthz — a DB ping and audit-log stat wired at
+// startup. Without it, /healthz reports a basic OK without probing dependencies.
+func (s *Server) WithHealthCheck(fn func(context.Context) error) *Server {
+	s.healthCheck = fn
+	return s
+}
+
+// securityHeaders sets defensive response headers on every response: nosniff and frame-deny always,
+// plus HSTS when coordd terminates TLS itself.
+func (s *Server) securityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := w.Header()
+		h.Set("X-Content-Type-Options", "nosniff")
+		h.Set("X-Frame-Options", "DENY")
+		if s.tlsEnabled {
+			h.Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // sseSubscriber is the subset of the SSE broker the server needs.
@@ -154,6 +191,9 @@ func (s *Server) Handler() http.Handler {
 	// and handlers. Logs stack trace via zerolog and returns 500.
 	r.Use(recoveryMiddleware)
 
+	// Defensive response headers on every response (nosniff, frame-deny, HSTS on TLS).
+	r.Use(s.securityHeaders)
+
 	// CORS — only registered when origins are configured.
 	if len(s.corsOrigins) > 0 {
 		r.Use(cors.Handler(cors.Options{
@@ -181,8 +221,10 @@ func (s *Server) Handler() http.Handler {
 	}))
 	r.Use(hlog.RemoteAddrHandler("ip"))
 
-	// Health check and server metadata — no auth required.
+	// Health check, metrics, and server metadata — no auth required (network-restrict /metrics in a
+	// monitored deploy). /metrics exposes the default Go runtime + process metrics.
 	r.Get("/healthz", s.handleHealthz)
+	r.Get("/metrics", promhttp.Handler().ServeHTTP)
 	r.Get("/audit/pubkey", s.handleAuditPubKey)
 
 	// Admin endpoints — require authenticated admin address.
@@ -287,14 +329,24 @@ func (s *Server) registerBridgeRoutes(r chi.Router) {
 	})
 }
 
-// handleHealthz responds 200 OK with a minimal JSON body.
+// handleHealthz probes liveness dependencies (DB + audit log, when a health check is wired) and
+// responds 200 {"status":"ok"}, or 503 {"status":"unavailable"} if a dependency is down. Failure
+// detail is logged, not returned, to avoid leaking internals to unauthenticated callers.
 //
 // @Summary      Health check
 // @Tags         health
 // @Produce      json
 // @Success      200  {object}  map[string]string
+// @Failure      503  {object}  map[string]string
 // @Router       /healthz [get]
-func (*Server) handleHealthz(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
+	if s.healthCheck != nil {
+		if err := s.healthCheck(r.Context()); err != nil {
+			s.log.Warn().Err(err).Msg("health check failed")
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "unavailable"})
+			return
+		}
+	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 

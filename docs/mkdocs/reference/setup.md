@@ -154,6 +154,39 @@ Plain HTTP on loopback (`127.0.0.1` or `::1`) suppresses the warning automatical
 
 ---
 
+## Observability
+
+### Health check — `GET /healthz`
+
+Unauthenticated. Probes liveness dependencies and returns:
+
+- `200 {"status":"ok"}` when the database is queryable (`SELECT 1`) **and** the audit log file is present.
+- `503 {"status":"unavailable"}` when either is down (a DB failure, or the audit log's disk unmounted / full).
+
+Failure detail is written to the server log, not the response body, so an unauthenticated caller learns only
+up/down. Point your orchestrator's liveness/readiness probe at it.
+
+### Metrics — `GET /metrics`
+
+Unauthenticated Prometheus endpoint exposing the default Go runtime and process metrics (goroutines, heap, GC,
+open file descriptors, CPU). **Network-restrict it** — it is not behind auth, so keep it off the public
+interface and scrape it from your monitoring network.
+
+### Security response headers
+
+Every response carries defensive headers:
+
+| Header                      | Value                                   | When                       |
+|-----------------------------|-----------------------------------------|----------------------------|
+| `X-Content-Type-Options`    | `nosniff`                               | always                     |
+| `X-Frame-Options`           | `DENY`                                  | always                     |
+| `Strict-Transport-Security` | `max-age=63072000; includeSubDomains`   | when coordd terminates TLS |
+
+HSTS is added only when `coordd` terminates TLS itself (native TLS — `tls_cert`/`tls_key` set). Behind an
+upstream TLS proxy (infra TLS mode), add HSTS at the proxy instead.
+
+---
+
 ## Configuration Reference
 
 | Key                        | Env var                          | Flag                       | Default               | Required |
@@ -181,6 +214,7 @@ Plain HTTP on loopback (`127.0.0.1` or `::1`) suppresses the warning automatical
 | `rehearsal_ops_token_file` | `COORD_REHEARSAL_OPS_TOKEN_FILE` | —                          | *(bridge disabled)*   | No       |
 | `rehearsal_lease_ttl`      | `COORD_REHEARSAL_LEASE_TTL`      | —                          | `45m`                 | No       |
 | `rehearsal_gate`           | `COORD_REHEARSAL_GATE`           | —                          | `off`                 | No       |
+| `audit_startup_verify`     | `COORD_AUDIT_STARTUP_VERIFY`     | —                          | `full`                | No       |
 
 ¹ Exactly one of `audit_private_key` (inline base64) or `audit_private_key_file` (path) must be set.  
 ² Exactly one of `jwt_private_key` (inline base64) or `jwt_private_key_file` (path) must be set.
@@ -304,3 +338,13 @@ Controls verbosity. Accepted values: `debug`, `info`, `warn`, `error`.
 
 - `debug` — human-readable console output (stderr), verbose. Use in development only.
 - `info` and above — structured JSON to stdout. Use in production.
+
+### `audit_startup_verify`
+
+Depth of the boot-time audit-log integrity check (see
+[Audit Log → Startup and live integrity checks](audit.md#startup-and-live-integrity-checks)):
+
+- `full` (default) — scan the whole log on startup (Ed25519 signatures, hash-chain, timestamps) in addition to
+  the cheap chain-tip check. Tamper or corruption **refuses startup**; a backward timestamp only warns.
+- `tail` — only the cheap chain-tip check. For operators whose log has grown large; pair it with a scheduled
+  `coordd audit verify`.

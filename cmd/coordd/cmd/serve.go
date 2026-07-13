@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"crypto/ed25519"
+	"database/sql"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -230,6 +231,20 @@ func openAuditLog(
 	return auditLog, nil
 }
 
+// newHealthCheck returns the /healthz liveness probe: the DB is queryable (SELECT 1) and the audit
+// log file is present. A failure of either (DB down, disk unmounted/full) surfaces as a 503.
+func newHealthCheck(db *sql.DB, auditLogPath string) func(context.Context) error {
+	return func(ctx context.Context) error {
+		if err := db.QueryRowContext(ctx, "SELECT 1").Scan(new(int)); err != nil {
+			return fmt.Errorf("database: %w", err)
+		}
+		if _, err := os.Stat(auditLogPath); err != nil {
+			return fmt.Errorf("audit log: %w", err)
+		}
+		return nil
+	}
+}
+
 func runServe(cmd *cobra.Command, _ []string) error {
 	// --- Config ----------------------------------------------------------
 	cfg, err := loadServeConfig(cmd)
@@ -333,7 +348,7 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		cfg.GenesisMaxBytes,
 		cfg.InsecureNoRateLimit,
 		cfg.RehearsalOpsToken,
-	)
+	).WithHealthCheck(newHealthCheck(db, cfg.AuditLogPath)).WithTLS(cfg.TLSCert != "")
 	httpServer := &http.Server{
 		Addr:              cfg.ListenAddr,
 		Handler:           apiServer.Handler(),
