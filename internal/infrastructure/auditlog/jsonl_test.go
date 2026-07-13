@@ -414,6 +414,5 @@ func TestClose_Idempotent(t *testing.T) {
 	w, err := Open(path, nil)
 	require.NoError(t, err)
 	require.NoError(t, w.Close(), "first Close")
-	// Second close returns an error (file already closed) — we just ensure it doesn't panic.
-	_ = w.Close()
+	require.NoError(t, w.Close(), "second Close must be a no-op — Close is idempotent")
 }

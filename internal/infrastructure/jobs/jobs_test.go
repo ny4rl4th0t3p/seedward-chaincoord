@@ -362,13 +362,9 @@ func TestRunLaunchMonitor_ContinuesOnFindError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	// First call returns error; second call returns a launch.
+	// altRepo errors on the first FindByStatus call, then returns a launch — exercising the
+	// monitor's continue-on-error path.
 	l := genesisReadyLaunch(srv.URL)
-	callN := 0
-	repo := &fakeMonitorRepo{}
-	repo.findErr = errors.New("DB unavailable")
-
-	// We'll use a custom repo that alternates errors.
 	altRepo := &alternatingRepo{
 		errOnFirst: true,
 		launch:     l,
@@ -378,9 +374,6 @@ func TestRunLaunchMonitor_ContinuesOnFindError(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-
-	_ = repo
-	_ = callN
 
 	go RunLaunchMonitor(ctx, altRepo, pub, zerolog.Nop(), 20*time.Millisecond, nil)
 
@@ -535,9 +528,10 @@ func TestMarkLaunched_SaveErrorNoPublish(t *testing.T) {
 // ---- SSRF defense-in-depth guard --------------------------------------------
 
 func TestRunMonitorTick_PrivateURLSkippedByValidator(t *testing.T) {
-	// A launch with a private IP URL. The tick runs the inline SSRF validator below,
-	// which rejects the private address, so it skips without any HTTP call or saving.
-	// badSrv's handler flips `called` if hit, so the test can assert it was never dialed.
+	// The launch points AT badSrv, but the SSRF validator rejects that URL — so the monitor must
+	// skip the dial entirely. badSrv flips `called` if it is ever hit; the whole point is that it
+	// never is, which proves validation gates the dial itself (not merely the save/publish that
+	// follow). Pointing at an unrelated hardcoded IP would make `called` un-flippable and inert.
 	called := false
 	badSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		called = true
@@ -546,17 +540,14 @@ func TestRunMonitorTick_PrivateURLSkippedByValidator(t *testing.T) {
 	}))
 	defer badSrv.Close()
 
-	// The launch's MonitorRPCURL is a hardcoded private IP (unrelated to badSrv above);
-	// the SSRF validator must reject it before any dial.
-	privateURL := "http://192.168.1.1:26657"
-	l := genesisReadyLaunch(privateURL)
+	l := genesisReadyLaunch(badSrv.URL)
 	repo := &fakeMonitorRepo{launches: []*launch.Launch{l}}
 	pub := &fakePublisher{}
 
+	// Reject the launch's URL, as the real SSRF validator would for a private/reserved target.
 	validateFn := func(rawURL string) error {
-		// Inline validator: reject 192.168.x.x
-		if len(rawURL) >= 16 && rawURL[:16] == "http://192.168.1" {
-			return errors.New("private address")
+		if rawURL == badSrv.URL {
+			return errors.New("blocked by SSRF policy")
 		}
 		return nil
 	}

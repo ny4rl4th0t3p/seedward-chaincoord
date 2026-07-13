@@ -35,6 +35,7 @@ type JSONLWriter struct {
 	prevHashStore  ports.AuditChainStore // nil = no cross-restart persistence
 	logger         zerolog.Logger        // operational warnings (e.g. clock regression); defaults to Nop
 	lastOccurredAt time.Time             // occurred_at of the last appended entry, for the monotonicity warning
+	closed         bool                  // guards Close so a second call is a no-op
 }
 
 // Open opens (or creates) the JSONL audit log at path.
@@ -299,5 +300,9 @@ func (w *JSONLWriter) ReadForLaunch(_ context.Context, launchID string) ([]ports
 func (w *JSONLWriter) Close() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	if w.closed {
+		return nil // idempotent: a second Close (e.g. a deferred one after an explicit one) is a no-op
+	}
+	w.closed = true
 	return w.file.Close()
 }

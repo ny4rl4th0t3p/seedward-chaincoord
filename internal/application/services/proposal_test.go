@@ -252,10 +252,27 @@ func TestProposalService_Sign_WrongLaunch(t *testing.T) {
 	require.ErrorIs(t, err, ports.ErrNotFound)
 }
 
+// mustNewLaunch builds a launch with the standard test record, failing the test with a diagnostic
+// (rather than nil-panicking in a later line) if the fixture is invalid.
+func mustNewLaunch(t *testing.T, committee launch.Committee) *launch.Launch {
+	t.Helper()
+	l, err := launch.New(uuid.New(), testChainRecord(), launch.LaunchTypeTestnet, committee)
+	require.NoError(t, err, "mustNewLaunch fixture")
+	return l
+}
+
+// mustNewProposal builds a proposal, failing the test with a diagnostic if the fixture is invalid.
+func mustNewProposal(t *testing.T, launchID uuid.UUID, action proposal.ActionType, payload []byte, ttl time.Duration, createdAt time.Time) *proposal.Proposal {
+	t.Helper()
+	p, err := proposal.New(uuid.New(), launchID, action, payload, mustAddr(testAddr1), mustSig(), ttl, createdAt)
+	require.NoError(t, err, "mustNewProposal fixture")
+	return p
+}
+
 func TestProposalService_Sign_AlreadySigned(t *testing.T) {
 	// 3-of-3 committee: Raise adds testAddr1's signature (stays PENDING). Signing again
 	// as testAddr1 must be a state conflict (409), not a 500.
-	l, _ := launch.New(uuid.New(), testChainRecord(), launch.LaunchTypeTestnet, testCommittee(3, 3))
+	l := mustNewLaunch(t, testCommittee(3, 3))
 	propRepo := newFakeProposalRepo()
 	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), propRepo, newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
 
@@ -278,8 +295,8 @@ func TestProposalService_Sign_TTLExpired(t *testing.T) {
 	// A proposal whose TTL has elapsed but is still PENDING (the expiry job has not yet run):
 	// signing it must surface a state conflict (409), not a 500.
 	l := testLaunch() // 2-of-3
-	p, _ := proposal.New(uuid.New(), l.ID, proposal.ActionCloseApplicationWindow, []byte(`{}`),
-		mustAddr(testAddr1), mustSig(), 1*time.Millisecond, time.Now().Add(-1*time.Hour))
+	p := mustNewProposal(t, l.ID, proposal.ActionCloseApplicationWindow, []byte(`{}`),
+		1*time.Millisecond, time.Now().Add(-1*time.Hour))
 	propRepo := newFakeProposalRepo(p)
 	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), propRepo, newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
 
@@ -297,7 +314,7 @@ func TestProposalService_Sign_TTLExpired(t *testing.T) {
 func TestProposalService_Sign_AddsSignature(t *testing.T) {
 	// 3-of-3 committee; Raise already added 1 signature (testAddr1 as proposer).
 	// Sign as testAddr2 → still PENDING.
-	l, _ := launch.New(uuid.New(), testChainRecord(), launch.LaunchTypeTestnet, testCommittee(3, 3))
+	l := mustNewLaunch(t, testCommittee(3, 3))
 	propRepo := newFakeProposalRepo()
 	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), propRepo, newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
 
@@ -336,8 +353,8 @@ func TestProposalService_ExpireStale_ExpiresOld(t *testing.T) {
 
 	// Create a proposal with a TTL that has already elapsed.
 	payload, _ := json.Marshal(proposal.CloseApplicationWindowPayload{})
-	p, _ := proposal.New(uuid.New(), l.ID, proposal.ActionCloseApplicationWindow, payload,
-		mustAddr(testAddr1), mustSig(), 1*time.Millisecond, time.Now().Add(-1*time.Hour))
+	p := mustNewProposal(t, l.ID, proposal.ActionCloseApplicationWindow, payload,
+		1*time.Millisecond, time.Now().Add(-1*time.Hour))
 	propRepo.data[p.ID] = p
 
 	require.NoError(t, svc.ExpireStale(context.Background()))
@@ -350,8 +367,8 @@ func TestProposalService_ExpireStale_SkipsFresh(t *testing.T) {
 	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), propRepo, newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
 
 	payload, _ := json.Marshal(proposal.CloseApplicationWindowPayload{})
-	p, _ := proposal.New(uuid.New(), l.ID, proposal.ActionCloseApplicationWindow, payload,
-		mustAddr(testAddr1), mustSig(), 48*time.Hour, time.Now())
+	p := mustNewProposal(t, l.ID, proposal.ActionCloseApplicationWindow, payload,
+		48*time.Hour, time.Now())
 	propRepo.data[p.ID] = p
 
 	require.NoError(t, svc.ExpireStale(context.Background()))

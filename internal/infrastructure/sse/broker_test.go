@@ -164,11 +164,17 @@ func TestBroker_MultiplePublishesDeliveredInOrder(t *testing.T) {
 	ch := b.Subscribe(lid.String())
 	defer b.Unsubscribe(lid.String(), ch)
 
-	for range 5 {
-		b.Publish(windowClosed(lid))
+	// Distinguishable events (distinct, increasing timestamps) so delivery ORDER is actually
+	// verifiable — 5 identical events would make any delivery order look correct.
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	const n = 5
+	for i := range n {
+		b.Publish(domain.WindowClosed{LaunchID: lid}.WithTime(base.Add(time.Duration(i) * time.Second)))
 	}
-	for range 5 {
-		recv(t, ch)
+	for i := range n {
+		ev := recv(t, ch)
+		assert.Equal(t, base.Add(time.Duration(i)*time.Second), ev.OccurredAt(),
+			"event %d delivered out of order", i)
 	}
 }
 
