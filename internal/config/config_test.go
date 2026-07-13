@@ -127,6 +127,40 @@ func TestLoad_RehearsalGateInvalid(t *testing.T) {
 	}
 }
 
+func TestLoad_AuditStartupVerifyDefault(t *testing.T) {
+	v := newViper()
+	allRequired(v)
+	cfg, err := config.Load(v, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.AuditStartupVerify != config.AuditStartupVerifyFull {
+		t.Errorf("AuditStartupVerify default: got %q, want %q", cfg.AuditStartupVerify, config.AuditStartupVerifyFull)
+	}
+}
+
+func TestLoad_AuditStartupVerifyTail(t *testing.T) {
+	v := newViper()
+	allRequired(v)
+	v.Set("audit_startup_verify", config.AuditStartupVerifyTail)
+	cfg, err := config.Load(v, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.AuditStartupVerify != config.AuditStartupVerifyTail {
+		t.Errorf("AuditStartupVerify: got %q, want %q", cfg.AuditStartupVerify, config.AuditStartupVerifyTail)
+	}
+}
+
+func TestLoad_AuditStartupVerifyInvalid(t *testing.T) {
+	v := newViper()
+	allRequired(v)
+	v.Set("audit_startup_verify", "sometimes")
+	if _, err := config.Load(v, ""); err == nil {
+		t.Fatal("expected validation error for invalid audit_startup_verify")
+	}
+}
+
 func TestLoad_RehearsalGateRequiredWithoutBridge(t *testing.T) {
 	// required is meaningless without the bridge that produces result facts → fail fast at startup.
 	v := newViper()

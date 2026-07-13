@@ -206,6 +206,30 @@ func startBackgroundJobs(
 	return stopJobs
 }
 
+// openAuditLog opens the audit log, wires the operational logger, restores its hash-chain tip, and
+// runs the boot-time integrity check per cfg.AuditStartupVerify (full scan vs. cheap tip-only). The
+// caller owns closing the returned writer.
+func openAuditLog(
+	cfg *config.Config, chainStore ports.AuditChainStore, privKey ed25519.PrivateKey, logger zerolog.Logger,
+) (*auditlog.JSONLWriter, error) {
+	auditLog, err := auditlog.Open(cfg.AuditLogPath, privKey)
+	if err != nil {
+		return nil, fmt.Errorf("opening audit log: %w", err)
+	}
+	auditLog.WithLogger(logger)
+	if err := auditLog.WithPrevHashStore(context.Background(), chainStore); err != nil {
+		auditLog.Close()
+		return nil, fmt.Errorf("restoring audit chain tip: %w", err)
+	}
+	// Boot-time integrity check: refuse to start on tamper/corruption; warn on a clock regression.
+	// "full" scans the whole log; "tail" (large-log escape hatch) relies on the cheap tip check.
+	if err := auditLog.VerifyOnStart(cfg.AuditStartupVerify != config.AuditStartupVerifyTail); err != nil {
+		auditLog.Close()
+		return nil, err
+	}
+	return auditLog, nil
+}
+
 func runServe(cmd *cobra.Command, _ []string) error {
 	// --- Config ----------------------------------------------------------
 	cfg, err := loadServeConfig(cmd)
@@ -255,14 +279,11 @@ func runServe(cmd *cobra.Command, _ []string) error {
 	auditPrivKey := ed25519.NewKeyFromSeed(auditSeed)
 
 	// --- Audit log -------------------------------------------------------
-	auditLog, err := auditlog.Open(cfg.AuditLogPath, auditPrivKey)
+	auditLog, err := openAuditLog(cfg, sqlite.NewAuditStateStore(db), auditPrivKey, logger)
 	if err != nil {
-		return fmt.Errorf("opening audit log: %w", err)
+		return err
 	}
 	defer auditLog.Close()
-	if err := auditLog.WithPrevHashStore(context.Background(), sqlite.NewAuditStateStore(db)); err != nil {
-		return fmt.Errorf("restoring audit chain tip: %w", err)
-	}
 
 	// --- File stores -----------------------------------------------------
 	genesisStore, allocationStore, err := openFileStores(cfg.FilesPath)

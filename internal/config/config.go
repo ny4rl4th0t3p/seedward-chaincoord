@@ -18,6 +18,11 @@ const (
 	LaunchPolicyOpen       = "open"       // any authenticated address may create a launch
 	LaunchPolicyRestricted = "restricted" // only addresses on the coordinator allowlist may create a launch
 
+	// AuditStartupVerifyFull scans the whole audit log on boot; AuditStartupVerifyTail does only
+	// the cheap chain-tip check. See Config.AuditStartupVerify.
+	AuditStartupVerifyFull = "full"
+	AuditStartupVerifyTail = "tail"
+
 	genesisMaxMiB = 700 // default genesis file size limit in mebibytes
 	mibShift      = 20  // bit-shift to convert mebibytes to bytes (1 MiB = 1 << 20)
 )
@@ -33,6 +38,13 @@ type Config struct {
 	CORSOrigins     string   `mapstructure:"cors_origins"`
 	AdminAddresses  []string `mapstructure:"admin_addresses"`
 	LaunchPolicy    string   `mapstructure:"launch_policy"`
+
+	// AuditStartupVerify controls how thoroughly the audit log is checked on boot:
+	// "full" (default) scans the whole log — Ed25519 signatures, hash-chain linkage, and
+	// timestamps — while "tail" does only the cheap chain-tip check. Either way, tamper or
+	// corruption refuses startup; a backward timestamp only warns. Operators with very large
+	// logs may set "tail" and rely on scheduled `coordd audit verify` for deep checks.
+	AuditStartupVerify string `mapstructure:"audit_startup_verify"`
 
 	// GenesisHostMode enables Option C (host mode): raw genesis file uploads are
 	// accepted and served directly from disk. When false (the default), only
@@ -102,6 +114,7 @@ func Load(v *viper.Viper, cfgFile string) (*Config, error) {
 	v.SetDefault("launch_policy", LaunchPolicyRestricted)
 	v.SetDefault("genesis_max_bytes", int64(genesisMaxMiB<<mibShift))
 	v.SetDefault("rehearsal_gate", "off")
+	v.SetDefault("audit_startup_verify", AuditStartupVerifyFull)
 
 	if cfgFile != "" {
 		v.SetConfigFile(cfgFile)
@@ -143,6 +156,7 @@ func Load(v *viper.Viper, cfgFile string) (*Config, error) {
 	_ = v.BindEnv("rehearsal_ops_token_file", "COORD_REHEARSAL_OPS_TOKEN_FILE")
 	_ = v.BindEnv("rehearsal_lease_ttl", "COORD_REHEARSAL_LEASE_TTL")
 	_ = v.BindEnv("rehearsal_gate", "COORD_REHEARSAL_GATE")
+	_ = v.BindEnv("audit_startup_verify", "COORD_AUDIT_STARTUP_VERIFY")
 
 	if err := v.ReadInConfig(); err != nil {
 		var notFound viper.ConfigFileNotFoundError
@@ -232,6 +246,12 @@ func (c *Config) validate() error {
 	case "", "off", "advisory", "required":
 	default:
 		return fmt.Errorf("config: rehearsal_gate must be off|advisory|required, got %q", c.RehearsalGate)
+	}
+	switch c.AuditStartupVerify {
+	case "", AuditStartupVerifyFull, AuditStartupVerifyTail:
+	default:
+		return fmt.Errorf("config: audit_startup_verify must be %q or %q, got %q",
+			AuditStartupVerifyFull, AuditStartupVerifyTail, c.AuditStartupVerify)
 	}
 	// Fail fast: requiring rehearsal is meaningless without the bridge that produces result facts.
 	if c.RehearsalGate == "required" && c.RehearsalOpsToken == "" && c.RehearsalOpsTokenFile == "" {

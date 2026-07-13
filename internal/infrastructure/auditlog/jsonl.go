@@ -15,9 +15,12 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/ny4rl4th0t3p/seedward-libs/canonicaljson"
+	"github.com/rs/zerolog"
 
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/ports"
 )
@@ -25,11 +28,13 @@ import (
 // JSONLWriter writes audit events to an append-only JSONL file.
 // A mutex serializes concurrent writes so lines are never interleaved.
 type JSONLWriter struct {
-	mu            sync.Mutex
-	file          *os.File
-	privKey       ed25519.PrivateKey    // nil disables signing
-	prevHash      string                // SHA-256 hex of the last written line's JSON bytes
-	prevHashStore ports.AuditChainStore // nil = no cross-restart persistence
+	mu             sync.Mutex
+	file           *os.File
+	privKey        ed25519.PrivateKey    // nil disables signing
+	prevHash       string                // SHA-256 hex of the last written line's JSON bytes
+	prevHashStore  ports.AuditChainStore // nil = no cross-restart persistence
+	logger         zerolog.Logger        // operational warnings (e.g. clock regression); defaults to Nop
+	lastOccurredAt time.Time             // occurred_at of the last appended entry, for the monotonicity warning
 }
 
 // Open opens (or creates) the JSONL audit log at path.
@@ -41,7 +46,14 @@ func Open(path string, privKey ed25519.PrivateKey) (*JSONLWriter, error) {
 	if err != nil {
 		return nil, fmt.Errorf("audit log open %q: %w", path, err)
 	}
-	return &JSONLWriter{file: f, privKey: privKey}, nil
+	return &JSONLWriter{file: f, privKey: privKey, logger: zerolog.Nop()}, nil
+}
+
+// WithLogger sets the logger used for operational warnings — currently the append-time clock
+// regression warning and the startup-scan results. Defaults to a no-op logger.
+func (w *JSONLWriter) WithLogger(l zerolog.Logger) *JSONLWriter {
+	w.logger = l
+	return w
 }
 
 // PubKey returns the Ed25519 public key corresponding to the signing key.
@@ -131,6 +143,77 @@ func readLastLine(f *os.File) ([]byte, error) {
 	return last, scanner.Err()
 }
 
+// VerifyOnStart runs the boot-time integrity check. It always seeds the in-memory last-timestamp
+// from the log's final entry, so the append-time clock-regression warning survives restarts. When
+// full is true it also scans the entire log: any tamper/corruption anomaly (failed signature,
+// broken hash-chain link, malformed or zero-field entry) refuses startup by returning an error,
+// while a backward-timestamp anomaly only logs a warning. Call once, after WithPrevHashStore.
+func (w *JSONLWriter) VerifyOnStart(full bool) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	last, err := lastEntryOccurredAt(w.file.Name())
+	if err != nil {
+		return fmt.Errorf("audit log: reading last entry timestamp: %w", err)
+	}
+	w.lastOccurredAt = last
+
+	if !full {
+		return nil
+	}
+
+	f, err := os.Open(w.file.Name())
+	if err != nil {
+		return fmt.Errorf("audit log: open for startup scan: %w", err)
+	}
+	defer f.Close()
+
+	res, err := Scan(f, w.PubKey())
+	if err != nil {
+		return fmt.Errorf("audit log: startup scan: %w", err)
+	}
+
+	// Split anomalies by class: warn on clock regressions (benign host-clock history), refuse to
+	// start on anything else (tamper or corruption).
+	var tamper []string
+	for _, a := range res.Anomalies {
+		if a.Kind == AnomalyClock {
+			w.logger.Warn().Str("anomaly", a.String()).
+				Msg("audit log startup scan: backward timestamp — check host clock history")
+		} else {
+			tamper = append(tamper, a.String())
+		}
+	}
+	if len(tamper) > 0 {
+		return fmt.Errorf("audit log: startup scan found %d tamper/corruption anomaly(ies) —"+
+			" refusing to start; investigate before restarting: %s", len(tamper), strings.Join(tamper, "; "))
+	}
+	w.logger.Info().Int("entries", res.Count).Msg("audit log startup scan: OK")
+	return nil
+}
+
+// lastEntryOccurredAt returns the occurred_at of the log's final entry, or the zero time if the log
+// is empty.
+func lastEntryOccurredAt(path string) (time.Time, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return time.Time{}, err
+	}
+	defer f.Close()
+	last, err := readLastLine(f)
+	if err != nil {
+		return time.Time{}, err
+	}
+	if len(last) == 0 {
+		return time.Time{}, nil
+	}
+	var ev ports.AuditEvent
+	if err := json.Unmarshal(last, &ev); err != nil {
+		return time.Time{}, fmt.Errorf("parsing last audit entry: %w", err)
+	}
+	return ev.OccurredAt, nil
+}
+
 // Append serializes ev to JSON and writes a single newline-terminated line.
 // If the writer was opened with a signing key, the Signature field is set to a
 // base64 Ed25519 signature over the canonical JSON of the event (excluding the
@@ -143,6 +226,16 @@ func (w *JSONLWriter) Append(ctx context.Context, ev ports.AuditEvent) error {
 	defer w.mu.Unlock()
 
 	ev.PrevHash = w.prevHash
+
+	// Monotonicity is not enforced — the raw timestamp is preserved for forensics — but a backward
+	// step signals a host clock regression, so surface it live. `coordd audit verify` flags it too.
+	if !w.lastOccurredAt.IsZero() && ev.OccurredAt.Before(w.lastOccurredAt) {
+		w.logger.Warn().
+			Time("occurred_at", ev.OccurredAt).
+			Time("previous", w.lastOccurredAt).
+			Str("event", ev.EventName).
+			Msg("audit clock regression: entry occurred_at precedes the previous entry — check host clock")
+	}
 
 	if w.privKey != nil {
 		msg, err := canonicaljson.MarshalForSigning(ev)
@@ -161,6 +254,7 @@ func (w *JSONLWriter) Append(ctx context.Context, ev ports.AuditEvent) error {
 		return fmt.Errorf("audit log write: %w", err)
 	}
 	w.prevHash = sha256hex(line)
+	w.lastOccurredAt = ev.OccurredAt
 
 	if w.prevHashStore != nil {
 		if err := w.prevHashStore.SavePrevHash(ctx, w.prevHash); err != nil {

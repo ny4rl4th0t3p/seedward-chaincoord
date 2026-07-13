@@ -1,11 +1,8 @@
 package cmd
 
 import (
-	"bufio"
 	"crypto/ed25519"
-	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -14,7 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/ny4rl4th0t3p/seedward-libs/canonicaljson"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/infrastructure/auditlog"
 )
 
 func newAuditCmd() *cobra.Command {
@@ -51,16 +48,6 @@ a running server with --server-url (uses GET /audit/pubkey).`,
 	return cmd
 }
 
-// rawAuditEntry is the on-disk shape of each audit log line.
-type rawAuditEntry struct {
-	LaunchID   string          `json:"launch_id"`
-	EventName  string          `json:"event_name"`
-	OccurredAt time.Time       `json:"occurred_at"`
-	Payload    json.RawMessage `json:"payload"`
-	Signature  string          `json:"signature"`
-	PrevHash   string          `json:"prev_hash,omitempty"`
-}
-
 func runAuditVerify(cmd *cobra.Command, _ []string) error {
 	filePath, _ := cmd.Flags().GetString("file")
 	pubKeyB64, _ := cmd.Flags().GetString("pubkey")
@@ -77,16 +64,16 @@ func runAuditVerify(cmd *cobra.Command, _ []string) error {
 	}
 	defer f.Close()
 
-	res, err := scanAuditLog(f, pubKey)
+	res, err := auditlog.Scan(f, pubKey)
 	if err != nil {
 		return fmt.Errorf("reading file: %w", err)
 	}
 
-	fmt.Printf("entries:    %d\n", res.count)
-	if res.count > 0 {
+	fmt.Printf("entries:    %d\n", res.Count)
+	if res.Count > 0 {
 		fmt.Printf("time range: %s → %s\n",
-			res.firstTime.Format(time.RFC3339),
-			res.lastTime.Format(time.RFC3339),
+			res.FirstTime.Format(time.RFC3339),
+			res.LastTime.Format(time.RFC3339),
 		)
 	}
 	if pubKey != nil {
@@ -94,21 +81,21 @@ func runAuditVerify(cmd *cobra.Command, _ []string) error {
 	} else {
 		fmt.Println("signatures: not checked (no pubkey provided or fetched)")
 	}
-	if res.chainChecked {
+	if res.ChainChecked {
 		fmt.Println("chain:      verified (where present)")
 	} else {
 		fmt.Println("chain:      not checked (no prev_hash fields in log)")
 	}
 
-	if len(res.anomalies) == 0 {
+	if len(res.Anomalies) == 0 {
 		fmt.Println("result:     OK — no anomalies found")
 		return nil
 	}
-	fmt.Printf("result:     %d anomaly(ies) found\n", len(res.anomalies))
-	for _, a := range res.anomalies {
+	fmt.Printf("result:     %d anomaly(ies) found\n", len(res.Anomalies))
+	for _, a := range res.Anomalies {
 		fmt.Printf("  - %s\n", a)
 	}
-	return fmt.Errorf("audit log has %d anomaly(ies)", len(res.anomalies))
+	return fmt.Errorf("audit log has %d anomaly(ies)", len(res.Anomalies))
 }
 
 // resolveAuditPubKey returns the Ed25519 public key to use for verification.
@@ -162,124 +149,4 @@ func fetchAuditPubKey(serverURL string) (ed25519.PublicKey, error) {
 		return nil, fmt.Errorf("server returned a key of unexpected size %d", len(raw))
 	}
 	return ed25519.PublicKey(raw), nil
-}
-
-type auditScanResult struct {
-	count        int
-	firstTime    time.Time
-	lastTime     time.Time
-	anomalies    []string
-	chainChecked bool
-}
-
-// scanAuditLog reads the JSONL file and returns a summary of what was found.
-func scanAuditLog(f *os.File, pubKey ed25519.PublicKey) (auditScanResult, error) {
-	var res auditScanResult
-	scanner := bufio.NewScanner(f)
-	var lineNum int
-	var prevTime time.Time
-	var prevLineBytes []byte // raw JSON bytes of the previous valid line (no newline)
-
-	for scanner.Scan() {
-		lineNum++
-		line := scanner.Bytes()
-		if len(line) == 0 {
-			continue
-		}
-
-		var entry rawAuditEntry
-		if jsonErr := json.Unmarshal(line, &entry); jsonErr != nil {
-			res.anomalies = append(res.anomalies, fmt.Sprintf("line %d: invalid JSON: %v", lineNum, jsonErr))
-			continue
-		}
-
-		if missing := missingAuditEntryFields(entry); len(missing) > 0 {
-			res.anomalies = append(res.anomalies, fmt.Sprintf("line %d: missing required fields: %v", lineNum, missing))
-			continue
-		}
-
-		if !prevTime.IsZero() && entry.OccurredAt.Before(prevTime) {
-			res.anomalies = append(res.anomalies, fmt.Sprintf(
-				"line %d: timestamp %s is before previous entry %s",
-				lineNum, entry.OccurredAt.Format(time.RFC3339), prevTime.Format(time.RFC3339),
-			))
-		}
-
-		res.anomalies = append(res.anomalies, checkAuditEntrySignature(entry, lineNum, pubKey)...)
-
-		if chainAnoms := checkPrevHash(entry, lineNum, prevLineBytes); len(chainAnoms) > 0 {
-			res.anomalies = append(res.anomalies, chainAnoms...)
-		} else if entry.PrevHash != "" {
-			res.chainChecked = true
-		}
-
-		if res.count == 0 {
-			res.firstTime = entry.OccurredAt
-		}
-		res.lastTime = entry.OccurredAt
-		prevTime = entry.OccurredAt
-		prevLineBytes = append([]byte(nil), line...) // copy — scanner reuses buffer
-		res.count++
-	}
-	return res, scanner.Err()
-}
-
-// checkPrevHash verifies that entry.PrevHash matches the SHA-256 of the previous line.
-// Entries with prev_hash == "" are skipped (first entry, restart boundary, or pre-chaining log).
-func checkPrevHash(entry rawAuditEntry, lineNum int, prevLineBytes []byte) []string {
-	if entry.PrevHash == "" {
-		return nil
-	}
-	if len(prevLineBytes) == 0 {
-		return []string{fmt.Sprintf("line %d: prev_hash set but no previous line exists", lineNum)}
-	}
-	want := auditSHA256Hex(prevLineBytes)
-	if entry.PrevHash != want {
-		return []string{fmt.Sprintf("line %d: prev_hash mismatch (want %s, got %s)", lineNum, want, entry.PrevHash)}
-	}
-	return nil
-}
-
-func auditSHA256Hex(b []byte) string {
-	h := sha256.Sum256(b)
-	return hex.EncodeToString(h[:])
-}
-
-func missingAuditEntryFields(entry rawAuditEntry) []string {
-	var missing []string
-	if entry.LaunchID == "" {
-		missing = append(missing, "launch_id")
-	}
-	if entry.EventName == "" {
-		missing = append(missing, "event_name")
-	}
-	if entry.OccurredAt.IsZero() {
-		missing = append(missing, "occurred_at")
-	}
-	if len(entry.Payload) == 0 {
-		missing = append(missing, "payload")
-	}
-	return missing
-}
-
-func checkAuditEntrySignature(entry rawAuditEntry, lineNum int, pubKey ed25519.PublicKey) []string {
-	if pubKey == nil || entry.Signature == "" {
-		return nil
-	}
-	sigBytes, err := base64.StdEncoding.DecodeString(entry.Signature)
-	if err != nil {
-		return []string{fmt.Sprintf("line %d: invalid signature encoding: %v", lineNum, err)}
-	}
-	// Reproduce canonical signed bytes: entry without the signature field.
-	// Zero only Signature so PrevHash (and any future fields) are included automatically.
-	noSig := entry
-	noSig.Signature = ""
-	msg, merr := canonicaljson.MarshalForSigning(noSig)
-	if merr != nil {
-		return []string{fmt.Sprintf("line %d: re-marshaling for sig verify: %v", lineNum, merr)}
-	}
-	if !ed25519.Verify(pubKey, msg, sigBytes) {
-		return []string{fmt.Sprintf("line %d: signature verification FAILED", lineNum)}
-	}
-	return nil
 }

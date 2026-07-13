@@ -44,7 +44,9 @@ inside the transaction (a transactional outbox); at this system's granularity �
 the distinction is immaterial, and the hash-chain remains the authoritative, tamper-evident order regardless.
 
 Using record time keeps `occurred_at` **monotonically non-decreasing** along the chain — an invariant `coordd audit
-verify` checks, flagging any backward step as an anomaly. An event-embedded "when it really happened" time would break
+verify` checks, flagging any backward step as an anomaly (coordd also warns on a backward step live, at append time, and
+during startup verification — see [Startup and live integrity checks](#startup-and-live-integrity-checks)). An
+event-embedded "when it really happened" time would break
 this: a later-written line could carry an earlier timestamp. (The event model keeps a `WithTime` seam for a future in
 which writes become deferred or replayed — where the creation time would matter — but no current event uses it; every
 entry is stamped at write time.)
@@ -188,6 +190,38 @@ result:     OK — no anomalies found
 ```
 
 Exit code is `0` on success, non-zero if any anomaly is found.
+
+---
+
+## Startup and live integrity checks
+
+Beyond the offline command, `coordd` checks integrity automatically.
+
+**On every boot**, before serving, `coordd` restores the hash-chain tip from its database and verifies the last log
+line still hashes to it — a cheap, unconditional check that catches truncation or deletion of recent entries; a
+mismatch **refuses startup**. The depth of the additional scan is set by `audit_startup_verify`
+(env `COORD_AUDIT_STARTUP_VERIFY`):
+
+| Value            | On boot                                                                                                       |
+|------------------|--------------------------------------------------------------------------------------------------------------|
+| `full` (default) | Scans the whole log — signatures, hash-chain links, and timestamps — in addition to the tip check.           |
+| `tail`           | Runs only the cheap tip check. For operators whose log has grown large; pair with scheduled `audit verify`.  |
+
+A `full` scan classifies what it finds:
+
+- **Tamper / corruption** — a failed signature, a broken `prev_hash` link, or a malformed / missing-field entry —
+  **refuses startup**. These cannot arise from normal operation (an attacker cannot forge a signature), so `coordd`
+  will not run on top of a compromised log; investigate before restarting.
+- **Backward timestamp** — an `occurred_at` earlier than its predecessor — **warns but does not refuse**. This is
+  almost always a host-clock regression (NTP step, manual set, VM migration), not tampering, and the raw timestamp is
+  preserved rather than masked (record time, above).
+
+**At write time**, every append compares the new entry's `occurred_at` to the previous one and emits a `WARN` to the
+operational log on a backward step — the same clock-regression signal, surfaced live rather than only at boot or on an
+offline scan. The timestamp is still written as-is; `coordd` never rewrites it.
+
+The offline `coordd audit verify`, the boot-time scan, and the append-time warning share one implementation, so they
+report identical anomalies.
 
 ---
 
