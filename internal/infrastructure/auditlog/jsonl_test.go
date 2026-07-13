@@ -201,6 +201,49 @@ func TestAppend_SignsEntryWhenKeyProvided(t *testing.T) {
 	assert.True(t, ed25519.Verify(pub, msg, sigBytes), "signature verification failed")
 }
 
+func TestAppend_SignatureCoversPrevHashAndPayload(t *testing.T) {
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err, "generating key")
+
+	path := filepath.Join(t.TempDir(), "audit.jsonl")
+	w, err := Open(path, priv)
+	require.NoError(t, err, "Open")
+	require.NoError(t, w.Append(context.Background(), ev("TestEvent", "launch-1")), "Append")
+	_ = w.Close()
+
+	f, err := os.Open(path)
+	require.NoError(t, err)
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	scanner.Scan()
+	var entry ports.AuditEvent
+	require.NoError(t, json.Unmarshal(scanner.Bytes(), &entry), "unmarshal")
+	sigBytes, err := base64.StdEncoding.DecodeString(entry.Signature)
+	require.NoError(t, err)
+	entry.Signature = ""
+
+	// Baseline: the untampered entry verifies.
+	msg, err := canonicaljson.MarshalForSigning(entry)
+	require.NoError(t, err)
+	require.True(t, ed25519.Verify(pub, msg, sigBytes), "baseline signature must verify")
+
+	// Tampering prev_hash — the re-chaining attack — must invalidate the signature. This is the
+	// property that stops an attacker from deleting an entry and recomputing the chain: prev_hash
+	// is covered by the signature, so a rewritten chain can't be re-signed without the audit key.
+	tampered := entry
+	tampered.PrevHash = "0000000000000000000000000000000000000000000000000000000000000000"
+	msg, err = canonicaljson.MarshalForSigning(tampered)
+	require.NoError(t, err)
+	assert.False(t, ed25519.Verify(pub, msg, sigBytes), "mutating prev_hash must break the signature")
+
+	// Tampering the payload likewise breaks it.
+	tampered = entry
+	tampered.EventName = "ForgedEvent"
+	msg, err = canonicaljson.MarshalForSigning(tampered)
+	require.NoError(t, err)
+	assert.False(t, ed25519.Verify(pub, msg, sigBytes), "mutating the payload must break the signature")
+}
+
 func TestAppend_NoSignatureWhenNoKey(t *testing.T) {
 	w, path := openTmp(t)
 	require.NoError(t, w.Append(context.Background(), ev("TestEvent", "launch-1")), "Append")

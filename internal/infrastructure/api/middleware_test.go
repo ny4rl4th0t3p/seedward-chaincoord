@@ -11,8 +11,10 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/ports"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/launch"
 )
 
 // stubSessions is a minimal ports.SessionStore used only by middleware tests.
@@ -56,7 +58,7 @@ func (s *stubSessions) ParseClaims(token string) (string, time.Time, error) {
 func adminServer(admins []string, tokens map[string]string) *Server {
 	am := make(map[string]struct{}, len(admins))
 	for _, a := range admins {
-		am[a] = struct{}{}
+		am[accountLookupKey(a)] = struct{}{} // normalize like production NewServer (account-keyed)
 	}
 	return &Server{
 		adminAddresses: am,
@@ -116,6 +118,24 @@ func TestRequireAdmin(t *testing.T) {
 			assert.Equal(t, tc.wantStatus, w.Code, "body: %s", w.Body.String())
 		})
 	}
+}
+
+func TestRequireAdmin_HRPIndependent(t *testing.T) {
+	// An admin configured under one HRP must still be recognized when the session authenticates
+	// under a DIFFERENT HRP for the SAME account — admin membership is account-keyed, not display.
+	const adminCosmos = "cosmos1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5lzv7xu" // valid bech32 account
+	adminOsmo, err := launch.MustNewAccountID(adminCosmos).Bech32("osmo")
+	require.NoError(t, err)
+
+	srv := adminServer([]string{adminCosmos}, map[string]string{"osmo-admin-token": adminOsmo})
+
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
+	r.Header.Set("Authorization", "Bearer osmo-admin-token")
+	w := httptest.NewRecorder()
+	srv.requireAdmin(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))(w, r)
+	assert.Equal(t, http.StatusOK, w.Code, "admin under a different HRP must be recognized; body: %s", w.Body.String())
 }
 
 func TestRequireOps(t *testing.T) {

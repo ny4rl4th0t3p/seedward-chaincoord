@@ -2,10 +2,14 @@ package auth_test
 
 import (
 	"context"
+	"crypto/ed25519"
 	"database/sql"
+	"encoding/base64"
 	"testing"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -71,6 +75,27 @@ func TestJWTSessionStore_Validate_InvalidToken(t *testing.T) {
 	store := newStore(t)
 	_, err := store.Validate(context.Background(), "not-a-jwt")
 	require.ErrorIs(t, err, ports.ErrUnauthorized)
+}
+
+func TestJWTSessionStore_Validate_ExpiredToken(t *testing.T) {
+	store := newStore(t)
+	// Issue has no clock injection, so craft a token signed with the store's key but already
+	// expired to prove Validate rejects it on the expiry branch.
+	seed, err := base64.StdEncoding.DecodeString(testKey)
+	require.NoError(t, err)
+	priv := ed25519.NewKeyFromSeed(seed)
+
+	past := time.Now().Add(-2 * time.Hour)
+	signed, err := jwt.NewWithClaims(jwt.SigningMethodEdDSA, jwt.RegisteredClaims{
+		Subject:   "cosmos1abc",
+		IssuedAt:  jwt.NewNumericDate(past),
+		ExpiresAt: jwt.NewNumericDate(past.Add(time.Hour)), // expired ~1h ago
+		ID:        uuid.New().String(),
+	}).SignedString(priv)
+	require.NoError(t, err)
+
+	_, err = store.Validate(context.Background(), signed)
+	require.ErrorIs(t, err, ports.ErrUnauthorized, "an expired token must be rejected")
 }
 
 func TestJWTSessionStore_ParseClaims(t *testing.T) {

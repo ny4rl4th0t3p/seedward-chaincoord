@@ -116,6 +116,36 @@ func TestHandleRehearsalResults_FabricatedAttempt(t *testing.T) {
 	assertStatusCode(t, w, http.StatusBadRequest)
 }
 
+func TestHandleRehearsalResults_UntrustedKeyRejected(t *testing.T) {
+	h := newHarness(t)
+	l, _ := seedRehearsalLaunch(t, h) // launch trusts the returned key; we discard it
+	attemptID, hash := fetchAttempt(t, h, l.ID.String())
+
+	// Sign with an attacker key the launch does NOT trust. The fact self-declares this key, but the
+	// server verifies against the launch's TRUSTED key (anti-fabrication) — so it must be 401.
+	_, attackerPriv, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	body := signAPIResultFact(t, l.ID.String(), hash, attemptID, attackerPriv)
+
+	w := h.do("POST", resultsPath(l.ID.String()), body, opsJSONHeader())
+	assertStatusCode(t, w, http.StatusUnauthorized)
+}
+
+func TestHandleRehearsalResults_NoTrustedKeyRejected(t *testing.T) {
+	h := newHarness(t)
+	l := testLaunch()
+	l.RehearsalServicePubKey = "" // no trusted key configured on the launch
+	h.launches.data[l.ID] = l
+	attemptID, hash := fetchAttempt(t, h, l.ID.String())
+
+	_, priv, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	body := signAPIResultFact(t, l.ID.String(), hash, attemptID, priv)
+
+	w := h.do("POST", resultsPath(l.ID.String()), body, opsJSONHeader())
+	assertStatusCode(t, w, http.StatusConflict)
+}
+
 // resultFactGolden is the canonical result-fact wire payload (bridge-contract.md §4) — the coordd
 // (consumer) side of the drift guard. seedward-rehearsal has a mirror producer test that MARSHALS
 // to this shape. Keep both copies + §4 in sync.
