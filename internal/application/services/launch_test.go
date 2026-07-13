@@ -610,7 +610,8 @@ func TestLaunchService_PatchLaunch_RehearsalKeyChange_Audited(t *testing.T) {
 
 	require.Len(t, audit.events, 1, "changing the trusted rehearsal key must be audited")
 	ev := audit.events[0]
-	assert.Equal(t, "RehearsalServiceKeyChanged", ev.EventName)
+	assert.Equal(t, "LaunchPatched", ev.EventName)
+	assert.Contains(t, string(ev.Payload), "rehearsal_service_pubkey", "payload must name the changed field")
 	assert.Contains(t, string(ev.Payload), osmosisPubKey, "audit payload must record the old key")
 	assert.Contains(t, string(ev.Payload), newKey, "audit payload must record the new key")
 	// A bare launch event must be stamped with the write time — not the zero timestamp that
@@ -631,6 +632,65 @@ func TestLaunchService_PatchLaunch_RehearsalKeyUnchanged_NotAudited(t *testing.T
 		PatchLaunchInput{RehearsalServicePubKey: &same}, testAddr1)
 	require.NoError(t, err)
 	assert.Empty(t, audit.events, "a no-op key PATCH must emit no audit event")
+}
+
+func TestLaunchService_PatchLaunch_MultipleFields_Audited(t *testing.T) {
+	l := testLaunch() // DRAFT
+	audit := &fakeAuditLogWriter{}
+	svc := newLaunchSvcWithAudit(newFakeLaunchRepo(l), newFakeGenesisStore(), audit)
+
+	name := "renamed-chain"
+	minVal := 7
+	_, err := svc.PatchLaunch(context.Background(), l.ID,
+		PatchLaunchInput{ChainName: &name, MinValidatorCount: &minVal}, testAddr1)
+	require.NoError(t, err)
+
+	require.Len(t, audit.events, 1, "a patch is one LaunchPatched event regardless of field count")
+	ev := audit.events[0]
+	assert.Equal(t, "LaunchPatched", ev.EventName)
+	assert.Contains(t, string(ev.Payload), "chain_name", "payload names each changed field")
+	assert.Contains(t, string(ev.Payload), "min_validator_count", "payload names each changed field")
+}
+
+func TestLaunchService_AddMember_Audited(t *testing.T) {
+	l := test1of1Launch()
+	audit := &fakeAuditLogWriter{}
+	svc := newLaunchSvcWithAudit(newFakeLaunchRepo(l), newFakeGenesisStore(), audit)
+
+	_, err := svc.AddMember(context.Background(), l.ID, testAddr2, "acme-fleet", testAddr1)
+	require.NoError(t, err)
+
+	require.Len(t, audit.events, 1, "adding a member must be audited")
+	ev := audit.events[0]
+	assert.Equal(t, "LaunchMemberAdded", ev.EventName)
+	assert.Contains(t, string(ev.Payload), testAddr2, "payload records the added address")
+	assert.Contains(t, string(ev.Payload), "acme-fleet", "payload records the label")
+}
+
+func TestLaunchService_RemoveMember_Audited(t *testing.T) {
+	l := test1of1Launch()
+	audit := &fakeAuditLogWriter{}
+	svc := newLaunchSvcWithAudit(newFakeLaunchRepo(l), newFakeGenesisStore(), audit)
+
+	_, err := svc.AddMember(context.Background(), l.ID, testAddr2, "x", testAddr1)
+	require.NoError(t, err)
+	require.NoError(t, svc.RemoveMember(context.Background(), l.ID, testAddr2, testAddr1))
+
+	require.Len(t, audit.events, 2, "add and remove are each audited")
+	ev := audit.events[1]
+	assert.Equal(t, "LaunchMemberRemoved", ev.EventName)
+	assert.Contains(t, string(ev.Payload), testAddr2, "payload records the removed address")
+}
+
+func TestLaunchService_SetCommittee_Audited(t *testing.T) {
+	l := test1of1Launch() // DRAFT, lead = testAddr1
+	audit := &fakeAuditLogWriter{}
+	svc := newLaunchSvcWithAudit(newFakeLaunchRepo(l), newFakeGenesisStore(), audit)
+
+	require.NoError(t, svc.SetCommittee(context.Background(), l.ID, testCommittee(1, 1), testAddr1))
+
+	require.Len(t, audit.events, 1, "replacing the committee must be audited")
+	assert.Equal(t, "CommitteeSet", audit.events[0].EventName)
 }
 
 func TestLaunchService_PatchLaunch_BadTotalSupply(t *testing.T) {

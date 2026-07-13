@@ -301,21 +301,70 @@ func (e RehearsalAttemptReset) WithTime(t time.Time) RehearsalAttemptReset {
 	return e
 }
 
-// RehearsalServiceKeyChanged is emitted when a PATCH changes a launch's trusted rehearsal
-// service public key. It is recorded in the tamper-evident audit log because this key is the
-// trust anchor for rehearsal result facts: swapping it (any status, a single committee member,
-// no proposal) would otherwise let a forged PASS satisfy the required gate with no auditable
-// trace. Carries the old and new keys for forensics.
-type RehearsalServiceKeyChanged struct {
+// LaunchMemberAdded is emitted when a committee member adds a hot actor to a launch's members list
+// (granting see + submit access). Carries the address, its label, and who added it.
+type LaunchMemberAdded struct {
 	base
-	LaunchID  uuid.UUID
-	OldPubKey string
-	NewPubKey string
-	ChangedBy string
+	LaunchID uuid.UUID
+	Address  string
+	Label    string
+	AddedBy  string
 }
 
-func (RehearsalServiceKeyChanged) EventName() string        { return "RehearsalServiceKeyChanged" }
-func (e RehearsalServiceKeyChanged) GetLaunchID() uuid.UUID { return e.LaunchID }
+func (LaunchMemberAdded) EventName() string        { return "LaunchMemberAdded" }
+func (e LaunchMemberAdded) GetLaunchID() uuid.UUID { return e.LaunchID }
+
+// LaunchMemberRemoved is emitted when a committee member removes a hot actor from a launch's
+// members list (revoking see + submit access).
+type LaunchMemberRemoved struct {
+	base
+	LaunchID  uuid.UUID
+	Address   string
+	RemovedBy string
+}
+
+func (LaunchMemberRemoved) EventName() string        { return "LaunchMemberRemoved" }
+func (e LaunchMemberRemoved) GetLaunchID() uuid.UUID { return e.LaunchID }
+
+// CommitteeSet is emitted when the lead coordinator replaces a DRAFT launch's committee. Carries
+// the new membership and threshold so the initial governance set is reconstructable from the log.
+type CommitteeSet struct {
+	base
+	LaunchID    uuid.UUID
+	Members     []string
+	ThresholdM  int
+	TotalN      int
+	LeadAddress string
+	SetBy       string
+}
+
+func (CommitteeSet) EventName() string        { return "CommitteeSet" }
+func (e CommitteeSet) GetLaunchID() uuid.UUID { return e.LaunchID }
+
+// FieldChange records one field's before/after values in a LaunchPatched event. Values render as
+// strings: scalars directly, a timestamp as RFC3339 (empty when unset), and a list as a sorted,
+// comma-separated display form.
+type FieldChange struct {
+	Field string
+	Old   string
+	New   string
+}
+
+// LaunchPatched is emitted when a committee member changes mutable launch fields via
+// PATCH /launch/{id}: the operational fields (monitor_rpc_url, rehearsal_endpoint,
+// rehearsal_service_pubkey — the rehearsal trust anchor) and, on a DRAFT launch, chain-record
+// fields. Carries a per-field old→new diff of exactly the fields that changed, so every patch —
+// including a swap of the trusted rehearsal key that could otherwise let a forged PASS satisfy the
+// gate — leaves a tamper-evident trace.
+type LaunchPatched struct {
+	base
+	LaunchID  uuid.UUID
+	ChangedBy string
+	Changes   []FieldChange
+}
+
+func (LaunchPatched) EventName() string        { return "LaunchPatched" }
+func (e LaunchPatched) GetLaunchID() uuid.UUID { return e.LaunchID }
 
 // CommitteeMemberReplaced is emitted when a REPLACE_COMMITTEE_MEMBER proposal executes, swapping
 // one committee member for another. Carries the committee membership and threshold before and

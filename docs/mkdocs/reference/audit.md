@@ -40,7 +40,8 @@ Events are written synchronously — the instant the action happens — so this 
 deliberate nuance. The audit line for a committed action is written *after* its transaction commits (and outside it), so
 both `occurred_at` **and** the hash-chain line order record *the order in which coordd committed facts to the log* — not
 the domain commit order of two near-simultaneous actions. Reflecting true commit order would require writing the entry
-inside the transaction (a transactional outbox); at this system's granularity — governance actions over human timescales —
+inside the transaction (a transactional outbox); at this system's granularity — governance actions over human
+timescales —
 the distinction is immaterial, and the hash-chain remains the authoritative, tamper-evident order regardless.
 
 Using record time keeps `occurred_at` **monotonically non-decreasing** along the chain — an invariant `coordd audit
@@ -55,44 +56,48 @@ entry is stamped at write time.)
 
 ## Event types
 
-| Event                        | Trigger                                                                                                                                                          |
-|------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `LaunchCreated`              | Launch created — committee and chain record set                                                                                                                  |
-| `ChainRecordPublished`       | `PUBLISH_CHAIN_RECORD` proposal executed — launch moves to `PUBLISHED`                                                                                           |
-| `WindowOpened`               | A committee member calls `POST /launch/:id/open-window` — launch moves to `WINDOW_OPEN`                                                                          |
-| `WindowClosed`               | `CLOSE_APPLICATION_WINDOW` proposal executed — launch moves to `WINDOW_CLOSED`                                                                                   |
-| `InitialGenesisUploaded`     | Initial genesis file uploaded or registered via attestor URL                                                                                                     |
-| `FinalGenesisUploaded`       | Final genesis file uploaded or registered via attestor URL                                                                                                       |
-| `GenesisPublished`           | `PUBLISH_GENESIS` proposal executed — launch moves to `GENESIS_READY`                                                                                            |
-| `GenesisTimeUpdated`         | `UPDATE_GENESIS_TIME` proposal executed                                                                                                                          |
-| `GenesisRevisionApproved`    | `REVISE_GENESIS` proposal executed — launch reverts to `WINDOW_CLOSED`                                                                                           |
-| `ValidatorApproved`          | `APPROVE_VALIDATOR` proposal executed                                                                                                                            |
-| `ValidatorRejected`          | `REJECT_VALIDATOR` proposal executed                                                                                                                             |
-| `ValidatorRemoved`           | `REMOVE_APPROVED_VALIDATOR` proposal executed                                                                                                                    |
-| `CommitteeMemberReplaced`    | `REPLACE_COMMITTEE_MEMBER` proposal executed — payload carries the committee membership and threshold before and after                                           |
-| `CommitteeExpanded`          | `EXPAND_COMMITTEE` proposal executed — payload carries the committee membership and threshold before and after                                                   |
-| `CommitteeShrunk`            | `SHRINK_COMMITTEE` proposal executed — payload carries the committee membership and threshold before and after                                                   |
-| `AllocationFileUploaded`     | Allocation file uploaded or registered via attestor URL (status → `PENDING`)                                                                                     |
-| `AllocationFileApproved`     | `APPROVE_ALLOCATION_FILE` proposal executed — file approved                                                                                                      |
-| `AllocationFileRejected`     | `APPROVE_ALLOCATION_FILE` proposal vetoed — file rejected                                                                                                        |
-| `LaunchCancelled`            | Lead coordinator cancels the launch                                                                                                                              |
-| `LaunchDetected`             | Block monitor observes block 1 — launch moves to `LAUNCHED`                                                                                                      |
-| `RehearsalResultRecorded`    | A signature-verified rehearsal result is recorded via the bridge (`POST .../rehearsal-results`); payload carries the outcome, input-set hash, and a `stale` flag |
-| `RehearsalAttemptReset`      | A coordinator force-releases a stuck rehearsal run lease (`POST .../rehearsal/{attempt_id}/reset`)                                                               |
-| `RehearsalServiceKeyChanged` | A committee member changes the launch's trusted rehearsal service key via `PATCH /launch/{id}` — payload carries the old and new keys                            |
-| `JoinRequestSubmitted`       | A validator submits a join request (`POST /launch/{id}/join`) — payload carries the join-request ID and the operator and submitter addresses                     |
-| `ReadinessConfirmed`         | A validator confirms readiness (`POST /launch/{id}/readiness`) — payload carries the operator address                                                            |
+| Event                     | Trigger                                                                                                                                                                                                                               |
+|---------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `LaunchCreated`           | Launch created — committee and chain record set                                                                                                                                                                                       |
+| `ChainRecordPublished`    | `PUBLISH_CHAIN_RECORD` proposal executed — launch moves to `PUBLISHED`                                                                                                                                                                |
+| `WindowOpened`            | A committee member calls `POST /launch/:id/open-window` — launch moves to `WINDOW_OPEN`                                                                                                                                               |
+| `WindowClosed`            | `CLOSE_APPLICATION_WINDOW` proposal executed — launch moves to `WINDOW_CLOSED`                                                                                                                                                        |
+| `InitialGenesisUploaded`  | Initial genesis file uploaded or registered via attestor URL                                                                                                                                                                          |
+| `FinalGenesisUploaded`    | Final genesis file uploaded or registered via attestor URL                                                                                                                                                                            |
+| `GenesisPublished`        | `PUBLISH_GENESIS` proposal executed — launch moves to `GENESIS_READY`                                                                                                                                                                 |
+| `GenesisTimeUpdated`      | `UPDATE_GENESIS_TIME` proposal executed                                                                                                                                                                                               |
+| `GenesisRevisionApproved` | `REVISE_GENESIS` proposal executed — launch reverts to `WINDOW_CLOSED`                                                                                                                                                                |
+| `ValidatorApproved`       | `APPROVE_VALIDATOR` proposal executed                                                                                                                                                                                                 |
+| `ValidatorRejected`       | `REJECT_VALIDATOR` proposal executed                                                                                                                                                                                                  |
+| `ValidatorRemoved`        | `REMOVE_APPROVED_VALIDATOR` proposal executed                                                                                                                                                                                         |
+| `CommitteeMemberReplaced` | `REPLACE_COMMITTEE_MEMBER` proposal executed — payload carries the committee membership and threshold before and after                                                                                                                |
+| `CommitteeExpanded`       | `EXPAND_COMMITTEE` proposal executed — payload carries the committee membership and threshold before and after                                                                                                                        |
+| `CommitteeShrunk`         | `SHRINK_COMMITTEE` proposal executed — payload carries the committee membership and threshold before and after                                                                                                                        |
+| `AllocationFileUploaded`  | Allocation file uploaded or registered via attestor URL (status → `PENDING`)                                                                                                                                                          |
+| `AllocationFileApproved`  | `APPROVE_ALLOCATION_FILE` proposal executed — file approved                                                                                                                                                                           |
+| `AllocationFileRejected`  | `APPROVE_ALLOCATION_FILE` proposal vetoed — file rejected                                                                                                                                                                             |
+| `LaunchCancelled`         | Lead coordinator cancels the launch                                                                                                                                                                                                   |
+| `LaunchDetected`          | Block monitor observes block 1 — launch moves to `LAUNCHED`                                                                                                                                                                           |
+| `RehearsalResultRecorded` | A signature-verified rehearsal result is recorded via the bridge (`POST .../rehearsal-results`); payload carries the outcome, input-set hash, and a `stale` flag                                                                      |
+| `RehearsalAttemptReset`   | A coordinator force-releases a stuck rehearsal run lease (`POST .../rehearsal/{attempt_id}/reset`)                                                                                                                                    |
+| `LaunchPatched`           | A committee member changes mutable launch fields via `PATCH /launch/{id}` — payload carries a per-field old→new diff (`monitor_rpc_url`, `rehearsal_endpoint`, the trusted `rehearsal_service_pubkey`, and DRAFT chain-record fields) |
+| `LaunchMemberAdded`       | A committee member adds a hot actor to the members list (`POST /launch/{id}/members`) — payload carries the address, label, and who added it                                                                                          |
+| `LaunchMemberRemoved`     | A committee member removes a hot actor from the members list (`DELETE /launch/{id}/members/{address}`)                                                                                                                                |
+| `CommitteeSet`            | The lead coordinator replaces a DRAFT launch's committee — payload carries the new membership and threshold                                                                                                                           |
+| `JoinRequestSubmitted`    | A validator submits a join request (`POST /launch/{id}/join`) — payload carries the join-request ID and the operator and submitter addresses                                                                                          |
+| `ReadinessConfirmed`      | A validator confirms readiness (`POST /launch/{id}/readiness`) — payload carries the operator address                                                                                                                                 |
 
 Admin-plane events — `CoordinatorAdded`, `CoordinatorRemoved` (coordinator allowlist) and `SessionsRevoked`
 (session revocation) — have no launch, so they are recorded under the **`global`** scope (see below).
 Proposal execution is recorded in two phases: `ProposalExecuting` (intent) and `ProposalExecutionAborted`
 (see [Two-phase proposal execution](#two-phase-proposal-execution)).
 
-!!! note "Not yet in the audit log"
-Some non-transition mutations are persisted but do not yet emit an audited event: members-list changes
-(`POST`/`DELETE /launch/{id}/members`, kept with `added_by`/`added_at` provenance), the initial DRAFT
-committee (`SetCommittee`), and other DRAFT chain-field patches (`monitor_rpc_url` / `rehearsal_endpoint`).
-These are tracked follow-ups.
+!!! note "Intentionally not audited"
+A few mutations deliberately emit no audit event: **claiming a rehearsal-run lease** (high-frequency bridge
+protocol — the *result* it produces, `RehearsalResultRecorded`, is audited, as is a manual `RehearsalAttemptReset`
+override), and **expiry of a stale proposal** that never reached quorum (a garbage-collection step, not a governance
+action). A coverage-guard test requires every other service mutation to emit an event, so this list cannot grow by
+accident.
 
 ---
 
@@ -202,10 +207,10 @@ line still hashes to it — a cheap, unconditional check that catches truncation
 mismatch **refuses startup**. The depth of the additional scan is set by `audit_startup_verify`
 (env `COORD_AUDIT_STARTUP_VERIFY`):
 
-| Value            | On boot                                                                                                       |
-|------------------|--------------------------------------------------------------------------------------------------------------|
-| `full` (default) | Scans the whole log — signatures, hash-chain links, and timestamps — in addition to the tip check.           |
-| `tail`           | Runs only the cheap tip check. For operators whose log has grown large; pair with scheduled `audit verify`.  |
+| Value            | On boot                                                                                                     |
+|------------------|-------------------------------------------------------------------------------------------------------------|
+| `full` (default) | Scans the whole log — signatures, hash-chain links, and timestamps — in addition to the tip check.          |
+| `tail`           | Runs only the cheap tip check. For operators whose log has grown large; pair with scheduled `audit verify`. |
 
 A `full` scan classifies what it finds:
 

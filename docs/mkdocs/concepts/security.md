@@ -25,10 +25,12 @@ is an Ed25519-signed fact from the rehearsal service, verified against a per-lau
 
 ## The history can't be rewritten
 
-Every committee proposal, genesis upload, and lifecycle transition is recorded in a tamper-evident, hash-chained, signed audit log (see
-[Reference → Audit Log](../reference/audit.md)): an entry can't be altered or removed without detection,
-and the server **refuses to start on a broken chain**. So even a compromised server can't silently rewrite
-the past.
+Every state-changing action — committee proposals, genesis and allocation uploads, membership and committee changes,
+launch-field patches, join and readiness submissions, and lifecycle transitions — is recorded in a tamper-evident,
+hash-chained, signed audit log (see [Reference → Audit Log](../reference/audit.md)): an entry can't be altered or
+removed without detection, and the server **refuses to start on a broken chain**. So even a compromised server can't
+silently rewrite the past. A coverage-guard test holds the line — every service mutation must emit an audited event or
+be an explicitly justified exception.
 
 ## What coordd is trusted for — and its limits
 

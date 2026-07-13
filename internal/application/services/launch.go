@@ -9,6 +9,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -590,11 +593,19 @@ func (s *LaunchService) PatchLaunch(
 		return nil, fmt.Errorf("patch launch: caller is not a committee member: %w", ports.ErrForbidden)
 	}
 
+	var changes []domain.FieldChange
+	record := func(field, old, updated string) {
+		if old != updated {
+			changes = append(changes, domain.FieldChange{Field: field, Old: old, New: updated})
+		}
+	}
+
 	// MonitorRPCURL is status-independent — set it before the DRAFT gate.
 	if input.MonitorRPCURL != nil {
 		if err := s.urlValidator(*input.MonitorRPCURL); err != nil {
 			return nil, fmt.Errorf("patch launch: monitor_rpc_url: %w: %w", err, ports.ErrBadRequest)
 		}
+		record("monitor_rpc_url", l.MonitorRPCURL, *input.MonitorRPCURL)
 		l.MonitorRPCURL = *input.MonitorRPCURL
 	}
 
@@ -606,18 +617,18 @@ func (s *LaunchService) PatchLaunch(
 		if *input.RehearsalEndpoint != "" && !launch.IsValidHTTPURL(*input.RehearsalEndpoint) {
 			return nil, fmt.Errorf("patch launch: rehearsal_endpoint must be a valid http(s) URL: %w", ports.ErrBadRequest)
 		}
+		record("rehearsal_endpoint", l.RehearsalEndpoint, *input.RehearsalEndpoint)
 		l.RehearsalEndpoint = *input.RehearsalEndpoint
 	}
-	rehearsalKeyChanged := false
-	var oldRehearsalKey string
+
+	// The rehearsal service pubkey is the trust anchor for rehearsal result facts; a swap (any
+	// status, a single committee member, no proposal) is captured with an old→new diff like every
+	// other patched field, in the LaunchPatched event below.
 	if input.RehearsalServicePubKey != nil {
 		if err := validateEd25519PubKeyB64(*input.RehearsalServicePubKey); err != nil {
 			return nil, fmt.Errorf("patch launch: rehearsal_service_pubkey: %w: %w", err, ports.ErrBadRequest)
 		}
-		if *input.RehearsalServicePubKey != l.RehearsalServicePubKey {
-			rehearsalKeyChanged = true
-			oldRehearsalKey = l.RehearsalServicePubKey
-		}
+		record("rehearsal_service_pubkey", l.RehearsalServicePubKey, *input.RehearsalServicePubKey)
 		l.RehearsalServicePubKey = *input.RehearsalServicePubKey
 	}
 
@@ -626,7 +637,7 @@ func (s *LaunchService) PatchLaunch(
 			// Launch-STATE gate (not authz) → 409 Conflict. The committee check above is the 403.
 			return nil, fmt.Errorf("patch launch: only DRAFT launches may have chain fields updated: %w", ports.ErrConflict)
 		}
-		applyDraftFields(l, input)
+		changes = append(changes, applyDraftFields(l, input)...)
 		// Re-validate the whole chain record: it is an invariant that passed validation at
 		// creation and must stay valid after the patch (covers every chain-record field guard).
 		if err := l.Record.Validate(); err != nil {
@@ -638,15 +649,13 @@ func (s *LaunchService) PatchLaunch(
 		return nil, fmt.Errorf("patch launch: save: %w", err)
 	}
 
-	// Swapping the trusted rehearsal key changes whose result facts coordd will trust, so it
-	// must leave a tamper-evident trace (old→new keys) even though the PATCH is not an M-of-N
-	// proposal. Audited after a successful save.
-	if rehearsalKeyChanged {
-		s.writeAudit(ctx, l.ID.String(), domain.RehearsalServiceKeyChanged{
+	// Every patched field leaves a tamper-evident trace with old→new values, even though a PATCH
+	// is not an M-of-N proposal. Audited after a successful save; nothing changed → no event.
+	if len(changes) > 0 {
+		s.writeAudit(ctx, l.ID.String(), domain.LaunchPatched{
 			LaunchID:  l.ID,
-			OldPubKey: oldRehearsalKey,
-			NewPubKey: l.RehearsalServicePubKey,
 			ChangedBy: callerAddr,
+			Changes:   changes,
 		})
 	}
 	return l, nil
@@ -660,36 +669,72 @@ func hasDraftFields(input PatchLaunchInput) bool {
 		input.TotalSupply != nil || input.Allowlist != nil
 }
 
-// applyDraftFields writes all draft-only optional fields from input onto l.
-// Callers must verify l.Status == StatusDraft before calling.
-func applyDraftFields(l *launch.Launch, input PatchLaunchInput) {
+// applyDraftFields writes all draft-only optional fields from input onto l, returning the old→new
+// change for each field that actually changed (for the LaunchPatched audit event). Callers must
+// verify l.Status == StatusDraft before calling.
+func applyDraftFields(l *launch.Launch, input PatchLaunchInput) []domain.FieldChange {
+	var changes []domain.FieldChange
+	record := func(field, old, updated string) {
+		if old != updated {
+			changes = append(changes, domain.FieldChange{Field: field, Old: old, New: updated})
+		}
+	}
 	if input.ChainName != nil {
+		record("chain_name", l.Record.ChainName, *input.ChainName)
 		l.Record.ChainName = *input.ChainName
 	}
 	if input.BinaryVersion != nil {
+		record("binary_version", l.Record.BinaryVersion, *input.BinaryVersion)
 		l.Record.BinaryVersion = *input.BinaryVersion
 	}
 	if input.BinarySHA256 != nil {
+		record("binary_sha256", l.Record.BinarySHA256, *input.BinarySHA256)
 		l.Record.BinarySHA256 = *input.BinarySHA256
 	}
 	if input.RepoURL != nil {
+		record("repo_url", l.Record.RepoURL, *input.RepoURL)
 		l.Record.RepoURL = *input.RepoURL
 	}
 	if input.RepoCommit != nil {
+		record("repo_commit", l.Record.RepoCommit, *input.RepoCommit)
 		l.Record.RepoCommit = *input.RepoCommit
 	}
 	if input.GenesisTime != nil {
+		record("genesis_time", formatTimePtr(l.Record.GenesisTime), formatTimePtr(input.GenesisTime))
 		l.Record.GenesisTime = input.GenesisTime
 	}
 	if input.MinValidatorCount != nil {
+		record("min_validator_count", strconv.Itoa(l.Record.MinValidatorCount), strconv.Itoa(*input.MinValidatorCount))
 		l.Record.MinValidatorCount = *input.MinValidatorCount
 	}
 	if input.TotalSupply != nil {
+		record("total_supply", l.Record.TotalSupply, *input.TotalSupply)
 		l.Record.TotalSupply = *input.TotalSupply
 	}
 	if input.Allowlist != nil {
+		record("allowlist", formatAccountIDs(l.Allowlist.Addresses()), formatAccountIDs(input.Allowlist))
 		l.Allowlist = launch.NewAllowlist(input.Allowlist)
 	}
+	return changes
+}
+
+// formatTimePtr renders a nullable timestamp as RFC3339 UTC, or "" when unset — for audit diffs.
+func formatTimePtr(t *time.Time) string {
+	if t == nil {
+		return ""
+	}
+	return t.UTC().Format(time.RFC3339)
+}
+
+// formatAccountIDs renders account IDs as a sorted, comma-separated list of display addresses — a
+// deterministic representation for audit diffs of set-valued fields (e.g. the allowlist).
+func formatAccountIDs(ids []launch.AccountID) string {
+	ss := make([]string, len(ids))
+	for i, id := range ids {
+		ss[i] = id.String()
+	}
+	sort.Strings(ss)
+	return strings.Join(ss, ",")
 }
 
 // maxMemberLabelLen caps a member label to keep the members list readable and bound
@@ -736,6 +781,12 @@ func (s *LaunchService) AddMember(ctx context.Context, launchID uuid.UUID, addre
 	if err := s.launches.Save(ctx, l); err != nil {
 		return nil, fmt.Errorf("%s: save: %w", op, err)
 	}
+	s.writeAudit(ctx, l.ID.String(), domain.LaunchMemberAdded{
+		LaunchID: l.ID,
+		Address:  m.Address.String(),
+		Label:    m.Label,
+		AddedBy:  callerAddr,
+	})
 	return &m, nil
 }
 
@@ -758,6 +809,11 @@ func (s *LaunchService) RemoveMember(ctx context.Context, launchID uuid.UUID, ad
 	if err := s.launches.Save(ctx, l); err != nil {
 		return fmt.Errorf("%s: save: %w", op, err)
 	}
+	s.writeAudit(ctx, l.ID.String(), domain.LaunchMemberRemoved{
+		LaunchID:  l.ID,
+		Address:   addr.String(),
+		RemovedBy: callerAddr,
+	})
 	return nil
 }
 
@@ -799,6 +855,14 @@ func (s *LaunchService) SetCommittee(ctx context.Context, launchID uuid.UUID, co
 	if err := s.launches.Save(ctx, l); err != nil {
 		return fmt.Errorf("set committee: save: %w", err)
 	}
+	s.writeAudit(ctx, l.ID.String(), domain.CommitteeSet{
+		LaunchID:    l.ID,
+		Members:     committeeMemberAddrs(committee),
+		ThresholdM:  committee.ThresholdM,
+		TotalN:      committee.TotalN,
+		LeadAddress: committee.LeadAddress.String(),
+		SetBy:       callerAddr,
+	})
 	return nil
 }
 
