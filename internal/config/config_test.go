@@ -3,6 +3,7 @@ package config_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -35,8 +36,7 @@ func TestLoad_RehearsalLeaseTTL(t *testing.T) {
 const testAuditKey = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 
 // testJWTKey is a valid base64-encoded 32-byte Ed25519 seed for use in tests.
-// Distinct from testAuditKey so tests use independent audit and JWT keys (validate()
-// does not currently reject reusing one key for both).
+// Distinct from testAuditKey — validate() rejects reusing one key for both signers.
 const testJWTKey = "AQIDAQIDAQIDAQIDAQIDAQIDAQIDAQIDAQIDAQIDAQI="
 
 // allRequired sets all required fields on v so tests can focus on one thing at a time.
@@ -90,6 +90,19 @@ func TestLoad_LaunchPolicyInvalid(t *testing.T) {
 	_, err := config.Load(v, "")
 	if err == nil {
 		t.Fatal("expected validation error for invalid launch_policy")
+	}
+}
+
+func TestLoad_JWTKeyEqualsAuditKey(t *testing.T) {
+	v := newViper()
+	allRequired(v)
+	v.Set("jwt_private_key", testAuditKey) // reuse the audit key as the JWT key
+	_, err := config.Load(v, "")
+	if err == nil {
+		t.Fatal("expected validation error when jwt_private_key equals audit_private_key")
+	}
+	if !strings.Contains(err.Error(), "must differ") {
+		t.Errorf("error should explain the keys must differ, got: %v", err)
 	}
 }
 

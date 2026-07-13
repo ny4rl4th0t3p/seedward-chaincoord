@@ -9,7 +9,8 @@ import (
 )
 
 // privateRanges lists CIDR blocks that must not be reachable via user-supplied URLs.
-// Includes RFC1918 private ranges, loopback, link-local, and cloud metadata addresses.
+// Includes RFC1918 private ranges, loopback, link-local, cloud metadata, the unspecified
+// ("this host") ranges, and multicast.
 var privateRanges = mustParsePrivateRanges()
 
 func mustParsePrivateRanges() []*net.IPNet {
@@ -20,9 +21,13 @@ func mustParsePrivateRanges() []*net.IPNet {
 		"127.0.0.0/8",    // IPv4 loopback
 		"169.254.0.0/16", // IPv4 link-local / AWS IMDSv1
 		"100.64.0.0/10",  // Carrier-grade NAT (RFC6598)
+		"0.0.0.0/8",      // "this host" / unspecified — 0.0.0.0 can route to loopback
+		"224.0.0.0/4",    // IPv4 multicast
 		"::1/128",        // IPv6 loopback
+		"::/128",         // IPv6 unspecified
 		"fc00::/7",       // IPv6 unique-local (ULA)
 		"fe80::/10",      // IPv6 link-local
+		"ff00::/8",       // IPv6 multicast
 	}
 	result := make([]*net.IPNet, 0, len(cidrs))
 	for _, cidr := range cidrs {

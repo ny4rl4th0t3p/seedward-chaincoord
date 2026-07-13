@@ -199,7 +199,7 @@ func (s *JoinRequestService) Submit(ctx context.Context, launchID uuid.UUID, inp
 
 	submitterAddr, err := launch.NewAccountID(input.OperatorAddress)
 	if err != nil {
-		return nil, fmt.Errorf("submit join request: submitter address: %w", err)
+		return nil, fmt.Errorf("submit join request: submitter address: %w: %w", err, ports.ErrBadRequest)
 	}
 
 	// Membership gate (v1): only committee members or allowlisted members — keyed on the hot
@@ -221,7 +221,7 @@ func (s *JoinRequestService) Submit(ctx context.Context, launchID uuid.UUID, inp
 	}
 	validatorAddr, err := launch.NewAccountID(validatorAddrStr)
 	if err != nil {
-		return nil, fmt.Errorf("submit join request: validator address: %w", err)
+		return nil, fmt.Errorf("submit join request: validator address: %w: %w", err, ports.ErrBadRequest)
 	}
 
 	// The application window must be open. This is a launch-STATE gate, not authorization —

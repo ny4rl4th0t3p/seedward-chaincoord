@@ -37,6 +37,11 @@ func TestValidateRPCURL(t *testing.T) {
 		// Carrier-grade NAT — rejected.
 		{name: "CGNAT 100.64.x.x rejected", url: "http://100.64.0.1:26657", wantErr: true},
 
+		// Unspecified ("this host") and multicast — rejected.
+		{name: "IPv4 unspecified 0.0.0.0 rejected", url: "http://0.0.0.0:26657", wantErr: true},
+		{name: "IPv4 multicast rejected", url: "http://224.0.0.1:26657", wantErr: true},
+		{name: "IPv6 multicast rejected", url: "http://[ff02::1]:26657", wantErr: true},
+
 		// localhost hostname resolves to loopback — rejected.
 		{name: "localhost hostname rejected", url: "http://localhost:26657", wantErr: true},
 

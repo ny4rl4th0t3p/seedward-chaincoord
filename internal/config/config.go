@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"encoding/base64"
 	"errors"
@@ -254,6 +255,12 @@ func (c *Config) validate() error {
 			"config: jwt_private_key must be a %d-byte Ed25519 seed (got %d bytes after base64 decode)",
 			ed25519.SeedSize, len(jwtKeyBytes),
 		)
+	}
+	// Defense-in-depth: reusing one seed for both the audit-log signer and the JWT session signer
+	// means a leak of one context's key can forge the other's artifacts. Require distinct keys.
+	if bytes.Equal(keyBytes, jwtKeyBytes) {
+		return errors.New("config: jwt_private_key must differ from audit_private_key" +
+			" (using one key for both the audit-log and session signers is not allowed)")
 	}
 	return nil
 }

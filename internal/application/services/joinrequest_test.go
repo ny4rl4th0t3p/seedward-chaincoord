@@ -137,7 +137,7 @@ func TestJoinRequestService_Submit_InvalidSubmitterAddress(t *testing.T) {
 	input := validSubmitInput(l)
 	input.OperatorAddress = "not-a-bech32-address"
 	_, err := svc.Submit(context.Background(), l.ID, input)
-	require.Error(t, err, "an unparseable submitter address must be rejected")
+	require.ErrorIs(t, err, ports.ErrBadRequest, "an unparseable submitter address is a 400, not a 500")
 }
 
 func TestJoinRequestService_Submit_InvalidValidatorAddressFromGentx(t *testing.T) {
@@ -147,7 +147,7 @@ func TestJoinRequestService_Submit_InvalidValidatorAddressFromGentx(t *testing.T
 	svc := NewJoinRequestService(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeNonceStore(), &fakeVerifier{}, v)
 
 	_, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
-	require.Error(t, err, "an unparseable validator address from the gentx must be rejected")
+	require.ErrorIs(t, err, ports.ErrBadRequest, "an unparseable validator address from the gentx is a 400, not a 500")
 }
 
 func TestJoinRequestService_Submit_WindowNotOpen(t *testing.T) {
