@@ -12,7 +12,7 @@ import (
 )
 
 func newAuthSvc(challenges *fakeChallengeStore, sessions *fakeSessionStore, nonces *fakeNonceStore, verifier *fakeVerifier) *AuthService {
-	return NewAuthService(challenges, sessions, nonces, verifier)
+	return NewAuthService(challenges, sessions, nonces, verifier, &fakeAuditLogWriter{})
 }
 
 // acctKey is the HRP-independent account key the auth service keys challenge and
@@ -193,6 +193,18 @@ func TestAuthService_RevokeSession(t *testing.T) {
 	require.NoError(t, svc.RevokeSession(context.Background(), "existing-token"))
 	_, ok := sessions.data["existing-token"]
 	assert.False(t, ok, "expected token to be removed after revoke")
+}
+
+func TestAuthService_RevokeAllSessions_Audited(t *testing.T) {
+	audit := &fakeAuditLogWriter{}
+	svc := NewAuthService(newFakeChallengeStore(), newFakeSessionStore(), newFakeNonceStore(), &fakeVerifier{}, audit)
+
+	require.NoError(t, svc.RevokeAllSessions(context.Background(), testAddr1, testAddr2))
+
+	require.Len(t, audit.events, 1, "revoking all sessions must be audited")
+	ev := audit.events[0]
+	assert.Equal(t, "SessionsRevoked", ev.EventName)
+	assert.Equal(t, ports.GlobalAuditScope, ev.LaunchID, "global (non-launch) scope")
 }
 
 func TestAuthService_GetSessionInfo(t *testing.T) {

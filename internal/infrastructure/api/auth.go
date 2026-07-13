@@ -150,7 +150,7 @@ func (s *Server) handleAuthSessionInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	isCoordinator, _ := s.coordinatorAllowlist.Contains(r.Context(), info.OperatorAddress)
+	isCoordinator, _ := s.coordinators.Contains(r.Context(), info.OperatorAddress)
 
 	writeJSON(w, http.StatusOK, sessionInfoJSON{
 		OperatorAddress: info.OperatorAddress,
@@ -173,7 +173,7 @@ func (s *Server) handleAuthSessionInfo(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleAuthRevokeAll(w http.ResponseWriter, r *http.Request) {
 	operatorAddr := operatorFromContext(r.Context())
 
-	if err := s.auth.RevokeAllSessions(r.Context(), operatorAddr); err != nil {
+	if err := s.auth.RevokeAllSessions(r.Context(), operatorAddr, operatorAddr); err != nil {
 		writeServiceError(w, r, err)
 		return
 	}
@@ -202,7 +202,7 @@ func (s *Server) handleAdminRevokeAllSessions(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	if err := s.auth.RevokeAllSessions(r.Context(), address); err != nil {
+	if err := s.auth.RevokeAllSessions(r.Context(), address, operatorFromContext(r.Context())); err != nil {
 		writeServiceError(w, r, err)
 		return
 	}

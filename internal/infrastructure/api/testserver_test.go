@@ -165,7 +165,7 @@ func newHarness(t *testing.T) *harness {
 	attemptRepo := newThinRehearsalAttemptRepo()
 	resultRepo := newThinRehearsalResultRepo()
 
-	authSvc := services.NewAuthService(challenges, sessions, nonces, verifier)
+	authSvc := services.NewAuthService(challenges, sessions, nonces, verifier, auditLogWriter)
 	launchSvc := services.NewLaunchService(launchRepo, jrRepo, readinessRepo, genesisStore, allocationStore, events, auditLogWriter, attemptRepo, resultRepo)
 	jrSvc := services.NewJoinRequestService(launchRepo, jrRepo, nonces, verifier, thinGentxValidator{})
 	propSvc := services.NewProposalService(launchRepo, jrRepo, propRepo, readinessRepo, nonces, verifier, events, auditLogWriter, tx)
@@ -173,7 +173,7 @@ func newHarness(t *testing.T) *harness {
 
 	allowlistRepo := &thinCoordinatorAllowlist{data: make(map[string]*ports.CoordinatorAllowlistEntry)}
 	srv := api.NewServer(zerolog.Nop(), "", nil, authSvc, launchSvc, jrSvc, propSvc, readinessSvc,
-		sessions, &thinSSEBroker{}, genesisStore, allocationStore, auditLogReader, nil, allowlistRepo,
+		sessions, &thinSSEBroker{}, genesisStore, allocationStore, auditLogReader, nil, services.NewCoordinatorService(allowlistRepo, auditLogWriter),
 		config.LaunchPolicyOpen, false, 32<<20, false, testOpsToken)
 
 	return &harness{
@@ -223,7 +223,7 @@ func newHarnessConfig(t *testing.T, adminAddrs []string, launchPolicy string) *h
 	attemptRepo := newThinRehearsalAttemptRepo()
 	resultRepo := newThinRehearsalResultRepo()
 
-	authSvc := services.NewAuthService(challenges, sessions, nonces, verifier)
+	authSvc := services.NewAuthService(challenges, sessions, nonces, verifier, auditLogWriter)
 	launchSvc := services.NewLaunchService(launchRepo, jrRepo, readinessRepo, genesisStore, allocationStore, events, auditLogWriter, attemptRepo, resultRepo)
 	jrSvc := services.NewJoinRequestService(launchRepo, jrRepo, nonces, verifier, thinGentxValidator{})
 	propSvc := services.NewProposalService(launchRepo, jrRepo, propRepo, readinessRepo, nonces, verifier, events, auditLogWriter, tx)
@@ -231,7 +231,7 @@ func newHarnessConfig(t *testing.T, adminAddrs []string, launchPolicy string) *h
 
 	allowlistRepo := &thinCoordinatorAllowlist{data: make(map[string]*ports.CoordinatorAllowlistEntry)}
 	srv := api.NewServer(zerolog.Nop(), "", adminAddrs, authSvc, launchSvc, jrSvc, propSvc, readinessSvc,
-		sessions, &thinSSEBroker{}, genesisStore, allocationStore, auditLogReader, nil, allowlistRepo, launchPolicy, false, 32<<20, false, testOpsToken)
+		sessions, &thinSSEBroker{}, genesisStore, allocationStore, auditLogReader, nil, services.NewCoordinatorService(allowlistRepo, auditLogWriter), launchPolicy, false, 32<<20, false, testOpsToken)
 
 	return &harness{
 		server:     srv,
@@ -269,7 +269,7 @@ func newHarnessRateLimitDisabled(t *testing.T) *harness {
 	attemptRepo := newThinRehearsalAttemptRepo()
 	resultRepo := newThinRehearsalResultRepo()
 
-	authSvc := services.NewAuthService(challenges, sessions, nonces, verifier)
+	authSvc := services.NewAuthService(challenges, sessions, nonces, verifier, auditLogWriter)
 	launchSvc := services.NewLaunchService(launchRepo, jrRepo, readinessRepo, genesisStore, allocationStore, events, auditLogWriter, attemptRepo, resultRepo)
 	jrSvc := services.NewJoinRequestService(launchRepo, jrRepo, nonces, verifier, thinGentxValidator{})
 	propSvc := services.NewProposalService(launchRepo, jrRepo, propRepo, readinessRepo, nonces, verifier, events, auditLogWriter, tx)
@@ -277,7 +277,7 @@ func newHarnessRateLimitDisabled(t *testing.T) *harness {
 
 	allowlistRepo := &thinCoordinatorAllowlist{data: make(map[string]*ports.CoordinatorAllowlistEntry)}
 	srv := api.NewServer(zerolog.Nop(), "", nil, authSvc, launchSvc, jrSvc, propSvc, readinessSvc,
-		sessions, &thinSSEBroker{}, genesisStore, allocationStore, auditLogReader, nil, allowlistRepo,
+		sessions, &thinSSEBroker{}, genesisStore, allocationStore, auditLogReader, nil, services.NewCoordinatorService(allowlistRepo, auditLogWriter),
 		config.LaunchPolicyOpen, false, 32<<20, true, testOpsToken)
 
 	return &harness{
@@ -316,7 +316,7 @@ func newHarnessHostMode(t *testing.T, maxBytes int64) *harness {
 	attemptRepo := newThinRehearsalAttemptRepo()
 	resultRepo := newThinRehearsalResultRepo()
 
-	authSvc := services.NewAuthService(challenges, sessions, nonces, verifier)
+	authSvc := services.NewAuthService(challenges, sessions, nonces, verifier, auditLogWriter)
 	launchSvc := services.NewLaunchService(launchRepo, jrRepo, readinessRepo, genesisStore, allocationStore, events, auditLogWriter, attemptRepo, resultRepo)
 	jrSvc := services.NewJoinRequestService(launchRepo, jrRepo, nonces, verifier, thinGentxValidator{})
 	propSvc := services.NewProposalService(launchRepo, jrRepo, propRepo, readinessRepo, nonces, verifier, events, auditLogWriter, tx)
@@ -324,7 +324,7 @@ func newHarnessHostMode(t *testing.T, maxBytes int64) *harness {
 
 	allowlistRepo := &thinCoordinatorAllowlist{data: make(map[string]*ports.CoordinatorAllowlistEntry)}
 	srv := api.NewServer(zerolog.Nop(), "", nil, authSvc, launchSvc, jrSvc, propSvc, readinessSvc,
-		sessions, &thinSSEBroker{}, genesisStore, allocationStore, auditLogReader, nil, allowlistRepo,
+		sessions, &thinSSEBroker{}, genesisStore, allocationStore, auditLogReader, nil, services.NewCoordinatorService(allowlistRepo, auditLogWriter),
 		config.LaunchPolicyOpen, true, maxBytes, false, testOpsToken)
 
 	return &harness{

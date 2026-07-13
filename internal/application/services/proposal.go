@@ -644,17 +644,8 @@ func (s *ProposalService) auditRehearsalGate(ctx context.Context, launchID uuid.
 	if s.audit == nil {
 		return
 	}
-	ev := domain.RehearsalGateNotSatisfied{LaunchID: launchID, Reason: reason}.WithTime(time.Now())
-	payload, err := json.Marshal(ev)
-	if err != nil {
-		return
-	}
-	_ = s.audit.Append(ctx, ports.AuditEvent{
-		LaunchID:   launchID.String(),
-		EventName:  ev.EventName(),
-		OccurredAt: ev.OccurredAt(),
-		Payload:    payload,
-	})
+	_ = writeAuditEvent(ctx, s.audit, launchID.String(),
+		domain.RehearsalGateNotSatisfied{LaunchID: launchID, Reason: reason}.WithTime(time.Now()))
 }
 
 func (s *ProposalService) applyUpdateGenesisTime(ctx context.Context, l *launch.Launch, p *proposal.Proposal) error {
@@ -904,16 +895,7 @@ func (s *ProposalService) dispatchEvents(ctx context.Context, p *proposal.Propos
 }
 
 func (s *ProposalService) writeAudit(ctx context.Context, p *proposal.Proposal, ev domain.DomainEvent) error {
-	payload, err := json.Marshal(ev)
-	if err != nil {
-		return err
-	}
-	return s.audit.Append(ctx, ports.AuditEvent{
-		LaunchID:   p.LaunchID.String(),
-		EventName:  ev.EventName(),
-		OccurredAt: ev.OccurredAt(),
-		Payload:    payload,
-	})
+	return writeAuditEvent(ctx, s.audit, p.LaunchID.String(), ev)
 }
 
 // committeeMemberAddrs returns the committee members' account addresses (display form) in

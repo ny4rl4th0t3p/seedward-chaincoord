@@ -48,7 +48,7 @@ func (s *Server) handleCoordinatorAdd(w http.ResponseWriter, r *http.Request) {
 	}
 
 	addedBy := operatorFromContext(r.Context())
-	if err := s.coordinatorAllowlist.Add(r.Context(), body.Address, addedBy); err != nil {
+	if err := s.coordinators.Add(r.Context(), body.Address, addedBy); err != nil {
 		writeServiceError(w, r, err)
 		return
 	}
@@ -82,7 +82,7 @@ func (s *Server) handleCoordinatorRemove(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := s.coordinatorAllowlist.Remove(r.Context(), address); err != nil {
+	if err := s.coordinators.Remove(r.Context(), address, operatorFromContext(r.Context())); err != nil {
 		writeServiceError(w, r, err)
 		return
 	}
@@ -110,7 +110,7 @@ func (s *Server) handleCoordinatorList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	entries, total, err := s.coordinatorAllowlist.List(r.Context(), pg.Page, pg.PerPage)
+	entries, total, err := s.coordinators.List(r.Context(), pg.Page, pg.PerPage)
 	if err != nil {
 		writeServiceError(w, r, err)
 		return

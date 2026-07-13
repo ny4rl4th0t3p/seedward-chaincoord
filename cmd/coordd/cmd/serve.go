@@ -275,7 +275,7 @@ func runServe(cmd *cobra.Command, _ []string) error {
 	verifier := appCrypto.NewSecp256k1Verifier()
 
 	// --- Application services --------------------------------------------
-	authSvc := services.NewAuthService(challengeStore, sessionStore, nonceStore, verifier)
+	authSvc := services.NewAuthService(challengeStore, sessionStore, nonceStore, verifier, auditLog)
 	launchSvc := services.NewLaunchService(
 		launchRepo,
 		joinReqRepo,
@@ -296,6 +296,7 @@ func runServe(cmd *cobra.Command, _ []string) error {
 	readinessSvc := services.NewReadinessService(launchRepo, joinReqRepo, readinessRepo, nonceStore, verifier)
 
 	// --- HTTP server -----------------------------------------------------
+	coordinatorSvc := services.NewCoordinatorService(coordinatorAllowlistRepo, auditLog)
 	apiServer := api.NewServer(
 		logger,
 		cfg.CORSOrigins,
@@ -303,7 +304,7 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		authSvc, launchSvc, joinReqSvc, proposalSvc, readinessSvc,
 		sessionStore, sseBroker, genesisStore, allocationStore, auditLog,
 		auditLog.PubKey(),
-		coordinatorAllowlistRepo,
+		coordinatorSvc,
 		cfg.LaunchPolicy,
 		cfg.GenesisHostMode,
 		cfg.GenesisMaxBytes,

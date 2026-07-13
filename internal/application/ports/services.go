@@ -45,6 +45,11 @@ type AuditEvent struct {
 	PrevHash string `json:"prev_hash,omitempty"`
 }
 
+// GlobalAuditScope is the sentinel LaunchID for audit events not scoped to a launch — admin-plane
+// actions (coordinator allowlist changes, session revocations). Such events ride the same
+// tamper-evident hash chain; ReadForLaunch(GlobalAuditScope) returns them.
+const GlobalAuditScope = "global"
+
 // AuditLogReader reads entries from the immutable audit log.
 type AuditLogReader interface {
 	// ReadForLaunch returns all audit events for the given launch ID, in append order.

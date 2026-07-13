@@ -11,6 +11,7 @@ import (
 	"github.com/ny4rl4th0t3p/seedward-libs/canonicaljson"
 
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/ports"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain"
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/launch"
 )
 
@@ -20,6 +21,7 @@ type AuthService struct {
 	sessions   ports.SessionStore
 	nonces     ports.NonceStore
 	verifier   ports.SignatureVerifier
+	audit      ports.AuditLogWriter
 }
 
 func NewAuthService(
@@ -27,12 +29,14 @@ func NewAuthService(
 	sessions ports.SessionStore,
 	nonces ports.NonceStore,
 	verifier ports.SignatureVerifier,
+	audit ports.AuditLogWriter,
 ) *AuthService {
 	return &AuthService{
 		challenges: challenges,
 		sessions:   sessions,
 		nonces:     nonces,
 		verifier:   verifier,
+		audit:      audit,
 	}
 }
 
@@ -143,8 +147,17 @@ func (s *AuthService) RevokeSession(ctx context.Context, token string) error {
 // RevokeAllSessions invalidates all tokens currently held by the given operator.
 // Used by the operator themselves (DELETE /auth/sessions/all) and by admins
 // (DELETE /admin/sessions/{address}).
-func (s *AuthService) RevokeAllSessions(ctx context.Context, operatorAddr string) error {
-	return s.sessions.RevokeAllForOperator(ctx, operatorAddr)
+// RevokeAllSessions revokes every session for operatorAddr and records a SessionsRevoked audit
+// event. revokedBy is the actor (the account itself for self-service, or an admin).
+func (s *AuthService) RevokeAllSessions(ctx context.Context, operatorAddr, revokedBy string) error {
+	if err := s.sessions.RevokeAllForOperator(ctx, operatorAddr); err != nil {
+		return err
+	}
+	_ = writeAuditEvent(ctx, s.audit, ports.GlobalAuditScope, domain.SessionsRevoked{
+		Account:   auditAccount(operatorAddr),
+		RevokedBy: auditAccount(revokedBy),
+	}.WithTime(time.Now().UTC()))
+	return nil
 }
 
 // SessionInfo holds metadata about the caller's current session token.

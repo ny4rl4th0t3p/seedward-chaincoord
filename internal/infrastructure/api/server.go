@@ -23,25 +23,25 @@ import (
 // Server holds every dependency that HTTP handlers need and owns the
 // Chi router that routes incoming requests.
 type Server struct {
-	log                  zerolog.Logger
-	corsOrigins          []string
-	adminAddresses       map[string]struct{} // set for O(1) lookup
-	launchPolicy         string              // "open" or "restricted"
-	genesisHostMode      bool                // true → accept raw file uploads (Option C)
-	genesisMaxBytes      int64               // max raw upload size when host mode is on
-	disableRateLimit     bool                // true → skip HTTP per-IP rate limiters (test only; storage-layer limiter is disabled at wire-up)
-	auth                 *services.AuthService
-	launches             *services.LaunchService
-	joinReqs             *services.JoinRequestService
-	proposals            *services.ProposalService
-	readiness            *services.ReadinessService
-	sessions             ports.SessionStore
-	sseBroker            sseSubscriber
-	genesisStore         ports.GenesisStore
-	allocationStore      ports.AllocationStore
-	auditLog             ports.AuditLogReader
-	auditPubKey          ed25519.PublicKey // nil if no audit signing key is configured
-	coordinatorAllowlist ports.CoordinatorAllowlistRepository
+	log              zerolog.Logger
+	corsOrigins      []string
+	adminAddresses   map[string]struct{} // set for O(1) lookup
+	launchPolicy     string              // "open" or "restricted"
+	genesisHostMode  bool                // true → accept raw file uploads (Option C)
+	genesisMaxBytes  int64               // max raw upload size when host mode is on
+	disableRateLimit bool                // true → skip HTTP per-IP rate limiters (test only; storage-layer limiter is disabled at wire-up)
+	auth             *services.AuthService
+	launches         *services.LaunchService
+	joinReqs         *services.JoinRequestService
+	proposals        *services.ProposalService
+	readiness        *services.ReadinessService
+	sessions         ports.SessionStore
+	sseBroker        sseSubscriber
+	genesisStore     ports.GenesisStore
+	allocationStore  ports.AllocationStore
+	auditLog         ports.AuditLogReader
+	auditPubKey      ed25519.PublicKey // nil if no audit signing key is configured
+	coordinators     *services.CoordinatorService
 	// rehearsalOpsToken is the shared ops-plane bearer token for the /bridge/* endpoints
 	// Empty → the bridge is disabled (requireOps fails closed).
 	rehearsalOpsToken string
@@ -76,7 +76,7 @@ func NewServer(
 	allocationStore ports.AllocationStore,
 	auditLog ports.AuditLogReader,
 	auditPubKey ed25519.PublicKey,
-	coordinatorAllowlist ports.CoordinatorAllowlistRepository,
+	coordinators *services.CoordinatorService,
 	launchPolicy string,
 	genesisHostMode bool,
 	genesisMaxBytes int64,
@@ -98,26 +98,26 @@ func NewServer(
 	}
 
 	s := &Server{
-		log:                  log,
-		corsOrigins:          origins,
-		adminAddresses:       admins,
-		launchPolicy:         launchPolicy,
-		genesisHostMode:      genesisHostMode,
-		genesisMaxBytes:      genesisMaxBytes,
-		disableRateLimit:     disableRateLimit,
-		auth:                 auth,
-		launches:             launches,
-		joinReqs:             joinReqs,
-		proposals:            proposals,
-		readiness:            readiness,
-		sessions:             sessions,
-		sseBroker:            sseBroker,
-		genesisStore:         genesisStore,
-		allocationStore:      allocationStore,
-		auditLog:             auditLog,
-		auditPubKey:          auditPubKey,
-		coordinatorAllowlist: coordinatorAllowlist,
-		rehearsalOpsToken:    rehearsalOpsToken,
+		log:               log,
+		corsOrigins:       origins,
+		adminAddresses:    admins,
+		launchPolicy:      launchPolicy,
+		genesisHostMode:   genesisHostMode,
+		genesisMaxBytes:   genesisMaxBytes,
+		disableRateLimit:  disableRateLimit,
+		auth:              auth,
+		launches:          launches,
+		joinReqs:          joinReqs,
+		proposals:         proposals,
+		readiness:         readiness,
+		sessions:          sessions,
+		sseBroker:         sseBroker,
+		genesisStore:      genesisStore,
+		allocationStore:   allocationStore,
+		auditLog:          auditLog,
+		auditPubKey:       auditPubKey,
+		coordinators:      coordinators,
+		rehearsalOpsToken: rehearsalOpsToken,
 	}
 	return s
 }

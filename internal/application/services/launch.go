@@ -989,16 +989,7 @@ func (s *LaunchService) CancelLaunch(ctx context.Context, launchID uuid.UUID, ca
 }
 
 func (s *LaunchService) writeAudit(ctx context.Context, launchID string, ev domain.DomainEvent) error {
-	payload, err := json.Marshal(ev)
-	if err != nil {
-		return err
-	}
-	return s.audit.Append(ctx, ports.AuditEvent{
-		LaunchID:   launchID,
-		EventName:  ev.EventName(),
-		OccurredAt: ev.OccurredAt(),
-		Payload:    payload,
-	})
+	return writeAuditEvent(ctx, s.audit, launchID, ev)
 }
 
 func sha256Hex(data []byte) string {

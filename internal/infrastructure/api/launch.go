@@ -112,7 +112,7 @@ type createLaunchRequest struct {
 func (s *Server) handleLaunchCreate(w http.ResponseWriter, r *http.Request) {
 	if s.launchPolicy == config.LaunchPolicyRestricted {
 		callerAddr := operatorFromContext(r.Context())
-		allowed, err := s.coordinatorAllowlist.Contains(r.Context(), callerAddr)
+		allowed, err := s.coordinators.Contains(r.Context(), callerAddr)
 		if err != nil {
 			writeServiceError(w, r, err)
 			return

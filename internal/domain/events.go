@@ -375,3 +375,48 @@ func (e CommitteeShrunk) WithTime(t time.Time) CommitteeShrunk {
 	e.base = e.withTime(t)
 	return e
 }
+
+// --- Global (non-launch) events: recorded under ports.GlobalAuditScope. GetLaunchID is uuid.Nil.
+
+// CoordinatorAdded is emitted when an address is added to the global coordinator allowlist.
+type CoordinatorAdded struct {
+	base
+	Address string
+	AddedBy string
+}
+
+func (CoordinatorAdded) EventName() string      { return "CoordinatorAdded" }
+func (CoordinatorAdded) GetLaunchID() uuid.UUID { return uuid.Nil }
+func (e CoordinatorAdded) WithTime(t time.Time) CoordinatorAdded {
+	e.base = e.withTime(t)
+	return e
+}
+
+// CoordinatorRemoved is emitted when an address is removed from the global coordinator allowlist.
+type CoordinatorRemoved struct {
+	base
+	Address   string
+	RemovedBy string
+}
+
+func (CoordinatorRemoved) EventName() string      { return "CoordinatorRemoved" }
+func (CoordinatorRemoved) GetLaunchID() uuid.UUID { return uuid.Nil }
+func (e CoordinatorRemoved) WithTime(t time.Time) CoordinatorRemoved {
+	e.base = e.withTime(t)
+	return e
+}
+
+// SessionsRevoked is emitted when all sessions for an account are revoked — by the account itself
+// (self-service) or by an admin. RevokedBy is the actor; Account is the target.
+type SessionsRevoked struct {
+	base
+	Account   string
+	RevokedBy string
+}
+
+func (SessionsRevoked) EventName() string      { return "SessionsRevoked" }
+func (SessionsRevoked) GetLaunchID() uuid.UUID { return uuid.Nil }
+func (e SessionsRevoked) WithTime(t time.Time) SessionsRevoked {
+	e.base = e.withTime(t)
+	return e
+}
