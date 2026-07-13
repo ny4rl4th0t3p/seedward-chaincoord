@@ -262,9 +262,9 @@ func mustNewLaunch(t *testing.T, committee launch.Committee) *launch.Launch {
 }
 
 // mustNewProposal builds a proposal, failing the test with a diagnostic if the fixture is invalid.
-func mustNewProposal(t *testing.T, launchID uuid.UUID, action proposal.ActionType, payload []byte, ttl time.Duration, createdAt time.Time) *proposal.Proposal {
+func mustNewProposal(t *testing.T, launchID uuid.UUID, payload []byte, ttl time.Duration, createdAt time.Time) *proposal.Proposal {
 	t.Helper()
-	p, err := proposal.New(uuid.New(), launchID, action, payload, mustAddr(testAddr1), mustSig(), ttl, createdAt)
+	p, err := proposal.New(uuid.New(), launchID, proposal.ActionCloseApplicationWindow, payload, mustAddr(testAddr1), mustSig(), ttl, createdAt)
 	require.NoError(t, err, "mustNewProposal fixture")
 	return p
 }
@@ -295,7 +295,7 @@ func TestProposalService_Sign_TTLExpired(t *testing.T) {
 	// A proposal whose TTL has elapsed but is still PENDING (the expiry job has not yet run):
 	// signing it must surface a state conflict (409), not a 500.
 	l := testLaunch() // 2-of-3
-	p := mustNewProposal(t, l.ID, proposal.ActionCloseApplicationWindow, []byte(`{}`),
+	p := mustNewProposal(t, l.ID, []byte(`{}`),
 		1*time.Millisecond, time.Now().Add(-1*time.Hour))
 	propRepo := newFakeProposalRepo(p)
 	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), propRepo, newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
@@ -353,7 +353,7 @@ func TestProposalService_ExpireStale_ExpiresOld(t *testing.T) {
 
 	// Create a proposal with a TTL that has already elapsed.
 	payload, _ := json.Marshal(proposal.CloseApplicationWindowPayload{})
-	p := mustNewProposal(t, l.ID, proposal.ActionCloseApplicationWindow, payload,
+	p := mustNewProposal(t, l.ID, payload,
 		1*time.Millisecond, time.Now().Add(-1*time.Hour))
 	propRepo.data[p.ID] = p
 
@@ -367,12 +367,31 @@ func TestProposalService_ExpireStale_SkipsFresh(t *testing.T) {
 	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), propRepo, newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
 
 	payload, _ := json.Marshal(proposal.CloseApplicationWindowPayload{})
-	p := mustNewProposal(t, l.ID, proposal.ActionCloseApplicationWindow, payload,
+	p := mustNewProposal(t, l.ID, payload,
 		48*time.Hour, time.Now())
 	propRepo.data[p.ID] = p
 
 	require.NoError(t, svc.ExpireStale(context.Background()))
 	assert.Equal(t, proposal.StatusPendingSignatures, propRepo.data[p.ID].Status, "fresh proposal should not be expired")
+}
+
+func TestProposalService_ExpireStale_Audited(t *testing.T) {
+	l := testLaunch()
+	audit := &fakeAuditLogWriter{}
+	propRepo := newFakeProposalRepo()
+	svc := NewProposalService(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), propRepo,
+		newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{},
+		&fakeEventPublisher{}, audit, &fakeTransactor{})
+
+	// A stale proposal (TTL already elapsed, still PENDING).
+	p := mustNewProposal(t, l.ID, []byte(`{}`),
+		1*time.Millisecond, time.Now().Add(-1*time.Hour))
+	propRepo.data[p.ID] = p
+
+	require.NoError(t, svc.ExpireStale(context.Background()))
+
+	require.Len(t, audit.events, 1, "expiring a stale proposal must be audited")
+	assert.Equal(t, "ProposalExpired", audit.events[0].EventName)
 }
 
 // --- GetByID ---

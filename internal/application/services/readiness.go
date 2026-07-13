@@ -61,6 +61,12 @@ func (s *ReadinessService) WithLogger(l zerolog.Logger) *ReadinessService {
 	return s
 }
 
+// writeAudit records an audit event under the given scope, logging (not failing) on error — the
+// post-commit log-and-continue path, consistent with the other services.
+func (s *ReadinessService) writeAudit(ctx context.Context, scope string, ev domain.DomainEvent) {
+	recordAudit(ctx, s.audit, s.logger, scope, ev)
+}
+
 // ConfirmInput is the payload a validator signs to confirm readiness.
 type ConfirmInput struct {
 	OperatorAddress string `json:"operator_address"`
@@ -159,7 +165,7 @@ func (s *ReadinessService) Confirm(ctx context.Context, launchID uuid.UUID, inpu
 	if err := s.readiness.Save(ctx, rc); err != nil {
 		return nil, fmt.Errorf("confirm readiness: save: %w", err)
 	}
-	recordAudit(ctx, s.audit, s.logger, launchID.String(), domain.ReadinessConfirmed{
+	s.writeAudit(ctx, launchID.String(), domain.ReadinessConfirmed{
 		LaunchID:        launchID,
 		OperatorAddress: operatorAddr.String(),
 	})

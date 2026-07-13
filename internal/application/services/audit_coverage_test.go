@@ -47,17 +47,16 @@ var launchServiceAuditCoverage = map[string]bool{
 	"WithRehearsalLeaseTTL": false,
 	"WithURLValidator":      false,
 
-	// Intentionally unaudited mutation: claiming a rehearsal-run lease is high-frequency bridge
-	// protocol, not a governance/security action — the result it produces (RecordRehearsalResult)
-	// is what gets audited. A manual force-release (ResetRehearsalAttempt) is audited.
-	"ClaimRehearsalRun": false,
+	// Claiming a rehearsal-run lease → RehearsalRunClaimed (the anti-fabrication anchor for the
+	// eventual result fact).
+	"ClaimRehearsalRun": true,
 }
 
 var proposalServiceAuditCoverage = map[string]bool{
 	"Raise": true, // an auto-executing (quorum-reached) proposal audits via applyAndSave
 	"Sign":  true, // execution on quorum audits via applyAndSave/dispatchEvents
 
-	"ExpireStale":   false, // GC of proposals that never executed — no governance action occurred
+	"ExpireStale":   true, // emits ProposalExpired for each proposal it marks EXPIRED
 	"GetByID":       false,
 	"ListForLaunch": false,
 

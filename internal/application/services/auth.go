@@ -49,6 +49,12 @@ func (s *AuthService) WithLogger(l zerolog.Logger) *AuthService {
 	return s
 }
 
+// writeAudit records an audit event under the given scope, logging (not failing) on error — the
+// post-commit log-and-continue path, consistent with the other services.
+func (s *AuthService) writeAudit(ctx context.Context, scope string, ev domain.DomainEvent) {
+	recordAudit(ctx, s.audit, s.logger, scope, ev)
+}
+
 // accountKey derives the HRP-independent account key from a presented bech32
 // address, rejecting non-account (valoper/valcons) forms. Auth state — challenge
 // and nonce — is keyed on this, so the same account under any prefix is one
@@ -162,7 +168,7 @@ func (s *AuthService) RevokeAllSessions(ctx context.Context, operatorAddr, revok
 	if err := s.sessions.RevokeAllForOperator(ctx, operatorAddr); err != nil {
 		return err
 	}
-	recordAudit(ctx, s.audit, s.logger, ports.GlobalAuditScope, domain.SessionsRevoked{
+	s.writeAudit(ctx, ports.GlobalAuditScope, domain.SessionsRevoked{
 		Account:   auditAccount(operatorAddr),
 		RevokedBy: auditAccount(revokedBy),
 	}.WithTime(time.Now().UTC()))

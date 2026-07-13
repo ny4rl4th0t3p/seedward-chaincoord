@@ -211,10 +211,10 @@ and during startup, preserving the raw value rather than laundering a clock anom
 `audit_startup_verify` (`full` default | `tail`): `full` scans the whole log (shared code with `audit
 verify`) and refuses on tamper/corruption while only warning on a backward timestamp; `tail` is the
 large-log escape hatch. Coverage is guarded by a reflection test — every exported `LaunchService` /
-`ProposalService` method must be classified audited-or-not, with `ClaimRehearsalRun` (bridge lease) and
-`ExpireStale` (GC of never-executed proposals) the two documented exemptions. A `PATCH /launch/{id}` emits
-one `LaunchPatched` event carrying a per-field old→new diff — the trusted rehearsal key folded in, no longer
-a special-cased event.
+`ProposalService` method must be classified audited-or-not, and there are currently no mutation exemptions
+(`ClaimRehearsalRun` → `RehearsalRunClaimed`, `ExpireStale` → `ProposalExpired`; only queries and builders
+are unaudited). A `PATCH /launch/{id}` emits one `LaunchPatched` event carrying a per-field old→new diff — the trusted
+rehearsal key folded in, no longer a special-cased event.
 
 Audit-write error policy is split by criticality: a direct action **logs and continues** on a failed audit
 write (the mutation already committed), while a governance proposal is **two-phase** — a `ProposalExecuting`

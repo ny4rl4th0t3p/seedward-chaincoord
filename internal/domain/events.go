@@ -301,6 +301,31 @@ func (e RehearsalAttemptReset) WithTime(t time.Time) RehearsalAttemptReset {
 	return e
 }
 
+// RehearsalRunClaimed is emitted when a runner claims the rehearsal-run lease for a launch's current
+// input set. The attempt is the anti-fabrication anchor that binds the eventual result fact, so the
+// claim (who, when, which attempt) is worth a forensic entry.
+type RehearsalRunClaimed struct {
+	base
+	LaunchID  uuid.UUID
+	AttemptID uuid.UUID
+	RunnerID  string
+}
+
+func (RehearsalRunClaimed) EventName() string        { return "RehearsalRunClaimed" }
+func (e RehearsalRunClaimed) GetLaunchID() uuid.UUID { return e.LaunchID }
+
+// ProposalExpired is emitted when the expiry sweep marks a quorum-not-reached proposal EXPIRED after
+// its TTL elapses. Carries the proposal and its action for the forensic trail.
+type ProposalExpired struct {
+	base
+	LaunchID   uuid.UUID
+	ProposalID uuid.UUID
+	ActionType string
+}
+
+func (ProposalExpired) EventName() string        { return "ProposalExpired" }
+func (e ProposalExpired) GetLaunchID() uuid.UUID { return e.LaunchID }
+
 // LaunchMemberAdded is emitted when a committee member adds a hot actor to a launch's members list
 // (granting see + submit access). Carries the address, its label, and who added it.
 type LaunchMemberAdded struct {

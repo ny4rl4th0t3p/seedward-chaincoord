@@ -30,12 +30,18 @@ func (s *CoordinatorService) WithLogger(l zerolog.Logger) *CoordinatorService {
 	return s
 }
 
+// writeAudit records an audit event under the given scope, logging (not failing) on error — the
+// post-commit log-and-continue path, consistent with the other services.
+func (s *CoordinatorService) writeAudit(ctx context.Context, scope string, ev domain.DomainEvent) {
+	recordAudit(ctx, s.audit, s.logger, scope, ev)
+}
+
 // Add adds an address to the allowlist and records a CoordinatorAdded audit event.
 func (s *CoordinatorService) Add(ctx context.Context, address, addedBy string) error {
 	if err := s.repo.Add(ctx, address, addedBy); err != nil {
 		return err
 	}
-	recordAudit(ctx, s.audit, s.logger, ports.GlobalAuditScope, domain.CoordinatorAdded{
+	s.writeAudit(ctx, ports.GlobalAuditScope, domain.CoordinatorAdded{
 		Address: auditAccount(address),
 		AddedBy: auditAccount(addedBy),
 	}.WithTime(time.Now().UTC()))
@@ -48,7 +54,7 @@ func (s *CoordinatorService) Remove(ctx context.Context, address, removedBy stri
 	if err := s.repo.Remove(ctx, address); err != nil {
 		return err
 	}
-	recordAudit(ctx, s.audit, s.logger, ports.GlobalAuditScope, domain.CoordinatorRemoved{
+	s.writeAudit(ctx, ports.GlobalAuditScope, domain.CoordinatorRemoved{
 		Address:   auditAccount(address),
 		RemovedBy: auditAccount(removedBy),
 	}.WithTime(time.Now().UTC()))

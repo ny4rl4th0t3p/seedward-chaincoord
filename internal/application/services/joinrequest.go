@@ -64,6 +64,12 @@ func (s *JoinRequestService) WithLogger(l zerolog.Logger) *JoinRequestService {
 	return s
 }
 
+// writeAudit records an audit event under the given scope, logging (not failing) on error — the
+// post-commit log-and-continue path, consistent with the other services.
+func (s *JoinRequestService) writeAudit(ctx context.Context, scope string, ev domain.DomainEvent) {
+	recordAudit(ctx, s.audit, s.logger, scope, ev)
+}
+
 // requiresSelfDelegationFloor reports whether the launch type enforces the
 // declared minimum self-delegation (mainnet-grade launches do; plain testnets
 // do not). This is the launch-type-conditional gate the domain used to apply.
@@ -302,7 +308,7 @@ func (s *JoinRequestService) Submit(ctx context.Context, launchID uuid.UUID, inp
 	if err := s.joinRequests.Save(ctx, jr); err != nil {
 		return nil, fmt.Errorf("submit join request: save: %w", err)
 	}
-	recordAudit(ctx, s.audit, s.logger, launchID.String(), domain.JoinRequestSubmitted{
+	s.writeAudit(ctx, launchID.String(), domain.JoinRequestSubmitted{
 		LaunchID:         launchID,
 		JoinRequestID:    jr.ID,
 		OperatorAddress:  jr.OperatorAddress.String(),

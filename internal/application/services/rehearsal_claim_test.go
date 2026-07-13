@@ -73,6 +73,22 @@ func TestClaimRehearsalRun_SameRunnerReclaims(t *testing.T) {
 		"re-claim by the same runner must not extend the lease deadline")
 }
 
+func TestClaimRehearsalRun_Audited(t *testing.T) {
+	l := testLaunch()
+	audit := &fakeAuditLogWriter{}
+	svc := NewLaunchService(
+		newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeReadinessRepo(),
+		newFakeGenesisStore(), newFakeAllocationStore(), &fakeEventPublisher{}, audit,
+		newFakeRehearsalAttemptRepo(), newFakeRehearsalResultRepo(),
+	)
+
+	_, err := svc.ClaimRehearsalRun(context.Background(), l.ID, "runner-1")
+	require.NoError(t, err)
+
+	require.Len(t, audit.events, 1, "claiming a rehearsal run must be audited")
+	assert.Equal(t, "RehearsalRunClaimed", audit.events[0].EventName)
+}
+
 func TestResetRehearsalAttempt_FreesLease(t *testing.T) {
 	l := testLaunch()
 	l.Committee = testCommittee(1, 1) // lead = testAddr1

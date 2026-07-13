@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/ports"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain"
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/launch"
 )
 
@@ -73,6 +74,11 @@ func (s *LaunchService) ClaimRehearsalRun(ctx context.Context, launchID uuid.UUI
 		return nil, fmt.Errorf("%s: save: %w", op, err)
 	}
 	in.AttemptID = attempt.ID
+	s.writeAudit(ctx, l.ID.String(), domain.RehearsalRunClaimed{
+		LaunchID:  l.ID,
+		AttemptID: attempt.ID,
+		RunnerID:  runnerID,
+	})
 	return in, nil
 }
 

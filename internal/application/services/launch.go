@@ -1064,8 +1064,8 @@ func (s *LaunchService) CancelLaunch(ctx context.Context, launchID uuid.UUID, ca
 
 // writeAudit records a launch-scoped audit event, logging (not failing) on error — the mutation
 // has already committed. Critical proposal events use the fatal path (dispatchEvents).
-func (s *LaunchService) writeAudit(ctx context.Context, launchID string, ev domain.DomainEvent) {
-	recordAudit(ctx, s.audit, s.logger, launchID, ev)
+func (s *LaunchService) writeAudit(ctx context.Context, scope string, ev domain.DomainEvent) {
+	recordAudit(ctx, s.audit, s.logger, scope, ev)
 }
 
 func sha256Hex(data []byte) string {

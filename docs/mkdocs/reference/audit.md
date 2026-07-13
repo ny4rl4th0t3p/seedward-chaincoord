@@ -80,24 +80,24 @@ entry is stamped at write time.)
 | `LaunchDetected`          | Block monitor observes block 1 — launch moves to `LAUNCHED`                                                                                                                                                                           |
 | `RehearsalResultRecorded` | A signature-verified rehearsal result is recorded via the bridge (`POST .../rehearsal-results`); payload carries the outcome, input-set hash, and a `stale` flag                                                                      |
 | `RehearsalAttemptReset`   | A coordinator force-releases a stuck rehearsal run lease (`POST .../rehearsal/{attempt_id}/reset`)                                                                                                                                    |
+| `RehearsalRunClaimed`     | A runner claims the rehearsal-run lease via the bridge — payload carries the attempt ID (the anti-fabrication anchor) and the runner ID                                                                                               |
 | `LaunchPatched`           | A committee member changes mutable launch fields via `PATCH /launch/{id}` — payload carries a per-field old→new diff (`monitor_rpc_url`, `rehearsal_endpoint`, the trusted `rehearsal_service_pubkey`, and DRAFT chain-record fields) |
 | `LaunchMemberAdded`       | A committee member adds a hot actor to the members list (`POST /launch/{id}/members`) — payload carries the address, label, and who added it                                                                                          |
 | `LaunchMemberRemoved`     | A committee member removes a hot actor from the members list (`DELETE /launch/{id}/members/{address}`)                                                                                                                                |
 | `CommitteeSet`            | The lead coordinator replaces a DRAFT launch's committee — payload carries the new membership and threshold                                                                                                                           |
 | `JoinRequestSubmitted`    | A validator submits a join request (`POST /launch/{id}/join`) — payload carries the join-request ID and the operator and submitter addresses                                                                                          |
 | `ReadinessConfirmed`      | A validator confirms readiness (`POST /launch/{id}/readiness`) — payload carries the operator address                                                                                                                                 |
+| `ProposalExpired`         | The expiry sweep marks a quorum-not-reached proposal EXPIRED after its TTL — payload carries the proposal ID and action type                                                                                                          |
 
 Admin-plane events — `CoordinatorAdded`, `CoordinatorRemoved` (coordinator allowlist) and `SessionsRevoked`
 (session revocation) — have no launch, so they are recorded under the **`global`** scope (see below).
 Proposal execution is recorded in two phases: `ProposalExecuting` (intent) and `ProposalExecutionAborted`
 (see [Two-phase proposal execution](#two-phase-proposal-execution)).
 
-!!! note "Intentionally not audited"
-A few mutations deliberately emit no audit event: **claiming a rehearsal-run lease** (high-frequency bridge
-protocol — the *result* it produces, `RehearsalResultRecorded`, is audited, as is a manual `RehearsalAttemptReset`
-override), and **expiry of a stale proposal** that never reached quorum (a garbage-collection step, not a governance
-action). A coverage-guard test requires every other service mutation to emit an event, so this list cannot grow by
-accident.
+!!! note "Every mutation is audited"
+Every state-changing service method emits an audit event — enforced by a coverage-guard test that fails if a new
+mutation is added without either an event or an explicit, justified exemption. There are currently **no
+exemptions**: only read-only queries and construction-time builder options are unaudited.
 
 ---
 
