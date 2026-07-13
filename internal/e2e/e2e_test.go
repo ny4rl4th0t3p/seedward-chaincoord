@@ -1440,18 +1440,57 @@ func TestE2E_LaunchCancellation(t *testing.T) {
 	joinInput.Signature = lateVal.sign(joinInput)
 
 	resp := lateValClient.do("POST", "/launch/"+launchID+"/join", joinInput)
-	if resp.StatusCode == http.StatusCreated {
-		t.Fatalf("late join after cancellation: want error, got 201")
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("late join after cancellation: want 409 (window not open), got %d", resp.StatusCode)
 	}
 	resp.Body.Close()
 
-	// Non-lead coordinator cannot cancel (if there were one — here we verify the
-	// lead check by ensuring the lead successfully canceled and the state is terminal).
+	// Cancelling an already-CANCELED launch is a terminal-state conflict (409). (Lead-only
+	// authorization is a separate concern, exercised by TestE2E_NonLeadCannotCancel — a 1-of-1
+	// committee has no non-lead member to test it here.)
 	resp = coordClient.do("POST", "/launch/"+launchID+"/cancel", nil)
-	if resp.StatusCode == http.StatusOK {
-		t.Fatalf("double cancel: expected error on already-canceled launch, got 200")
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("double cancel: want 409 on an already-canceled launch, got %d", resp.StatusCode)
 	}
 	resp.Body.Close()
 
 	t.Logf("E2E launch cancellation complete: launch %s canceled, post-cancel actions rejected", launchID)
+}
+
+// TestE2E_NonLeadCannotCancel verifies the lead-only authorization on cancel with a real
+// multi-member committee: a committee member who is NOT the lead gets 403 — distinct from the
+// terminal-state guard, which a 1-of-1 committee cannot exercise (no non-lead member exists).
+func TestE2E_NonLeadCannotCancel(t *testing.T) {
+	lead := newActor(t)
+	coMember := newActor(t)
+
+	srv := startServer(t)
+	c := srv.client
+
+	leadClient := c.withToken(authenticate(t, c, lead))
+	coClient := c.withToken(authenticate(t, c, coMember))
+
+	// 1-of-2 committee: lead + a non-lead member.
+	launchID := createLaunch(t, leadClient, lead, []map[string]any{
+		makeCommitteeMember(lead, "lead"),
+		makeCommitteeMember(coMember, "co"),
+	}, 1, 2)
+
+	// The non-lead committee member cannot cancel — lead-only authorization → 403.
+	resp := coClient.do("POST", "/launch/"+launchID+"/cancel", nil)
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("non-lead cancel: want 403, got %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	// The lead can cancel.
+	var cancelResp struct {
+		Status string `json:"status"`
+	}
+	mustDecode(t, leadClient.do("POST", "/launch/"+launchID+"/cancel", nil), http.StatusOK, &cancelResp)
+	if cancelResp.Status != "CANCELED" {
+		t.Fatalf("lead cancel: want CANCELED, got %s", cancelResp.Status)
+	}
+
+	t.Logf("E2E non-lead cancel rejected (403); lead cancel succeeded for launch %s", launchID)
 }

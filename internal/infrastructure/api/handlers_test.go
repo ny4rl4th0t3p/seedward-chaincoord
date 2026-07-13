@@ -524,6 +524,7 @@ func TestHandleCommitteeCreate_BadLeadAddress(t *testing.T) {
 		"lead_address":"not-valid","creation_signature":"` + testSig + `"}`)
 	w := h.doAuthJSON("POST", "/launch/"+l.ID.String()+"/committee", body, tok)
 	assertStatusCode(t, w, http.StatusBadRequest)
+	assertErrorCode(t, w, "invalid_field") // only lead_address is bad → the field-validation path fired
 }
 
 func TestHandleCommitteeCreate_BadCreationSignature(t *testing.T) {
@@ -539,6 +540,7 @@ func TestHandleCommitteeCreate_BadCreationSignature(t *testing.T) {
 	}`)
 	w := h.doAuthJSON("POST", "/launch/"+l.ID.String()+"/committee", body, tok)
 	assertStatusCode(t, w, http.StatusBadRequest)
+	assertErrorCode(t, w, "invalid_field") // only the signature is bad → the field-validation path fired
 }
 
 func TestHandleCommitteeCreate_Success(t *testing.T) {
@@ -595,14 +597,18 @@ func TestHandleGenesisUpload_BadUUID(t *testing.T) {
 }
 
 func TestHandleGenesisUpload_EmptyBody(t *testing.T) {
-	h := newHarness(t)
+	// Host mode ON so the request reaches the empty-body check. With host mode off, an empty
+	// no-content-type body is rejected earlier as host_mode_disabled — this test would then pass
+	// for the wrong reason, never exercising the empty-body guard it names.
+	h := newHarnessHostMode(t, 32<<20)
 	l := testLaunch()
 	h.launches.data[l.ID] = l
 	tok := h.seedSession(testAddr1)
 	w := h.do("POST", "/launch/"+l.ID.String()+"/genesis",
 		[]byte{},
-		map[string]string{"Authorization": "Bearer " + tok})
+		map[string]string{"Authorization": "Bearer " + tok, "Content-Type": "application/octet-stream"})
 	assertStatusCode(t, w, http.StatusBadRequest)
+	assertErrorCode(t, w, "empty_body")
 }
 
 func TestHandleGenesisUpload_InitialSuccess(t *testing.T) {
@@ -711,6 +717,7 @@ func TestHandleAllocationUpload_UnknownType(t *testing.T) {
 		[]byte(`{"url":"https://example.com/x.csv","sha256":"`+validAllocSHA256+`"}`),
 		map[string]string{"Authorization": "Bearer " + tok, "Content-Type": "application/json"})
 	assertStatusCode(t, w, http.StatusBadRequest)
+	assertErrorCode(t, w, "bad_request") // an unknown type reaches the service → ErrUnknownAllocationType → 400
 }
 
 func TestHandleAllocationUpload_MissingURL(t *testing.T) {
@@ -722,6 +729,7 @@ func TestHandleAllocationUpload_MissingURL(t *testing.T) {
 		[]byte(`{"sha256":"`+validAllocSHA256+`"}`),
 		map[string]string{"Authorization": "Bearer " + tok, "Content-Type": "application/json"})
 	assertStatusCode(t, w, http.StatusBadRequest)
+	assertErrorCode(t, w, "missing_url")
 }
 
 func TestHandleAllocationUpload_HostModeDisabled(t *testing.T) {

@@ -5,8 +5,6 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/config"
 )
 
@@ -41,14 +39,16 @@ func TestHandleLaunchCreate_OpenPolicy(t *testing.T) {
 		// Service will reject due to missing data, but we get past the policy
 		// gate and into service layer (not a 403).
 		w := h.doAuthJSON(http.MethodPost, "/launch", jsonBody(minimalLaunchBody), "tok-"+testAddr1)
-		assert.NotEqual(t, http.StatusForbidden, w.Code, "open policy: got 403, want any non-403 status")
+		// Past the open policy gate → the service 400s the incomplete record. Asserting the exact
+		// status proves we reached the service (a bare non-403 would also pass on a 401/500).
+		assertStatus(t, w, http.StatusBadRequest)
 	})
 
 	t.Run("caller not on allowlist still passes open policy", func(t *testing.T) {
 		h := newHarnessWithPolicy(t, config.LaunchPolicyOpen)
 		h.seedSession(testAddr2) // testAddr2 is NOT on allowlist
 		w := h.doAuthJSON(http.MethodPost, "/launch", jsonBody(minimalLaunchBody), "tok-"+testAddr2)
-		assert.NotEqual(t, http.StatusForbidden, w.Code, "open policy: non-allowlisted caller got 403")
+		assertStatus(t, w, http.StatusBadRequest) // non-allowlisted caller passes open policy, reaches the service
 	})
 }
 
@@ -66,8 +66,8 @@ func TestHandleLaunchCreate_RestrictedPolicy(t *testing.T) {
 		// Pre-seed testAddr1 onto the coordinator allowlist.
 		_ = h.allowlist.Add(context.Background(), testAddr1, "admin")
 		w := h.doAuthJSON(http.MethodPost, "/launch", jsonBody(minimalLaunchBody), "tok-"+testAddr1)
-		// Policy gate passes; service may return an error, but not 403.
-		assert.NotEqual(t, http.StatusForbidden, w.Code, "restricted policy: allowlisted caller got 403")
+		// Allowlisted caller passes the restricted policy gate → service 400s the incomplete record.
+		assertStatus(t, w, http.StatusBadRequest)
 	})
 
 	t.Run("unauthenticated request → 401 (auth check before policy)", func(t *testing.T) {

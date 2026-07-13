@@ -66,6 +66,12 @@ func (r *JoinRequestRepository) Save(ctx context.Context, jr *joinrequest.JoinRe
 		underPrefix(jr.SubmitterAddress, prefix),
 	)
 	if err != nil {
+		if isConstraintViolation(err) {
+			// A unique-index violation (idx_jr_active_validator / idx_jr_consensus_pubkey): a second
+			// active request for the same validator, or a duplicate consensus key. The service
+			// pre-checks both, so this is the race backstop — map it to a 409 conflict, not a 500.
+			return fmt.Errorf("join request save: an active or consensus-key duplicate already exists: %w", ports.ErrConflict)
+		}
 		return fmt.Errorf("join request save: %w", err)
 	}
 	return nil

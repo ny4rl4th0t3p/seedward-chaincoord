@@ -85,3 +85,23 @@ func TestValidator_Validate_MalformedReturnsNoPubKey(t *testing.T) {
 	assert.Empty(t, out.ConsensusPubKeyB64, "ConsensusPubKeyB64 must be empty on failure")
 	assert.Empty(t, out.ValidatorAddress, "ValidatorAddress must be empty on failure")
 }
+
+// TestValidator_Validate_SemanticFailureSuppressesPubKey: a well-formed, decodable gentx (the real
+// signed osmosis gentx) that FAILS a semantic invariant — here a bond-denom mismatch — must still
+// yield no consensus pubkey or validator address. The adapter gates both on AllOK, so a gentx that
+// isn't fully valid can never leak a usable key downstream. The malformed test above only covers a
+// decode failure, where there is no pubkey to leak in the first place — this covers the interesting
+// case: a decodable gentx that carries a real pubkey but does not pass validation.
+func TestValidator_Validate_SemanticFailureSuppressesPubKey(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("testdata", "gentx-Bi23Labs.json"))
+	require.NoError(t, err)
+
+	params := osmosisParams()
+	params.BondDenom = "wrongdenom" // gentx decodes and carries a real pubkey, but this invariant fails
+
+	out := New().Validate(raw, params)
+
+	require.False(t, gentxvalidate.AllOK(out.Results), "a bond-denom mismatch must fail validation")
+	assert.Empty(t, out.ConsensusPubKeyB64, "a semantically-invalid gentx must not expose a consensus pubkey")
+	assert.Empty(t, out.ValidatorAddress, "a semantically-invalid gentx must not expose a validator address")
+}

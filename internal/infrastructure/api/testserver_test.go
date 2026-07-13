@@ -392,6 +392,21 @@ func assertStatus(t *testing.T, got *httptest.ResponseRecorder, want int) {
 	assert.Equal(t, want, got.Code, "body: %s", got.Body.String())
 }
 
+// assertErrorCode decodes the JSON error envelope and asserts its `code` field — so an error test
+// pins the specific failure, not merely "some 4xx".
+func assertErrorCode(t *testing.T, got *httptest.ResponseRecorder, want string) {
+	t.Helper()
+	var resp struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(got.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode error envelope: %v (body: %s)", err, got.Body.String())
+	}
+	assert.Equal(t, want, resp.Error.Code, "error envelope code; body: %s", got.Body.String())
+}
+
 // ---- thin fakes -------------------------------------------------------------
 
 // thinSessionStore maps token → operator address.

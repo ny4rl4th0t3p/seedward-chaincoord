@@ -764,7 +764,8 @@ func TestJoinRequestRepository_FindActiveByValidator(t *testing.T) {
 				require.NoError(t, jrRepo.Save(ctx, testJoinRequest(t, l.ID)))
 				// A second PENDING request for the same validator (addr1) must violate idx_jr_active_validator.
 				err := jrRepo.Save(ctx, testJoinRequest(t, l.ID))
-				require.Error(t, err, "expected a unique-index violation for a second active request")
+				// The unique-index violation is mapped to a domain conflict (409), not a raw 500.
+				require.ErrorIs(t, err, ports.ErrConflict)
 			},
 		},
 	}

@@ -58,22 +58,23 @@ func TestSecp256k1Verifier_ValidSignature(t *testing.T) {
 }
 
 func TestSecp256k1Verifier_WrongPublicKey(t *testing.T) {
+	// The provided pubkey is consistent with the claimed address but is NOT the key that produced
+	// the signature — binding passes, so verification must fail at the signature check. (Distinct
+	// from AddressMismatch, where the binding check itself fails.)
 	privKey1, _ := secp.GeneratePrivateKey()
 	privKey2, _ := secp.GeneratePrivateKey()
 
 	pub1Bytes := privKey1.PubKey().SerializeCompressed()
 	pub2Bytes := privKey2.PubKey().SerializeCompressed()
 	addr1 := deriveSecp256k1Address(pub1Bytes)
+	addr2 := deriveSecp256k1Address(pub2Bytes)
 
 	msg := []byte("test message")
-	sig := signMsg(privKey1, addr1, msg)
+	sig1 := signMsg(privKey1, addr1, msg) // signed by key1
 
-	// Use pub2's address but pub1's pubkey — address/pubkey mismatch.
-	addr2 := deriveSecp256k1Address(pub2Bytes)
-	pub1B64 := base64.StdEncoding.EncodeToString(pub1Bytes)
-
+	pub2B64 := base64.StdEncoding.EncodeToString(pub2Bytes) // matches addr2, but is not the signer
 	v := crypto.NewSecp256k1Verifier()
-	require.Error(t, v.Verify(addr2, pub1B64, msg, sig), "expected error: pubkey does not correspond to claimed address")
+	require.ErrorContains(t, v.Verify(addr2, pub2B64, msg, sig1), "signature verification failed")
 }
 
 func TestSecp256k1Verifier_TamperedMessage(t *testing.T) {
@@ -90,6 +91,8 @@ func TestSecp256k1Verifier_TamperedMessage(t *testing.T) {
 }
 
 func TestSecp256k1Verifier_AddressMismatch(t *testing.T) {
+	// The pubkey verifies the signature, but does NOT derive to the claimed address — the binding
+	// check (which runs before signature verification) must reject it.
 	privKey1, _ := secp.GeneratePrivateKey()
 	privKey2, _ := secp.GeneratePrivateKey()
 
@@ -100,12 +103,28 @@ func TestSecp256k1Verifier_AddressMismatch(t *testing.T) {
 	msg := []byte("test message")
 	sig := signMsg(privKey1, addr1, msg)
 
-	// Correct pubkey for sig, but address derived from a different key.
 	pub1B64 := base64.StdEncoding.EncodeToString(pub1Bytes)
 	addr2 := deriveSecp256k1Address(pub2Bytes)
 
 	v := crypto.NewSecp256k1Verifier()
-	require.Error(t, v.Verify(addr2, pub1B64, msg, sig), "expected error: pubkey does not derive to claimed address")
+	require.ErrorContains(t, v.Verify(addr2, pub1B64, msg, sig), "does not correspond to address")
+}
+
+func TestSecp256k1Verifier_CorruptedSignature(t *testing.T) {
+	// A correct-length but corrupted signature must be rejected at verification — distinct from a
+	// wrong-length signature (fails the length check) and a tampered message (sig valid for the
+	// original). Only the tampered-message path was covered before.
+	privKey, _ := secp.GeneratePrivateKey()
+	pubKeyBytes := privKey.PubKey().SerializeCompressed()
+	pubKeyB64 := base64.StdEncoding.EncodeToString(pubKeyBytes)
+	addr := deriveSecp256k1Address(pubKeyBytes)
+
+	msg := []byte("original message")
+	sig := signMsg(privKey, addr, msg)
+	sig[0] ^= 0xFF // corrupt bytes but keep the 64-byte length
+
+	v := crypto.NewSecp256k1Verifier()
+	require.ErrorContains(t, v.Verify(addr, pubKeyB64, msg, sig), "signature verification failed")
 }
 
 func TestSecp256k1Verifier_BadSignatureLength(t *testing.T) {
