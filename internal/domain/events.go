@@ -420,3 +420,71 @@ func (e SessionsRevoked) WithTime(t time.Time) SessionsRevoked {
 	e.base = e.withTime(t)
 	return e
 }
+
+// --- Two-phase proposal-execution audit. The intent (ProposalExecuting) is written BEFORE the
+// state mutation commits; the completion (the per-action event) AFTER. If the intent write fails
+// the proposal is aborted (no unaudited governance); if execution rolls back after the intent,
+// ProposalExecutionAborted records it so the trail self-explains.
+
+// ProposalExecuting is the write-ahead intent recorded before a quorum-reached proposal's state
+// mutation is committed. Intent present with no completion event = the action was in flight.
+type ProposalExecuting struct {
+	base
+	LaunchID   uuid.UUID
+	ProposalID uuid.UUID
+	ActionType string
+}
+
+func (ProposalExecuting) EventName() string        { return "ProposalExecuting" }
+func (e ProposalExecuting) GetLaunchID() uuid.UUID { return e.LaunchID }
+func (e ProposalExecuting) WithTime(t time.Time) ProposalExecuting {
+	e.base = e.withTime(t)
+	return e
+}
+
+// ProposalExecutionAborted is recorded when a proposal's execution fails or rolls back AFTER its
+// intent was written (intent + aborted = the action did not happen).
+type ProposalExecutionAborted struct {
+	base
+	LaunchID   uuid.UUID
+	ProposalID uuid.UUID
+	ActionType string
+	Reason     string
+}
+
+func (ProposalExecutionAborted) EventName() string        { return "ProposalExecutionAborted" }
+func (e ProposalExecutionAborted) GetLaunchID() uuid.UUID { return e.LaunchID }
+func (e ProposalExecutionAborted) WithTime(t time.Time) ProposalExecutionAborted {
+	e.base = e.withTime(t)
+	return e
+}
+
+// JoinRequestSubmitted is emitted when a validator's join request passes validation and is stored.
+type JoinRequestSubmitted struct {
+	base
+	LaunchID         uuid.UUID
+	JoinRequestID    uuid.UUID
+	OperatorAddress  string
+	SubmitterAddress string
+}
+
+func (JoinRequestSubmitted) EventName() string        { return "JoinRequestSubmitted" }
+func (e JoinRequestSubmitted) GetLaunchID() uuid.UUID { return e.LaunchID }
+func (e JoinRequestSubmitted) WithTime(t time.Time) JoinRequestSubmitted {
+	e.base = e.withTime(t)
+	return e
+}
+
+// ReadinessConfirmed is emitted when an approved validator confirms readiness for a GENESIS_READY launch.
+type ReadinessConfirmed struct {
+	base
+	LaunchID        uuid.UUID
+	OperatorAddress string
+}
+
+func (ReadinessConfirmed) EventName() string        { return "ReadinessConfirmed" }
+func (e ReadinessConfirmed) GetLaunchID() uuid.UUID { return e.LaunchID }
+func (e ReadinessConfirmed) WithTime(t time.Time) ReadinessConfirmed {
+	e.base = e.withTime(t)
+	return e
+}

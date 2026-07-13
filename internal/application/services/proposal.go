@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 
 	"github.com/ny4rl4th0t3p/seedward-libs/canonicaljson"
 
@@ -39,6 +41,14 @@ type ProposalService struct {
 	hasher        *InputSetHasher
 	rehearsalGate launch.RehearsalGateMode        // Part B: off (default) | advisory | required
 	results       ports.RehearsalResultRepository // latest rehearsal fact for the gate; nil when off
+	logger        zerolog.Logger
+	exit          func(int) // process exit on a critical proposal-completion audit failure; injectable for tests
+}
+
+// WithLogger sets the logger used for audit-failure reporting (defaults to no-op).
+func (s *ProposalService) WithLogger(l zerolog.Logger) *ProposalService {
+	s.logger = l
+	return s
 }
 
 // WithRehearsalGate returns a copy of the service configured with the opt-in rehearsal gate (Part B).
@@ -73,6 +83,8 @@ func NewProposalService(
 		audit:        audit,
 		tx:           tx,
 		hasher:       NewInputSetHasher(joinRequests),
+		logger:       zerolog.Nop(),
+		exit:         os.Exit,
 	}
 }
 
@@ -380,11 +392,14 @@ func (s *ProposalService) applyApproveValidator(ctx context.Context, l *launch.L
 	if err != nil {
 		return fmt.Errorf("apply approve validator: invalid operator address in payload: %w", err)
 	}
-	// RecordValidatorApproval returns a non-empty warning string when a single entity
-	// reaches ≥33% of committed voting power. The warning is stored on the proposal
-	// payload so it surfaces in the API response and the audit log.
-	// It does not block the approval — the coordinator committee decides whether to proceed.
-	_ = l.RecordValidatorApproval(operatorAddr, jr.SelfDelegationAmount())
+	// RecordValidatorApproval returns a non-empty warning when this approval pushes a single entity
+	// to ≥33% of committed voting power (approaching the BFT-safety threshold). It does not block the
+	// approval — the committee decides whether to proceed — but it is operationally important, so log
+	// it rather than discard it.
+	if warning := l.RecordValidatorApproval(operatorAddr, jr.SelfDelegationAmount()); warning != "" {
+		s.logger.Warn().Stringer("proposal", p.ID).Stringer("launch", l.ID).Str("warning", warning).
+			Msg("validator approval reached the BFT voting-power dominance threshold")
+	}
 
 	if err := s.joinRequests.Save(ctx, jr); err != nil {
 		return fmt.Errorf("apply approve validator: save join request: %w", err)
@@ -477,7 +492,13 @@ func (s *ProposalService) applyCloseWindow(ctx context.Context, l *launch.Launch
 		return fmt.Errorf("apply close window: find pending: %w", err)
 	}
 	for _, jr := range pending {
-		_ = jr.Expire()
+		if err := jr.Expire(); err != nil {
+			// Should not happen — pending was filtered to PENDING status. Log defensively and skip
+			// persisting a non-transitioned request rather than swallow it.
+			s.logger.Warn().Stringer("join_request", jr.ID).Err(err).
+				Msg("failed to expire a pending join request on window close")
+			continue
+		}
 		if err := s.joinRequests.Save(ctx, jr); err != nil {
 			return fmt.Errorf("apply close window: expire join request %s: %w", jr.ID, err)
 		}
@@ -644,7 +665,7 @@ func (s *ProposalService) auditRehearsalGate(ctx context.Context, launchID uuid.
 	if s.audit == nil {
 		return
 	}
-	_ = writeAuditEvent(ctx, s.audit, launchID.String(),
+	recordAudit(ctx, s.audit, s.logger, launchID.String(),
 		domain.RehearsalGateNotSatisfied{LaunchID: launchID, Reason: reason}.WithTime(time.Now()))
 }
 
@@ -715,9 +736,7 @@ func (s *ProposalService) applyAllocationVeto(ctx context.Context, l *launch.Lau
 		AllocationType: pl.Type,
 		SHA256:         pl.Hash,
 	}.WithTime(time.Now().UTC()))
-	if err := s.dispatchEvents(ctx, p); err != nil {
-		return fmt.Errorf("apply allocation veto: %w", err)
-	}
+	s.dispatchEvents(ctx, p)
 	return nil
 }
 
@@ -859,12 +878,33 @@ func ResolveThreshold(currentM, newN int, override *int) int {
 // Events are dispatched outside the transaction so SSE and audit writes do not
 // hold a DB connection open.
 func (s *ProposalService) applyAndSave(ctx context.Context, l *launch.Launch, p *proposal.Proposal) error {
+	// Write-ahead intent: record that this quorum-reached proposal is about to execute, BEFORE its
+	// state mutation commits. If the audit log can't record the intent, abort — no governance action
+	// proceeds unaudited.
+	if err := writeAuditEvent(ctx, s.audit, p.LaunchID.String(), domain.ProposalExecuting{
+		LaunchID:   p.LaunchID,
+		ProposalID: p.ID,
+		ActionType: string(p.ActionType),
+	}.WithTime(time.Now().UTC())); err != nil {
+		return fmt.Errorf("pre-execution audit failed, aborting proposal %s: %w", p.ID, err)
+	}
+
 	if err := s.tx.InTransaction(ctx, func(ctx context.Context) error {
 		return s.applyProposal(ctx, l, p)
 	}); err != nil {
+		// Execution rolled back after the intent was recorded — record the abort so the trail
+		// self-explains (intent + aborted = the action did not happen).
+		recordAudit(ctx, s.audit, s.logger, p.LaunchID.String(), domain.ProposalExecutionAborted{
+			LaunchID:   p.LaunchID,
+			ProposalID: p.ID,
+			ActionType: string(p.ActionType),
+			Reason:     err.Error(),
+		}.WithTime(time.Now().UTC()))
 		return err
 	}
-	return s.dispatchEvents(ctx, p)
+
+	s.dispatchEvents(ctx, p)
+	return nil
 }
 
 // saveLaunchAndProposal persists both the launch and proposal within the current
@@ -884,18 +924,24 @@ func (s *ProposalService) saveLaunchAndProposal(ctx context.Context, l *launch.L
 // Audit log failures are returned — callers should treat them as hard errors because
 // an unlogged action cannot be reconstructed for forensics. The proposal table
 // provides a secondary record, but the audit log is the primary tamper-evident trail.
-func (s *ProposalService) dispatchEvents(ctx context.Context, p *proposal.Proposal) error {
+// dispatchEvents publishes and audits the completion events of an executed proposal. A failure to
+// write a governance completion event is FATAL: the intent was already recorded and the action has
+// committed, so continuing would accumulate unauditable governance. We log at fatal level and exit;
+// the process must be restarted after the audit infrastructure is repaired.
+func (s *ProposalService) dispatchEvents(ctx context.Context, p *proposal.Proposal) {
 	for _, ev := range p.PopEvents() {
 		s.events.Publish(ev)
-		if err := s.writeAudit(ctx, p, ev); err != nil {
-			return fmt.Errorf("audit log write failed for event %q on proposal %s: %w", ev.EventName(), p.ID, err)
+		if err := writeAuditEvent(ctx, s.audit, p.LaunchID.String(), ev); err != nil {
+			s.logger.WithLevel(zerolog.FatalLevel).Err(err).
+				Str("event", ev.EventName()).Stringer("proposal", p.ID).
+				Msg("completion audit write failed for an executed governance proposal — refusing to continue unaudited")
+			s.exit(1)
+			return
 		}
+		// Operational trace (see recordAudit): one Info line per executed proposal action.
+		s.logger.Info().Str("event", ev.EventName()).Stringer("launch", p.LaunchID).Stringer("proposal", p.ID).
+			Msg("proposal action executed")
 	}
-	return nil
-}
-
-func (s *ProposalService) writeAudit(ctx context.Context, p *proposal.Proposal, ev domain.DomainEvent) error {
-	return writeAuditEvent(ctx, s.audit, p.LaunchID.String(), ev)
 }
 
 // committeeMemberAddrs returns the committee members' account addresses (display form) in

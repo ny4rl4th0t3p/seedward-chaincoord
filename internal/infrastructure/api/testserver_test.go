@@ -167,9 +167,9 @@ func newHarness(t *testing.T) *harness {
 
 	authSvc := services.NewAuthService(challenges, sessions, nonces, verifier, auditLogWriter)
 	launchSvc := services.NewLaunchService(launchRepo, jrRepo, readinessRepo, genesisStore, allocationStore, events, auditLogWriter, attemptRepo, resultRepo)
-	jrSvc := services.NewJoinRequestService(launchRepo, jrRepo, nonces, verifier, thinGentxValidator{})
+	jrSvc := services.NewJoinRequestService(launchRepo, jrRepo, nonces, verifier, thinGentxValidator{}, auditLogWriter)
 	propSvc := services.NewProposalService(launchRepo, jrRepo, propRepo, readinessRepo, nonces, verifier, events, auditLogWriter, tx)
-	readinessSvc := services.NewReadinessService(launchRepo, jrRepo, readinessRepo, nonces, verifier)
+	readinessSvc := services.NewReadinessService(launchRepo, jrRepo, readinessRepo, nonces, verifier, auditLogWriter)
 
 	allowlistRepo := &thinCoordinatorAllowlist{data: make(map[string]*ports.CoordinatorAllowlistEntry)}
 	srv := api.NewServer(zerolog.Nop(), "", nil, authSvc, launchSvc, jrSvc, propSvc, readinessSvc,
@@ -225,9 +225,9 @@ func newHarnessConfig(t *testing.T, adminAddrs []string, launchPolicy string) *h
 
 	authSvc := services.NewAuthService(challenges, sessions, nonces, verifier, auditLogWriter)
 	launchSvc := services.NewLaunchService(launchRepo, jrRepo, readinessRepo, genesisStore, allocationStore, events, auditLogWriter, attemptRepo, resultRepo)
-	jrSvc := services.NewJoinRequestService(launchRepo, jrRepo, nonces, verifier, thinGentxValidator{})
+	jrSvc := services.NewJoinRequestService(launchRepo, jrRepo, nonces, verifier, thinGentxValidator{}, auditLogWriter)
 	propSvc := services.NewProposalService(launchRepo, jrRepo, propRepo, readinessRepo, nonces, verifier, events, auditLogWriter, tx)
-	readinessSvc := services.NewReadinessService(launchRepo, jrRepo, readinessRepo, nonces, verifier)
+	readinessSvc := services.NewReadinessService(launchRepo, jrRepo, readinessRepo, nonces, verifier, auditLogWriter)
 
 	allowlistRepo := &thinCoordinatorAllowlist{data: make(map[string]*ports.CoordinatorAllowlistEntry)}
 	srv := api.NewServer(zerolog.Nop(), "", adminAddrs, authSvc, launchSvc, jrSvc, propSvc, readinessSvc,
@@ -271,9 +271,9 @@ func newHarnessRateLimitDisabled(t *testing.T) *harness {
 
 	authSvc := services.NewAuthService(challenges, sessions, nonces, verifier, auditLogWriter)
 	launchSvc := services.NewLaunchService(launchRepo, jrRepo, readinessRepo, genesisStore, allocationStore, events, auditLogWriter, attemptRepo, resultRepo)
-	jrSvc := services.NewJoinRequestService(launchRepo, jrRepo, nonces, verifier, thinGentxValidator{})
+	jrSvc := services.NewJoinRequestService(launchRepo, jrRepo, nonces, verifier, thinGentxValidator{}, auditLogWriter)
 	propSvc := services.NewProposalService(launchRepo, jrRepo, propRepo, readinessRepo, nonces, verifier, events, auditLogWriter, tx)
-	readinessSvc := services.NewReadinessService(launchRepo, jrRepo, readinessRepo, nonces, verifier)
+	readinessSvc := services.NewReadinessService(launchRepo, jrRepo, readinessRepo, nonces, verifier, auditLogWriter)
 
 	allowlistRepo := &thinCoordinatorAllowlist{data: make(map[string]*ports.CoordinatorAllowlistEntry)}
 	srv := api.NewServer(zerolog.Nop(), "", nil, authSvc, launchSvc, jrSvc, propSvc, readinessSvc,
@@ -318,9 +318,9 @@ func newHarnessHostMode(t *testing.T, maxBytes int64) *harness {
 
 	authSvc := services.NewAuthService(challenges, sessions, nonces, verifier, auditLogWriter)
 	launchSvc := services.NewLaunchService(launchRepo, jrRepo, readinessRepo, genesisStore, allocationStore, events, auditLogWriter, attemptRepo, resultRepo)
-	jrSvc := services.NewJoinRequestService(launchRepo, jrRepo, nonces, verifier, thinGentxValidator{})
+	jrSvc := services.NewJoinRequestService(launchRepo, jrRepo, nonces, verifier, thinGentxValidator{}, auditLogWriter)
 	propSvc := services.NewProposalService(launchRepo, jrRepo, propRepo, readinessRepo, nonces, verifier, events, auditLogWriter, tx)
-	readinessSvc := services.NewReadinessService(launchRepo, jrRepo, readinessRepo, nonces, verifier)
+	readinessSvc := services.NewReadinessService(launchRepo, jrRepo, readinessRepo, nonces, verifier, auditLogWriter)
 
 	allowlistRepo := &thinCoordinatorAllowlist{data: make(map[string]*ports.CoordinatorAllowlistEntry)}
 	srv := api.NewServer(zerolog.Nop(), "", nil, authSvc, launchSvc, jrSvc, propSvc, readinessSvc,

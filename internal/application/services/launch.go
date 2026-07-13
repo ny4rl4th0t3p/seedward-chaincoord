@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/ports"
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain"
@@ -34,6 +35,7 @@ type LaunchService struct {
 	rehearsalLeaseTTL time.Duration
 	urlValidator      func(string) error
 	hasher            *InputSetHasher
+	logger            zerolog.Logger
 }
 
 // defaultRehearsalLeaseTTL bounds how long a claimed rehearsal run holds its lease before it is
@@ -65,7 +67,14 @@ func NewLaunchService(
 		rehearsalLeaseTTL: defaultRehearsalLeaseTTL,
 		urlValidator:      netutil.ValidateRPCURL,
 		hasher:            NewInputSetHasher(joinRequests),
+		logger:            zerolog.Nop(),
 	}
+}
+
+// WithLogger sets the logger used to report audit-write failures (defaults to no-op).
+func (s *LaunchService) WithLogger(l zerolog.Logger) *LaunchService {
+	s.logger = l
+	return s
 }
 
 // WithRehearsalLeaseTTL returns a copy of the service using the given claim-lease TTL.
@@ -105,7 +114,7 @@ func (s *LaunchService) CreateLaunch(ctx context.Context, input CreateLaunchInpu
 	if err := s.launches.Save(ctx, l); err != nil {
 		return nil, fmt.Errorf("create launch: save: %w", err)
 	}
-	_ = s.writeAudit(ctx, l.ID.String(), domain.LaunchCreated{
+	s.writeAudit(ctx, l.ID.String(), domain.LaunchCreated{
 		LaunchID:    l.ID,
 		ChainID:     l.Record.ChainID,
 		LaunchType:  string(l.LaunchType),
@@ -149,7 +158,7 @@ func (s *LaunchService) UploadInitialGenesis(
 	if err := s.launches.Save(ctx, l); err != nil {
 		return "", fmt.Errorf("upload genesis: save launch: %w", err)
 	}
-	_ = s.writeAudit(ctx, launchID.String(), domain.InitialGenesisUploaded{LaunchID: launchID, GenesisHash: hash})
+	s.writeAudit(ctx, launchID.String(), domain.InitialGenesisUploaded{LaunchID: launchID, GenesisHash: hash})
 	return hash, nil
 }
 
@@ -209,7 +218,7 @@ func (s *LaunchService) UploadFinalGenesis(
 	if err := s.launches.Save(ctx, l); err != nil {
 		return "", fmt.Errorf("upload final genesis: save launch: %w", err)
 	}
-	_ = s.writeAudit(ctx, launchID.String(), domain.FinalGenesisUploaded{LaunchID: launchID, GenesisHash: hash})
+	s.writeAudit(ctx, launchID.String(), domain.FinalGenesisUploaded{LaunchID: launchID, GenesisHash: hash})
 	return hash, nil
 }
 
@@ -229,7 +238,7 @@ func (s *LaunchService) UploadInitialGenesisRef(ctx context.Context, launchID uu
 	); err != nil {
 		return err
 	}
-	_ = s.writeAudit(ctx, launchID.String(), domain.InitialGenesisUploaded{LaunchID: launchID, GenesisHash: sha256Hash})
+	s.writeAudit(ctx, launchID.String(), domain.InitialGenesisUploaded{LaunchID: launchID, GenesisHash: sha256Hash})
 	return nil
 }
 
@@ -265,7 +274,7 @@ func (s *LaunchService) UploadFinalGenesisRef(
 	); err != nil {
 		return err
 	}
-	_ = s.writeAudit(ctx, launchID.String(), domain.FinalGenesisUploaded{LaunchID: launchID, GenesisHash: sha256Hash})
+	s.writeAudit(ctx, launchID.String(), domain.FinalGenesisUploaded{LaunchID: launchID, GenesisHash: sha256Hash})
 	return nil
 }
 
@@ -344,7 +353,7 @@ func (s *LaunchService) UploadAllocationFileBytes(
 	if err := s.launches.Save(ctx, l); err != nil {
 		return "", fmt.Errorf("upload allocation: save launch: %w", err)
 	}
-	_ = s.writeAudit(ctx, launchID.String(),
+	s.writeAudit(ctx, launchID.String(),
 		domain.AllocationFileUploaded{LaunchID: launchID, AllocationType: allocType, SHA256: hash})
 	return hash, nil
 }
@@ -383,7 +392,7 @@ func (s *LaunchService) UploadAllocationFileRef(
 	if err := s.launches.Save(ctx, l); err != nil {
 		return fmt.Errorf("upload allocation ref: save launch: %w", err)
 	}
-	_ = s.writeAudit(ctx, launchID.String(),
+	s.writeAudit(ctx, launchID.String(),
 		domain.AllocationFileUploaded{LaunchID: launchID, AllocationType: allocType, SHA256: sha256Hash})
 	return nil
 }
@@ -633,7 +642,7 @@ func (s *LaunchService) PatchLaunch(
 	// must leave a tamper-evident trace (old→new keys) even though the PATCH is not an M-of-N
 	// proposal. Audited after a successful save.
 	if rehearsalKeyChanged {
-		_ = s.writeAudit(ctx, l.ID.String(), domain.RehearsalServiceKeyChanged{
+		s.writeAudit(ctx, l.ID.String(), domain.RehearsalServiceKeyChanged{
 			LaunchID:  l.ID,
 			OldPubKey: oldRehearsalKey,
 			NewPubKey: l.RehearsalServicePubKey,
@@ -899,7 +908,7 @@ func (s *LaunchService) OpenWindow(ctx context.Context, launchID uuid.UUID, call
 	if err := s.launches.Save(ctx, l); err != nil {
 		return err
 	}
-	_ = s.writeAudit(ctx, l.ID.String(), domain.WindowOpened{LaunchID: l.ID})
+	s.writeAudit(ctx, l.ID.String(), domain.WindowOpened{LaunchID: l.ID})
 	return nil
 }
 
@@ -984,12 +993,14 @@ func (s *LaunchService) CancelLaunch(ctx context.Context, launchID uuid.UUID, ca
 	}
 	ev := domain.LaunchCancelled{LaunchID: l.ID}
 	s.events.Publish(ev)
-	_ = s.writeAudit(ctx, l.ID.String(), ev)
+	s.writeAudit(ctx, l.ID.String(), ev)
 	return nil
 }
 
-func (s *LaunchService) writeAudit(ctx context.Context, launchID string, ev domain.DomainEvent) error {
-	return writeAuditEvent(ctx, s.audit, launchID, ev)
+// writeAudit records a launch-scoped audit event, logging (not failing) on error — the mutation
+// has already committed. Critical proposal events use the fatal path (dispatchEvents).
+func (s *LaunchService) writeAudit(ctx context.Context, launchID string, ev domain.DomainEvent) {
+	recordAudit(ctx, s.audit, s.logger, launchID, ev)
 }
 
 func sha256Hex(data []byte) string {

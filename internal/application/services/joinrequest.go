@@ -9,12 +9,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 
 	"github.com/ny4rl4th0t3p/seedward-libs/gentxvalidate"
 
 	"github.com/ny4rl4th0t3p/seedward-libs/canonicaljson"
 
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/ports"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain"
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/joinrequest"
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/launch"
 )
@@ -33,6 +35,8 @@ type JoinRequestService struct {
 	nonces         ports.NonceStore
 	verifier       ports.SignatureVerifier
 	gentxValidator ports.GentxValidator
+	audit          ports.AuditLogWriter
+	logger         zerolog.Logger
 }
 
 func NewJoinRequestService(
@@ -41,6 +45,7 @@ func NewJoinRequestService(
 	nonces ports.NonceStore,
 	verifier ports.SignatureVerifier,
 	gentxValidator ports.GentxValidator,
+	audit ports.AuditLogWriter,
 ) *JoinRequestService {
 	return &JoinRequestService{
 		launches:       launches,
@@ -48,7 +53,15 @@ func NewJoinRequestService(
 		nonces:         nonces,
 		verifier:       verifier,
 		gentxValidator: gentxValidator,
+		audit:          audit,
+		logger:         zerolog.Nop(),
 	}
+}
+
+// WithLogger sets the logger used to report audit-write failures (defaults to no-op).
+func (s *JoinRequestService) WithLogger(l zerolog.Logger) *JoinRequestService {
+	s.logger = l
+	return s
 }
 
 // requiresSelfDelegationFloor reports whether the launch type enforces the
@@ -289,6 +302,12 @@ func (s *JoinRequestService) Submit(ctx context.Context, launchID uuid.UUID, inp
 	if err := s.joinRequests.Save(ctx, jr); err != nil {
 		return nil, fmt.Errorf("submit join request: save: %w", err)
 	}
+	recordAudit(ctx, s.audit, s.logger, launchID.String(), domain.JoinRequestSubmitted{
+		LaunchID:         launchID,
+		JoinRequestID:    jr.ID,
+		OperatorAddress:  jr.OperatorAddress.String(),
+		SubmitterAddress: jr.SubmitterAddress.String(),
+	}.WithTime(time.Now().UTC()))
 	return jr, nil
 }
 

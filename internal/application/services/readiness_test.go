@@ -21,7 +21,7 @@ func newReadinessSvc(
 	nonces *fakeNonceStore,
 	verifier *fakeVerifier,
 ) *ReadinessService {
-	return NewReadinessService(launchRepo, jrRepo, readinessRepo, nonces, verifier)
+	return NewReadinessService(launchRepo, jrRepo, readinessRepo, nonces, verifier, &fakeAuditLogWriter{})
 }
 
 // genesisReadyLaunch returns a launch in GENESIS_READY status with known hashes.
@@ -122,6 +122,19 @@ func TestReadinessService_Confirm_GenesisHashMismatch(t *testing.T) {
 	input.GenesisHashConfirmed = "wrong-hash"
 	_, err := svc.Confirm(context.Background(), l.ID, input)
 	require.ErrorIs(t, err, ports.ErrBadRequest)
+}
+
+func TestReadinessService_Confirm_Audited(t *testing.T) {
+	l := genesisReadyLaunch()
+	jr := approvedJoinRequest(t, l.ID, testAddr1)
+	audit := &fakeAuditLogWriter{}
+	svc := NewReadinessService(newFakeLaunchRepo(l), newFakeJoinRequestRepo(jr), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{}, audit)
+
+	_, err := svc.Confirm(context.Background(), l.ID, validConfirmInput(l))
+	require.NoError(t, err)
+
+	require.Len(t, audit.events, 1, "a readiness confirmation must be audited")
+	assert.Equal(t, "ReadinessConfirmed", audit.events[0].EventName)
 }
 
 func TestReadinessService_Confirm_BinaryHashMismatch(t *testing.T) {

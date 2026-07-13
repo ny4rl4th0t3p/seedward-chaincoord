@@ -4,14 +4,16 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/rs/zerolog"
+
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/ports"
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain"
 )
 
 // writeAuditEvent marshals a domain event and appends it to the audit log under the given scope —
 // a launch ID for launch-scoped events, or ports.GlobalAuditScope for non-launch (admin-plane)
-// actions. This is the single place that turns a domain event into an audit entry; the per-service
-// writeAudit methods delegate here so every event is recorded identically.
+// actions. This is the single place that turns a domain event into an audit entry; all callers
+// route through it so every event is recorded identically.
 func writeAuditEvent(ctx context.Context, w ports.AuditLogWriter, scope string, ev domain.DomainEvent) error {
 	payload, err := json.Marshal(ev)
 	if err != nil {
@@ -23,6 +25,20 @@ func writeAuditEvent(ctx context.Context, w ports.AuditLogWriter, scope string, 
 		OccurredAt: ev.OccurredAt(),
 		Payload:    payload,
 	})
+}
+
+// recordAudit writes an audit event and LOGS (does not fail the operation) on error. Used for
+// post-commit, non-critical events where the mutation already succeeded — best-effort audit with
+// an observable failure. Critical proposal-execution events use the fatal path in dispatchEvents.
+func recordAudit(ctx context.Context, w ports.AuditLogWriter, log zerolog.Logger, scope string, ev domain.DomainEvent) {
+	if err := writeAuditEvent(ctx, w, scope, ev); err != nil {
+		log.Error().Err(err).Str("event", ev.EventName()).Str("scope", scope).
+			Msg("audit write failed; event not recorded (mutation already committed)")
+		return
+	}
+	// Operational trace: one Info line per recorded action so a live container-log follower can see
+	// what happened without reading the (forensic, hash-chained) audit file. Suppressible by level.
+	log.Info().Str("event", ev.EventName()).Str("scope", scope).Msg("action recorded")
 }
 
 // auditAccount returns the canonical account hex for audit payloads, falling back to the raw

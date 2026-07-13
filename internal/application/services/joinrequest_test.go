@@ -18,7 +18,7 @@ import (
 )
 
 func newJoinReqSvc(launchRepo *fakeLaunchRepo, jrRepo *fakeJoinRequestRepo) *JoinRequestService {
-	return NewJoinRequestService(launchRepo, jrRepo, newFakeNonceStore(), &fakeVerifier{}, &fakeGentxValidator{})
+	return NewJoinRequestService(launchRepo, jrRepo, newFakeNonceStore(), &fakeVerifier{}, &fakeGentxValidator{}, &fakeAuditLogWriter{})
 }
 
 // fakeGentxValidator is a stub ports.GentxValidator. By default it reports a
@@ -91,7 +91,7 @@ func TestJoinRequestService_Submit_NonceConflict(t *testing.T) {
 	l.Status = launch.StatusWindowOpen
 	nonces := newFakeNonceStore()
 	nonces.consumeErr = ports.ErrConflict
-	svc := NewJoinRequestService(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), nonces, &fakeVerifier{}, &fakeGentxValidator{})
+	svc := NewJoinRequestService(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), nonces, &fakeVerifier{}, &fakeGentxValidator{}, &fakeAuditLogWriter{})
 
 	_, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
 	require.ErrorIs(t, err, ports.ErrConflict, "a rejected nonce must surface as a conflict")
@@ -112,7 +112,7 @@ func TestJoinRequestService_Submit_SigFails(t *testing.T) {
 	l := testLaunch()
 	l.Status = launch.StatusWindowOpen
 	verifier := &fakeVerifier{err: ports.ErrUnauthorized}
-	svc := NewJoinRequestService(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeNonceStore(), verifier, &fakeGentxValidator{})
+	svc := NewJoinRequestService(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeNonceStore(), verifier, &fakeGentxValidator{}, &fakeAuditLogWriter{})
 
 	_, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
 	require.ErrorIs(t, err, ports.ErrUnauthorized, "a failed signature must map to 401")
@@ -144,10 +144,23 @@ func TestJoinRequestService_Submit_InvalidValidatorAddressFromGentx(t *testing.T
 	l := testLaunch()
 	l.Status = launch.StatusWindowOpen
 	v := &fakeGentxValidator{validatorAddr: "not-a-bech32-address"}
-	svc := NewJoinRequestService(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeNonceStore(), &fakeVerifier{}, v)
+	svc := NewJoinRequestService(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeNonceStore(), &fakeVerifier{}, v, &fakeAuditLogWriter{})
 
 	_, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
 	require.ErrorIs(t, err, ports.ErrBadRequest, "an unparseable validator address from the gentx is a 400, not a 500")
+}
+
+func TestJoinRequestService_Submit_Audited(t *testing.T) {
+	l := testLaunch()
+	l.Status = launch.StatusWindowOpen
+	audit := &fakeAuditLogWriter{}
+	svc := NewJoinRequestService(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeNonceStore(), &fakeVerifier{}, &fakeGentxValidator{}, audit)
+
+	_, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
+	require.NoError(t, err)
+
+	require.Len(t, audit.events, 1, "a submitted join request must be audited")
+	assert.Equal(t, "JoinRequestSubmitted", audit.events[0].EventName)
 }
 
 func TestJoinRequestService_Submit_WindowNotOpen(t *testing.T) {
@@ -247,7 +260,7 @@ func TestJoinRequestService_Submit_GentxInvalid(t *testing.T) {
 	validator := &fakeGentxValidator{failResults: []gentxvalidate.Result{
 		{Invariant: gentxvalidate.InvBondDenom, OK: false, Reason: "denom mismatch"},
 	}}
-	svc := NewJoinRequestService(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeNonceStore(), &fakeVerifier{}, validator)
+	svc := NewJoinRequestService(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeNonceStore(), &fakeVerifier{}, validator, &fakeAuditLogWriter{})
 
 	_, err := svc.Submit(context.Background(), l.ID, validSubmitInput(l))
 	var gErr *ports.GentxInvalidError
@@ -261,7 +274,7 @@ func TestJoinRequestService_Submit_BuildsParamsFromLaunch(t *testing.T) {
 	lm.Status = launch.StatusWindowOpen
 	lm.LaunchType = launch.LaunchTypeMainnet
 	vm := &fakeGentxValidator{}
-	svcM := NewJoinRequestService(newFakeLaunchRepo(lm), newFakeJoinRequestRepo(), newFakeNonceStore(), &fakeVerifier{}, vm)
+	svcM := NewJoinRequestService(newFakeLaunchRepo(lm), newFakeJoinRequestRepo(), newFakeNonceStore(), &fakeVerifier{}, vm, &fakeAuditLogWriter{})
 	_, err := svcM.Submit(context.Background(), lm.ID, validSubmitInput(lm))
 	require.NoError(t, err)
 	assert.Equal(t, lm.Record.ChainID, vm.gotParams.ChainID)
@@ -275,7 +288,7 @@ func TestJoinRequestService_Submit_BuildsParamsFromLaunch(t *testing.T) {
 	lt.Status = launch.StatusWindowOpen
 	lt.LaunchType = launch.LaunchTypeTestnet
 	vt := &fakeGentxValidator{}
-	svcT := NewJoinRequestService(newFakeLaunchRepo(lt), newFakeJoinRequestRepo(), newFakeNonceStore(), &fakeVerifier{}, vt)
+	svcT := NewJoinRequestService(newFakeLaunchRepo(lt), newFakeJoinRequestRepo(), newFakeNonceStore(), &fakeVerifier{}, vt, &fakeAuditLogWriter{})
 	_, err = svcT.Submit(context.Background(), lt.ID, validSubmitInput(lt))
 	require.NoError(t, err)
 	assert.Empty(t, vt.gotParams.MinSelfDelegation, "testnet must not carry a self-delegation floor")

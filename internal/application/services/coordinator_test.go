@@ -55,3 +55,12 @@ func TestCoordinatorService_Add_RepoErrorNotAudited(t *testing.T) {
 	require.Error(t, svc.Add(context.Background(), testAddr1, testAddr2))
 	assert.Empty(t, audit.events, "a failed add must not be audited")
 }
+
+func TestCoordinatorService_Add_AuditFailureDoesNotFailOperation(t *testing.T) {
+	// Direct (non-proposal) events are log-and-continue: a failed audit write must not fail the
+	// already-committed mutation.
+	audit := &fakeAuditLogWriter{appendErr: assert.AnError}
+	svc := NewCoordinatorService(&fakeCoordinatorRepo{}, audit)
+
+	require.NoError(t, svc.Add(context.Background(), testAddr1, testAddr2), "add succeeds despite audit failure")
+}

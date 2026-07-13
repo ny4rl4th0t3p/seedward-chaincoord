@@ -67,13 +67,64 @@ by `coordd audit verify`.
 | `RehearsalResultRecorded`    | A signature-verified rehearsal result is recorded via the bridge (`POST .../rehearsal-results`); payload carries the outcome, input-set hash, and a `stale` flag |
 | `RehearsalAttemptReset`      | A coordinator force-releases a stuck rehearsal run lease (`POST .../rehearsal/{attempt_id}/reset`)                                                               |
 | `RehearsalServiceKeyChanged` | A committee member changes the launch's trusted rehearsal service key via `PATCH /launch/{id}` — payload carries the old and new keys                            |
+| `JoinRequestSubmitted`       | A validator submits a join request (`POST /launch/{id}/join`) — payload carries the join-request ID and the operator and submitter addresses                     |
+| `ReadinessConfirmed`         | A validator confirms readiness (`POST /launch/{id}/readiness`) — payload carries the operator address                                                            |
+
+Admin-plane events — `CoordinatorAdded`, `CoordinatorRemoved` (coordinator allowlist) and `SessionsRevoked`
+(session revocation) — have no launch, so they are recorded under the **`global`** scope (see below).
+Proposal execution is recorded in two phases: `ProposalExecuting` (intent) and `ProposalExecutionAborted`
+(see [Two-phase proposal execution](#two-phase-proposal-execution)).
 
 !!! note "Not yet in the audit log"
-A few non-transition mutations are persisted but do not yet emit an audited event: members-list changes
+Some non-transition mutations are persisted but do not yet emit an audited event: members-list changes
 (`POST`/`DELETE /launch/{id}/members`, kept with `added_by`/`added_at` provenance), the initial DRAFT
-committee (`SetCommittee`) and other DRAFT chain-field patches, and the advertised `monitor_rpc_url` /
-`rehearsal_endpoint`. Admin-plane actions (coordinator allowlist, session revocation) are global rather than
-launch-scoped, so they do not fit the launch-scoped log either. These are tracked follow-ups.
+committee (`SetCommittee`), and other DRAFT chain-field patches (`monitor_rpc_url` / `rehearsal_endpoint`).
+These are tracked follow-ups.
+
+---
+
+## Scopes: launch and global
+
+Every entry carries a `launch_id`. Most events are scoped to a specific launch; admin-plane actions have no
+launch and use the sentinel `launch_id` value **`global`** — `CoordinatorAdded`, `CoordinatorRemoved`, and
+`SessionsRevoked`. They ride the same hash-chained, signed log (and are covered by `coordd audit verify`);
+filter them with `launch_id == "global"`.
+
+## Two-phase proposal execution
+
+Governance actions (M-of-N proposals) are audited in **two phases**, so a critical action can never execute
+unaudited even if the audit backend fails:
+
+1. **Intent** — before a quorum-reached proposal's state change is committed, coordd writes `ProposalExecuting`.
+   If this write fails, the proposal is **aborted** and never executes — no unaudited governance. Nothing
+   committed and nothing was logged, so there is no entry at all.
+2. **Completion** — after the change commits, coordd writes the action's event (e.g. `CommitteeExpanded`). If
+   this write fails, the intent is already recorded and the change has committed, so coordd **logs at fatal
+   level and stops the process** rather than run on in an unauditable state; the operator restarts after fixing
+   the audit backend. No completion event — and **no aborted entry** — is written; the lone intent plus the
+   halted process are the signal.
+
+The `ProposalExecutionAborted` entry belongs to a **different** case: if the execution transaction itself fails
+and rolls back *after* the intent was recorded, there is no completion phase — instead coordd writes
+`ProposalExecutionAborted` (best-effort, log-and-continue), so the pair `ProposalExecuting` +
+`ProposalExecutionAborted` self-explains: the action was attempted and did not happen. (A completion-write
+failure never produces this entry — it stops the process instead.)
+
+Cross-checked with the launch's state, the entries present in the log tell you exactly what happened:
+
+| Scenario                | Entries in the log                               | Launch state | Reading                                                       |
+|-------------------------|--------------------------------------------------|--------------|---------------------------------------------------------------|
+| Executed cleanly        | `ProposalExecuting` + completion event           | executed     | executed and fully audited                                    |
+| Execution rolled back   | `ProposalExecuting` + `ProposalExecutionAborted` | not executed | it **did not** happen — the aborted entry closes the intent   |
+| Completion write failed | `ProposalExecuting` only (process stopped)       | executed     | it **did** happen — lone intent + halted process flag the gap |
+| Intent write failed     | none                                             | not executed | never executed; nothing committed, nothing logged             |
+
+## Audit log vs operational log
+
+The audit log is the **forensic** record — tamper-evident, signed, hash-chained, verified offline; it is not
+meant for live monitoring. For a live view, `coordd` also emits an **operational** log to stderr (level set by
+`log_level`): one `INFO` line per recorded action, plus per-request access logs. Watch the operational log to
+see the system work; read the audit log to prove what happened.
 
 ---
 

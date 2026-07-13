@@ -1125,6 +1125,99 @@ func TestProposalService_DispatchEvents_PublishesAndAudits(t *testing.T) {
 	assert.True(t, published, "the same event must also be published (dispatch publishes AND audits)")
 }
 
+// ---- Two-phase proposal-execution audit ------------------------------------
+
+// failAtAuditWriter fails the Nth Append (1-based); failAt=0 never fails. Records the rest.
+type failAtAuditWriter struct {
+	events []ports.AuditEvent
+	failAt int
+	n      int
+}
+
+func (w *failAtAuditWriter) Append(_ context.Context, ev ports.AuditEvent) error {
+	w.n++
+	if w.failAt != 0 && w.n == w.failAt {
+		return errors.New("audit down")
+	}
+	w.events = append(w.events, ev)
+	return nil
+}
+
+// failingTransactor makes InTransaction fail (execution rolls back) without running the body.
+type failingTransactor struct{}
+
+func (failingTransactor) InTransaction(_ context.Context, _ func(context.Context) error) error {
+	return errors.New("tx failed")
+}
+
+func newTwoPhaseSvc(l *launch.Launch, audit ports.AuditLogWriter, tx ports.Transactor) *ProposalService {
+	return NewProposalService(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(),
+		newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{}, &fakeEventPublisher{}, audit, tx)
+}
+
+func expandPayload() (proposal.ActionType, proposal.ExpandCommitteePayload) {
+	return proposal.ActionExpandCommittee, proposal.ExpandCommitteePayload{
+		NewMember: proposal.CommitteeMemberSpec{Address: testAddr2, Moniker: "coord-2", PubKeyB64: "BBBB"},
+	}
+}
+
+func TestProposalService_TwoPhaseAudit_IntentThenCompletion(t *testing.T) {
+	audit := &failAtAuditWriter{}
+	l := test1of1Launch()
+	svc := newTwoPhaseSvc(l, audit, &fakeTransactor{})
+
+	action, pl := expandPayload()
+	_, err := raiseWith(t, svc, l.ID, action, pl)
+	require.NoError(t, err)
+
+	require.Len(t, audit.events, 2, "intent + completion")
+	assert.Equal(t, "ProposalExecuting", audit.events[0].EventName, "intent recorded first")
+	assert.Equal(t, "CommitteeExpanded", audit.events[1].EventName, "completion recorded after")
+}
+
+func TestProposalService_TwoPhaseAudit_AbortsWhenIntentFails(t *testing.T) {
+	audit := &failAtAuditWriter{failAt: 1} // the intent write fails
+	l := test1of1Launch()
+	lRepo := newFakeLaunchRepo(l)
+	svc := NewProposalService(lRepo, newFakeJoinRequestRepo(), newFakeProposalRepo(),
+		newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{}, &fakeEventPublisher{}, audit, &fakeTransactor{})
+
+	action, pl := expandPayload()
+	_, err := raiseWith(t, svc, l.ID, action, pl)
+	require.Error(t, err, "an intent-audit failure must abort the proposal")
+
+	stored, _ := lRepo.FindByID(context.Background(), l.ID)
+	assert.Equal(t, 1, stored.Committee.TotalN, "the proposal must not have executed")
+	assert.Empty(t, audit.events, "nothing recorded — the intent write itself failed")
+}
+
+func TestProposalService_TwoPhaseAudit_AbortedEntryOnRollback(t *testing.T) {
+	audit := &failAtAuditWriter{}
+	l := test1of1Launch()
+	svc := newTwoPhaseSvc(l, audit, failingTransactor{})
+
+	action, pl := expandPayload()
+	_, err := raiseWith(t, svc, l.ID, action, pl)
+	require.Error(t, err, "execution rolled back")
+
+	require.Len(t, audit.events, 2, "intent + aborted")
+	assert.Equal(t, "ProposalExecuting", audit.events[0].EventName)
+	assert.Equal(t, "ProposalExecutionAborted", audit.events[1].EventName)
+}
+
+func TestProposalService_TwoPhaseAudit_FatalOnCompletionFailure(t *testing.T) {
+	audit := &failAtAuditWriter{failAt: 2} // intent ok, completion fails
+	l := test1of1Launch()
+	svc := newTwoPhaseSvc(l, audit, &fakeTransactor{})
+	exited := 0
+	svc.exit = func(int) { exited++ }
+
+	action, pl := expandPayload()
+	_, err := raiseWith(t, svc, l.ID, action, pl)
+	require.NoError(t, err, "execution committed; the fatal is a dispatch side effect")
+	assert.Equal(t, 1, exited, "a completion-audit failure must trigger the fatal exit")
+}
+
 // ---- ExpandCommittee --------------------------------------------------------
 
 func TestProposalService_ApplyExpandCommittee_DefaultThreshold(t *testing.T) {

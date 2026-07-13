@@ -7,10 +7,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 
 	"github.com/ny4rl4th0t3p/seedward-libs/canonicaljson"
 
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/ports"
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain"
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/joinrequest"
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain/launch"
 )
@@ -30,6 +32,8 @@ type ReadinessService struct {
 	readiness    ports.ReadinessRepository
 	nonces       ports.NonceStore
 	verifier     ports.SignatureVerifier
+	audit        ports.AuditLogWriter
+	logger       zerolog.Logger
 }
 
 func NewReadinessService(
@@ -38,6 +42,7 @@ func NewReadinessService(
 	readiness ports.ReadinessRepository,
 	nonces ports.NonceStore,
 	verifier ports.SignatureVerifier,
+	audit ports.AuditLogWriter,
 ) *ReadinessService {
 	return &ReadinessService{
 		launches:     launches,
@@ -45,7 +50,15 @@ func NewReadinessService(
 		readiness:    readiness,
 		nonces:       nonces,
 		verifier:     verifier,
+		audit:        audit,
+		logger:       zerolog.Nop(),
 	}
+}
+
+// WithLogger sets the logger used to report audit-write failures (defaults to no-op).
+func (s *ReadinessService) WithLogger(l zerolog.Logger) *ReadinessService {
+	s.logger = l
+	return s
 }
 
 // ConfirmInput is the payload a validator signs to confirm readiness.
@@ -146,6 +159,10 @@ func (s *ReadinessService) Confirm(ctx context.Context, launchID uuid.UUID, inpu
 	if err := s.readiness.Save(ctx, rc); err != nil {
 		return nil, fmt.Errorf("confirm readiness: save: %w", err)
 	}
+	recordAudit(ctx, s.audit, s.logger, launchID.String(), domain.ReadinessConfirmed{
+		LaunchID:        launchID,
+		OperatorAddress: operatorAddr.String(),
+	}.WithTime(time.Now().UTC()))
 	return rc, nil
 }
 

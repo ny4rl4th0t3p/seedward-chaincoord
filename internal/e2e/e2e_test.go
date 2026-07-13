@@ -371,21 +371,21 @@ func buildTestServer(t *testing.T, admins []string) *testServer {
 	nonceStore := sqlite.NewNonceStore(db)
 	allowlistRepo := sqlite.NewCoordinatorAllowlistRepo(db)
 
-	authSvc := services.NewAuthService(challengeStore, sessionStore, nonceStore, verifier)
+	authSvc := services.NewAuthService(challengeStore, sessionStore, nonceStore, verifier, al)
 	launchSvc := services.NewLaunchService(launchRepo, joinReqRepo, readinessRepo, genesisStore, allocationStore, sseBroker, al, attemptRepo, resultRepo).
 		WithURLValidator(netutil.ValidateRPCURLFormat)
-	joinReqSvc := services.NewJoinRequestService(launchRepo, joinReqRepo, nonceStore, verifier, e2eGentxValidator{})
+	joinReqSvc := services.NewJoinRequestService(launchRepo, joinReqRepo, nonceStore, verifier, e2eGentxValidator{}, al)
 	proposalSvc := services.NewProposalService(
 		launchRepo, joinReqRepo, proposalRepo, readinessRepo,
 		nonceStore, verifier, sseBroker, al, tx,
 	)
-	readinessSvc := services.NewReadinessService(launchRepo, joinReqRepo, readinessRepo, nonceStore, verifier)
+	readinessSvc := services.NewReadinessService(launchRepo, joinReqRepo, readinessRepo, nonceStore, verifier, al)
 
 	apiServer := api.NewServer(
 		zerolog.Nop(), "", admins,
 		authSvc, launchSvc, joinReqSvc, proposalSvc, readinessSvc,
 		sessionStore, sseBroker, genesisStore, allocationStore, al,
-		al.PubKey(), allowlistRepo, "open", true, 64<<20, true,
+		al.PubKey(), services.NewCoordinatorService(allowlistRepo, al), "open", true, 64<<20, true,
 		e2eOpsToken,
 	)
 

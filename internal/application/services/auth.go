@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ny4rl4th0t3p/seedward-libs/canonicaljson"
+	"github.com/rs/zerolog"
 
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/ports"
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain"
@@ -22,6 +23,7 @@ type AuthService struct {
 	nonces     ports.NonceStore
 	verifier   ports.SignatureVerifier
 	audit      ports.AuditLogWriter
+	logger     zerolog.Logger
 }
 
 func NewAuthService(
@@ -37,7 +39,14 @@ func NewAuthService(
 		nonces:     nonces,
 		verifier:   verifier,
 		audit:      audit,
+		logger:     zerolog.Nop(),
 	}
+}
+
+// WithLogger sets the logger used to report audit-write failures (defaults to no-op).
+func (s *AuthService) WithLogger(l zerolog.Logger) *AuthService {
+	s.logger = l
+	return s
 }
 
 // accountKey derives the HRP-independent account key from a presented bech32
@@ -153,7 +162,7 @@ func (s *AuthService) RevokeAllSessions(ctx context.Context, operatorAddr, revok
 	if err := s.sessions.RevokeAllForOperator(ctx, operatorAddr); err != nil {
 		return err
 	}
-	_ = writeAuditEvent(ctx, s.audit, ports.GlobalAuditScope, domain.SessionsRevoked{
+	recordAudit(ctx, s.audit, s.logger, ports.GlobalAuditScope, domain.SessionsRevoked{
 		Account:   auditAccount(operatorAddr),
 		RevokedBy: auditAccount(revokedBy),
 	}.WithTime(time.Now().UTC()))

@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/rs/zerolog"
+
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/ports"
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/domain"
 )
@@ -12,13 +14,20 @@ import (
 // entries for the mutating operations. Reads (List/Contains) delegate unchanged. The coordinator
 // allowlist is global (not launch-scoped), so its events use ports.GlobalAuditScope.
 type CoordinatorService struct {
-	repo  ports.CoordinatorAllowlistRepository
-	audit ports.AuditLogWriter
+	repo   ports.CoordinatorAllowlistRepository
+	audit  ports.AuditLogWriter
+	logger zerolog.Logger
 }
 
 // NewCoordinatorService constructs a CoordinatorService over a repository and audit writer.
 func NewCoordinatorService(repo ports.CoordinatorAllowlistRepository, audit ports.AuditLogWriter) *CoordinatorService {
-	return &CoordinatorService{repo: repo, audit: audit}
+	return &CoordinatorService{repo: repo, audit: audit, logger: zerolog.Nop()}
+}
+
+// WithLogger sets the logger used to report audit-write failures (defaults to no-op).
+func (s *CoordinatorService) WithLogger(l zerolog.Logger) *CoordinatorService {
+	s.logger = l
+	return s
 }
 
 // Add adds an address to the allowlist and records a CoordinatorAdded audit event.
@@ -26,7 +35,7 @@ func (s *CoordinatorService) Add(ctx context.Context, address, addedBy string) e
 	if err := s.repo.Add(ctx, address, addedBy); err != nil {
 		return err
 	}
-	_ = writeAuditEvent(ctx, s.audit, ports.GlobalAuditScope, domain.CoordinatorAdded{
+	recordAudit(ctx, s.audit, s.logger, ports.GlobalAuditScope, domain.CoordinatorAdded{
 		Address: auditAccount(address),
 		AddedBy: auditAccount(addedBy),
 	}.WithTime(time.Now().UTC()))
@@ -39,7 +48,7 @@ func (s *CoordinatorService) Remove(ctx context.Context, address, removedBy stri
 	if err := s.repo.Remove(ctx, address); err != nil {
 		return err
 	}
-	_ = writeAuditEvent(ctx, s.audit, ports.GlobalAuditScope, domain.CoordinatorRemoved{
+	recordAudit(ctx, s.audit, s.logger, ports.GlobalAuditScope, domain.CoordinatorRemoved{
 		Address:   auditAccount(address),
 		RemovedBy: auditAccount(removedBy),
 	}.WithTime(time.Now().UTC()))
