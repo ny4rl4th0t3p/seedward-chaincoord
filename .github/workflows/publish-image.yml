@@ -35,3 +35,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # Stamp the image version from the pushed tag (e.g. v1.0.0-rc1); overrides the "dev"
+          # default in the Dockerfile's ARG so `coordd --version` reports the release.
+          build-args: |
+            VERSION=${{ github.ref_name }}

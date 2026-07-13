@@ -156,7 +156,7 @@ docs-build: $(VENV_STAMP) ## Build the static docs site into docs/site/ (strict 
 # ──────────────────────────────────────────────────────────────────────────────
 .PHONY: docker-build
 docker-build: ## Build the coordd image locally (same Dockerfile the GHCR image publishes from)
-	docker build -f docker/Dockerfile -t seedward-chaincoord .
+	docker build --build-arg VERSION=$(VERSION) -f docker/Dockerfile -t seedward-chaincoord .
 
 .PHONY: test-secrets-smoke
 test-secrets-smoke: build-server ## Generate audit/jwt keys for the smoke stack (if absent)

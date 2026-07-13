@@ -4,7 +4,8 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 go build -o /bin/coordd       ./cmd/coordd
+ARG VERSION=dev
+RUN CGO_ENABLED=0 go build -ldflags "-X github.com/ny4rl4th0t3p/seedward-chaincoord/cmd/coordd/cmd.Version=${VERSION}" -o /bin/coordd ./cmd/coordd
 RUN CGO_ENABLED=0 go build -o /bin/smoke-signer ./cmd/smoke-signer
 
 # --- Stage 2: Download gaiad ---
