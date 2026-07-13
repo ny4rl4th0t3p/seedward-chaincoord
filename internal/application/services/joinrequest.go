@@ -307,7 +307,7 @@ func (s *JoinRequestService) Submit(ctx context.Context, launchID uuid.UUID, inp
 		JoinRequestID:    jr.ID,
 		OperatorAddress:  jr.OperatorAddress.String(),
 		SubmitterAddress: jr.SubmitterAddress.String(),
-	}.WithTime(time.Now().UTC()))
+	})
 	return jr, nil
 }
 

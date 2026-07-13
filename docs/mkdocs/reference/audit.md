@@ -30,13 +30,24 @@ Each line is a JSON object:
 |---------------|----------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `launch_id`   | string (UUID)        | The launch this event belongs to                                                                                                                                                    |
 | `event_name`  | string               | Event type (see table below)                                                                                                                                                        |
-| `occurred_at` | RFC3339 timestamp    | When the event occurred                                                                                                                                                             |
+| `occurred_at` | RFC3339 timestamp    | Record time — when coordd wrote the entry (see the note below the table)                                                                                                            |
 | `payload`     | object               | Event-specific data                                                                                                                                                                 |
 | `prev_hash`   | string (hex SHA-256) | SHA-256 of the previous line's raw JSON bytes. Empty only for the very first entry in the log; across restarts it continues from the persisted chain tip. Covered by the signature. |
 | `signature`   | string (base64)      | Ed25519 signature over canonical JSON of the entry *without* the `signature` field (but *with* `prev_hash`)                                                                         |
 
-Timestamps are monotonically non-decreasing within a log file. A timestamp that moves backward is flagged as an anomaly
-by `coordd audit verify`.
+`occurred_at` is the **record time**: coordd stamps it as the entry is appended, not from a time carried on the event.
+Events are written synchronously — the instant the action happens — so this is effectively "when it happened", with one
+deliberate nuance. The audit line for a committed action is written *after* its transaction commits (and outside it), so
+both `occurred_at` **and** the hash-chain line order record *the order in which coordd committed facts to the log* — not
+the domain commit order of two near-simultaneous actions. Reflecting true commit order would require writing the entry
+inside the transaction (a transactional outbox); at this system's granularity — governance actions over human timescales —
+the distinction is immaterial, and the hash-chain remains the authoritative, tamper-evident order regardless.
+
+Using record time keeps `occurred_at` **monotonically non-decreasing** along the chain — an invariant `coordd audit
+verify` checks, flagging any backward step as an anomaly. An event-embedded "when it really happened" time would break
+this: a later-written line could carry an earlier timestamp. (The event model keeps a `WithTime` seam for a future in
+which writes become deferred or replayed — where the creation time would matter — but no current event uses it; every
+entry is stamped at write time.)
 
 ---
 

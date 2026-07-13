@@ -162,7 +162,7 @@ func (s *ReadinessService) Confirm(ctx context.Context, launchID uuid.UUID, inpu
 	recordAudit(ctx, s.audit, s.logger, launchID.String(), domain.ReadinessConfirmed{
 		LaunchID:        launchID,
 		OperatorAddress: operatorAddr.String(),
-	}.WithTime(time.Now().UTC()))
+	})
 	return rc, nil
 }
 

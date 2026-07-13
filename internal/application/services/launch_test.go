@@ -613,6 +613,10 @@ func TestLaunchService_PatchLaunch_RehearsalKeyChange_Audited(t *testing.T) {
 	assert.Equal(t, "RehearsalServiceKeyChanged", ev.EventName)
 	assert.Contains(t, string(ev.Payload), osmosisPubKey, "audit payload must record the old key")
 	assert.Contains(t, string(ev.Payload), newKey, "audit payload must record the new key")
+	// A bare launch event must be stamped with the write time — not the zero timestamp that
+	// went undetected before the funnel stamped occurred_at.
+	assert.WithinDuration(t, time.Now(), ev.OccurredAt, time.Minute,
+		"a synchronously-emitted launch event must carry the write time")
 }
 
 func TestLaunchService_PatchLaunch_RehearsalKeyUnchanged_NotAudited(t *testing.T) {

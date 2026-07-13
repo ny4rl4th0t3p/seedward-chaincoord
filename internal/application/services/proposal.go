@@ -666,7 +666,7 @@ func (s *ProposalService) auditRehearsalGate(ctx context.Context, launchID uuid.
 		return
 	}
 	recordAudit(ctx, s.audit, s.logger, launchID.String(),
-		domain.RehearsalGateNotSatisfied{LaunchID: launchID, Reason: reason}.WithTime(time.Now()))
+		domain.RehearsalGateNotSatisfied{LaunchID: launchID, Reason: reason})
 }
 
 func (s *ProposalService) applyUpdateGenesisTime(ctx context.Context, l *launch.Launch, p *proposal.Proposal) error {
@@ -735,7 +735,7 @@ func (s *ProposalService) applyAllocationVeto(ctx context.Context, l *launch.Lau
 		LaunchID:       l.ID,
 		AllocationType: pl.Type,
 		SHA256:         pl.Hash,
-	}.WithTime(time.Now().UTC()))
+	})
 	s.dispatchEvents(ctx, p)
 	return nil
 }
@@ -771,7 +771,7 @@ func (s *ProposalService) applyReplaceCommitteeMember(ctx context.Context, l *la
 		NewMembers:    committeeMemberAddrs(l.Committee),
 		OldThresholdM: oldM,
 		NewThresholdM: l.Committee.ThresholdM,
-	}.WithTime(time.Now().UTC()))
+	})
 	return s.saveLaunchAndProposal(ctx, l, p)
 }
 
@@ -815,7 +815,7 @@ func (s *ProposalService) applyExpandCommittee(ctx context.Context, l *launch.La
 		NewMembers:    committeeMemberAddrs(l.Committee),
 		OldThresholdM: oldM,
 		NewThresholdM: l.Committee.ThresholdM,
-	}.WithTime(time.Now().UTC()))
+	})
 	return s.saveLaunchAndProposal(ctx, l, p)
 }
 
@@ -844,7 +844,7 @@ func (s *ProposalService) applyShrinkCommittee(ctx context.Context, l *launch.La
 		NewMembers:     committeeMemberAddrs(l.Committee),
 		OldThresholdM:  oldM,
 		NewThresholdM:  l.Committee.ThresholdM,
-	}.WithTime(time.Now().UTC()))
+	})
 	return s.saveLaunchAndProposal(ctx, l, p)
 }
 
@@ -885,7 +885,7 @@ func (s *ProposalService) applyAndSave(ctx context.Context, l *launch.Launch, p 
 		LaunchID:   p.LaunchID,
 		ProposalID: p.ID,
 		ActionType: string(p.ActionType),
-	}.WithTime(time.Now().UTC())); err != nil {
+	}); err != nil {
 		return fmt.Errorf("pre-execution audit failed, aborting proposal %s: %w", p.ID, err)
 	}
 
@@ -899,7 +899,7 @@ func (s *ProposalService) applyAndSave(ctx context.Context, l *launch.Launch, p 
 			ProposalID: p.ID,
 			ActionType: string(p.ActionType),
 			Reason:     err.Error(),
-		}.WithTime(time.Now().UTC()))
+		})
 		return err
 	}
 

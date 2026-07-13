@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/rs/zerolog"
 
@@ -19,10 +20,18 @@ func writeAuditEvent(ctx context.Context, w ports.AuditLogWriter, scope string, 
 	if err != nil {
 		return err
 	}
+	// Occurrence time: an event carrying an authoritative domain time (a proposal's ExecutedAt, set
+	// via WithTime) keeps it; a bare event — written synchronously the moment it happens — is stamped
+	// with the write time here, so the log always fills its own "now". This is the ONLY place a
+	// synchronously-emitted event gets its timestamp; callers do not chain WithTime just to get "now".
+	occurredAt := ev.OccurredAt()
+	if occurredAt.IsZero() {
+		occurredAt = time.Now().UTC()
+	}
 	return w.Append(ctx, ports.AuditEvent{
 		LaunchID:   scope,
 		EventName:  ev.EventName(),
-		OccurredAt: ev.OccurredAt(),
+		OccurredAt: occurredAt,
 		Payload:    payload,
 	})
 }
