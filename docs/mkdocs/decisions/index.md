@@ -70,6 +70,12 @@ voting power / genesis-hash-required / committee-member-not-found|exists → 400
 not-pending / TTL-expired / already-signed → 409). Callers and tests distinguish failure kinds by the
 sentinel, never by string matching.
 
+Construction-time validation follows suit: `ChainRecord.Validate` / `launch.New` return per-field sentinels
+(`ErrChainIDRequired`, `ErrCommitteeThresholdRange`, …) so tests pin the exact cause and `CreateLaunch` maps
+them to `400`, not `500`. At the storage layer, a SQLite unique-index violation in
+`JoinRequestRepository.Save` (the active-validator / consensus-key race backstop, past the service's
+pre-checks) maps to `ErrConflict` → `409` via `isConstraintViolation`, not a raw `500`.
+
 ## Authentication, identity, and membership
 
 The auth *model* (ADR-036 challenge-response, **HRP-independent account identity** — ADR-0011 + ADR-0024),
@@ -198,11 +204,37 @@ Per-entry Ed25519 signature + `prev_hash` SHA-256 chaining; the chain tip is per
 re-derives + checks the whole chain (signatures, monotonic timestamps, `prev_hash`). See
 [reference/audit.md](../reference/audit.md).
 
+`occurred_at` is **record time** — the funnel (`writeAuditEvent`) stamps it at write time; the `WithTime`
+seam is reserved for an authoritative domain time, which no current event uses. This keeps `occurred_at`
+monotonic along the chain, and coordd **detects, never clamps** a backward step: it warns live (at append)
+and during startup, preserving the raw value rather than laundering a clock anomaly. Startup depth is set by
+`audit_startup_verify` (`full` default | `tail`): `full` scans the whole log (shared code with `audit
+verify`) and refuses on tamper/corruption while only warning on a backward timestamp; `tail` is the
+large-log escape hatch. Coverage is guarded by a reflection test — every exported `LaunchService` /
+`ProposalService` method must be classified audited-or-not, with `ClaimRehearsalRun` (bridge lease) and
+`ExpireStale` (GC of never-executed proposals) the two documented exemptions. A `PATCH /launch/{id}` emits
+one `LaunchPatched` event carrying a per-field old→new diff — the trusted rehearsal key folded in, no longer
+a special-cased event.
+
+Audit-write error policy is split by criticality: a direct action **logs and continues** on a failed audit
+write (the mutation already committed), while a governance proposal is **two-phase** — a `ProposalExecuting`
+intent is written *before* the state change commits (abort if that write fails) and the completion event
+*after* (a failure here is **fatal**: coordd exits rather than run on accumulating unauditable governance).
+A rollback after the intent records an explicit `ProposalExecutionAborted`, so the trail self-explains.
+
 ### Admin set (accepted for v1)
 
 The admin set is boot-time config (`COORD_ADMIN_ADDRESSES`); rotating an admin needs a restart and isn't
 self-audited. **Accepted for v1**; a future `admins` table + management endpoints (mirroring the
 coordinator allowlist) is a possible enhancement, not scheduled.
+
+### Observability & response headers
+
+`GET /healthz` probes liveness (DB `SELECT 1` + audit-log stat) → `503` on a dependency failure, detail
+logged not returned. `GET /metrics` serves the default Go runtime + process metrics via `promhttp`,
+unauthenticated (network-restrict it in deploy). A `securityHeaders` middleware sets `nosniff` +
+`X-Frame-Options: DENY` on every response, plus HSTS **only** when coordd terminates TLS itself — in
+infra-TLS mode (a proxy terminates TLS, coordd sees plain HTTP) it defers HSTS to the proxy.
 
 ## Genesis, readiness, and launch
 
