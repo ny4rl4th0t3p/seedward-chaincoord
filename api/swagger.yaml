@@ -287,7 +287,7 @@ definitions:
       submitter_address:
         description: |-
           SubmitterAddress is the hot actor that signed the submission — the members-list key and
-          the approval group key (M3). It may differ from OperatorAddress (an authorized uploader).
+          the approval group key. It may differ from OperatorAddress (an authorized uploader).
         type: string
     type: object
   api.launchJSON:
@@ -401,7 +401,7 @@ definitions:
       rehearsal_endpoint:
         type: string
       rehearsal_service_pubkey:
-        description: Bridge D2 fields — operational, settable at any status.
+        description: Bridge fields — operational, settable at any status.
         type: string
       repo_commit:
         type: string
@@ -1249,8 +1249,8 @@ paths:
     get:
       description: |-
         Returns the launch's approved rehearsal build input (chain + approved gentxs + approved
-        host-mode allocation files) plus input_set_hash. Ops-credential only. 422 if an approved
-        allocation is attestor-mode (run the rehearsal standalone instead).
+        allocation files, host or attestor mode) plus input_set_hash. Ops-credential only. The
+        daemon streams each allocation by reference (host bytes, or a 302 to the attestor URL).
       parameters:
       - description: Launch UUID
         in: path
@@ -1274,10 +1274,6 @@ paths:
             $ref: '#/definitions/api.errorEnvelope'
         "404":
           description: Not Found
-          schema:
-            $ref: '#/definitions/api.errorEnvelope'
-        "422":
-          description: Unprocessable Entity
           schema:
             $ref: '#/definitions/api.errorEnvelope'
       summary: Rehearsal input (bridge)
@@ -1366,6 +1362,12 @@ paths:
             additionalProperties:
               type: string
             type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            additionalProperties:
+              type: string
+            type: object
       summary: Health check
       tags:
       - health
@@ -1425,10 +1427,6 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.errorEnvelope'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/api.errorEnvelope'
         "404":
           description: Not Found
           schema:
@@ -1439,8 +1437,9 @@ paths:
     patch:
       consumes:
       - application/json
-      description: Partially updates mutable fields on a DRAFT launch. Coordinator
-        only.
+      description: |-
+        Partially updates mutable fields on a launch (coordinator only). Most fields require
+        DRAFT status; monitor_rpc_url and the rehearsal bridge fields are settable at any status.
       parameters:
       - description: Launch UUID
         in: path
@@ -1671,8 +1670,9 @@ paths:
       - launches
   /launch/{id}/chain-hint:
     get:
-      description: Returns chain_id, chain_name, bech32_prefix, and denom. No authentication
-        required.
+      description: |-
+        Returns chain_id, chain_name, bech32_prefix, and denom. Visible only to a launch member
+        (committee ∪ allowlist); non-members get 404.
       parameters:
       - description: Launch UUID
         in: path
@@ -1694,6 +1694,8 @@ paths:
           description: Not Found
           schema:
             $ref: '#/definitions/api.errorEnvelope'
+      security:
+      - BearerAuth: []
       summary: Chain hint
       tags:
       - launches
@@ -1735,6 +1737,10 @@ paths:
             $ref: '#/definitions/api.errorEnvelope'
         "404":
           description: Not Found
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "409":
+          description: Conflict
           schema:
             $ref: '#/definitions/api.errorEnvelope'
       security:
@@ -1906,8 +1912,8 @@ paths:
       - genesis
   /launch/{id}/gentxs:
     get:
-      description: Returns the gentx JSON for all approved join requests. Coordinator
-        only.
+      description: Returns the gentx JSON for all approved join requests. Committee
+        members only.
       parameters:
       - description: Launch UUID
         in: path
@@ -1933,6 +1939,10 @@ paths:
           description: Forbidden
           schema:
             $ref: '#/definitions/api.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
       security:
       - BearerAuth: []
       summary: Download approved gentxs
@@ -1940,7 +1950,7 @@ paths:
       - join-requests
   /launch/{id}/join:
     get:
-      description: Coordinator-only. Returns all join requests for a launch.
+      description: Committee members only. Returns all join requests for a launch.
       parameters:
       - description: Launch UUID
         in: path
@@ -1985,6 +1995,10 @@ paths:
           description: Forbidden
           schema:
             $ref: '#/definitions/api.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
       security:
       - BearerAuth: []
       summary: List join requests
@@ -2021,8 +2035,16 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/api.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
         "409":
           description: Conflict
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "429":
+          description: Too Many Requests
           schema:
             $ref: '#/definitions/api.errorEnvelope'
       security:
@@ -2076,7 +2098,7 @@ paths:
     get:
       description: |-
         Returns join requests grouped by the submitting hot actor, each group carrying the member label
-        and per-actor aggregates (count, total self-delegation). Coordinator-only.
+        and per-actor aggregates (count, total self-delegation). Committee members only.
       parameters:
       - description: Launch UUID
         in: path
@@ -2112,7 +2134,7 @@ paths:
       - BearerAuth: []
       summary: List join requests grouped by submitter
       tags:
-      - join
+      - join-requests
   /launch/{id}/members:
     get:
       description: Returns the launch's members list (address + label + provenance),
@@ -2214,7 +2236,7 @@ paths:
         name: id
         required: true
         type: string
-      - description: Operator address to remove
+      - description: Hot actor address to remove
         in: path
         name: address
         required: true
@@ -2588,6 +2610,10 @@ paths:
           description: Lease reset
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "401":
+          description: Unauthorized
           schema:
             $ref: '#/definitions/api.errorEnvelope'
         "403":

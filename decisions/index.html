@@ -1,0 +1,2201 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Self-hosted coordination server for Cosmos SDK chain genesis launches.">
+      
+      
+      
+      
+        <link rel="prev" href="../concepts/security/">
+      
+      
+        <link rel="next" href="../reference/setup/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Decisions - seedward-chaincoord</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#design-decisions" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="seedward-chaincoord" class="md-header__button md-logo" aria-label="seedward-chaincoord" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            seedward-chaincoord
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Decisions
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/ny4rl4th0t3p/seedward-chaincoord" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ny4rl4th0t3p/seedward-chaincoord
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="seedward-chaincoord" class="md-nav__button md-logo" aria-label="seedward-chaincoord" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    seedward-chaincoord
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/ny4rl4th0t3p/seedward-chaincoord" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ny4rl4th0t3p/seedward-chaincoord
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/docker/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run with Docker
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/smoke-test/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Smoke Test
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/roles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/lifecycle/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Launch Lifecycle
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/genesis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Genesis
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/readiness/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Readiness
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/proposals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Proposals & M-of-N
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/validation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gentx Validation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trust Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Architecture">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#hexagonal-ddd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hexagonal / DDD
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#launch-is-the-aggregate-root" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Launch is the aggregate root
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#committee-proposals-internal-specifics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Committee &amp; proposals — internal specifics
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Committee &amp; proposals — internal specifics">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#action-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Action types
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#not-everything-is-a-proposal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Not everything is a proposal
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#proposal-ttl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Proposal TTL
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#quorum-veto-mechanics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quorum &amp; veto mechanics
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Events
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#committee-resize-safety" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Committee-resize safety
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sentinel-errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sentinel errors
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#authentication-identity-and-membership" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Authentication, identity, and membership
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Authentication, identity, and membership">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#hrp-independent-identity-the-hot-side" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        HRP-independent identity (the hot side)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#challenge-nonce-sessions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Challenge / nonce / sessions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#members-api-storage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Members API &amp; storage
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#submission-cap-dedup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Submission cap &amp; dedup
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#global-coordinator-allowlist-display-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Global coordinator allowlist (display only)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#invite-token-onboarding-v1x" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Invite-token onboarding (v1.x)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#allocation-files-gentx-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Allocation files &amp; gentx validation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Allocation files &amp; gentx validation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#allocation-state-on-the-aggregate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Allocation state on the aggregate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#approval-wiring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Approval wiring
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#storage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Storage
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gentx-validation-wiring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gentx-validation wiring
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-hardening" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security hardening
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Security hardening">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ssrf-guard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SSRF guard
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tls-posture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TLS posture
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#secret-key-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Secret &amp; key handling
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dos-caps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DoS caps
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#audit-log-internals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Audit-log internals
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#admin-set-accepted-for-v1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Admin set (accepted for v1)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#observability-response-headers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Observability &amp; response headers
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#genesis-readiness-and-launch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Genesis, readiness, and launch
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Genesis, readiness, and launch">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#genesis-fields-and-gates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Genesis fields and gates
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#readiness-dashboard-aggregation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Readiness dashboard aggregation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#block-monitor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Block monitor
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#api-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        API &amp; CLI
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="API &amp; CLI">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#auth-tier-route-taxonomy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Auth-tier route taxonomy
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#single-binary-coordd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Single-binary coordd
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#swagger-toolchain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Swagger toolchain
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Setup & Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit Log
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Architecture">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#hexagonal-ddd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hexagonal / DDD
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#launch-is-the-aggregate-root" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Launch is the aggregate root
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#committee-proposals-internal-specifics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Committee &amp; proposals — internal specifics
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Committee &amp; proposals — internal specifics">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#action-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Action types
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#not-everything-is-a-proposal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Not everything is a proposal
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#proposal-ttl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Proposal TTL
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#quorum-veto-mechanics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quorum &amp; veto mechanics
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Events
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#committee-resize-safety" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Committee-resize safety
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sentinel-errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sentinel errors
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#authentication-identity-and-membership" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Authentication, identity, and membership
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Authentication, identity, and membership">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#hrp-independent-identity-the-hot-side" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        HRP-independent identity (the hot side)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#challenge-nonce-sessions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Challenge / nonce / sessions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#members-api-storage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Members API &amp; storage
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#submission-cap-dedup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Submission cap &amp; dedup
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#global-coordinator-allowlist-display-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Global coordinator allowlist (display only)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#invite-token-onboarding-v1x" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Invite-token onboarding (v1.x)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#allocation-files-gentx-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Allocation files &amp; gentx validation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Allocation files &amp; gentx validation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#allocation-state-on-the-aggregate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Allocation state on the aggregate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#approval-wiring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Approval wiring
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#storage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Storage
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gentx-validation-wiring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gentx-validation wiring
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-hardening" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security hardening
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Security hardening">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ssrf-guard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SSRF guard
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tls-posture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TLS posture
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#secret-key-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Secret &amp; key handling
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dos-caps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DoS caps
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#audit-log-internals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Audit-log internals
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#admin-set-accepted-for-v1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Admin set (accepted for v1)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#observability-response-headers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Observability &amp; response headers
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#genesis-readiness-and-launch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Genesis, readiness, and launch
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Genesis, readiness, and launch">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#genesis-fields-and-gates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Genesis fields and gates
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#readiness-dashboard-aggregation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Readiness dashboard aggregation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#block-monitor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Block monitor
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#api-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        API &amp; CLI
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="API &amp; CLI">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#auth-tier-route-taxonomy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Auth-tier route taxonomy
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#single-binary-coordd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Single-binary coordd
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#swagger-toolchain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Swagger toolchain
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="design-decisions">Design decisions<a class="headerlink" href="#design-decisions" title="Permanent link">&para;</a></h1>
+<p>Architecture and internal decisions for chaincoord (the coordination server, <code>coordd</code>). The
+cross-cutting coordination model — the <a href="../concepts/lifecycle/">launch lifecycle</a> state machine and
+the M-of-N committee proposal governance — is recorded in the suite ADR log; this section records
+chaincoord's own architecture and the choices that only matter inside this codebase.</p>
+<h2 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h2>
+<h3 id="hexagonal-ddd">Hexagonal / DDD<a class="headerlink" href="#hexagonal-ddd" title="Permanent link">&para;</a></h3>
+<p>Business rules live in pure domain aggregates (<code>internal/domain/{launch,proposal,joinrequest}</code>); the
+application services (<code>LaunchService</code>, <code>ProposalService</code>, …) orchestrate them through <strong>ports</strong>
+(repository + service interfaces); infrastructure (HTTP, sqlite, crypto, audit) implements the ports.
+Domain events are dispatched by the application layer <strong>after</strong> the transaction commits — never from
+inside the domain.</p>
+<h3 id="launch-is-the-aggregate-root">Launch is the aggregate root<a class="headerlink" href="#launch-is-the-aggregate-root" title="Permanent link">&para;</a></h3>
+<p>The <code>Launch</code> aggregate owns the <code>Committee</code> (M-of-N, no independent lifecycle) and the <code>Allowlist</code>, plus
+readiness confirmations, allocation files, and rehearsal config. <code>JoinRequest</code> and <code>Proposal</code> are
+<strong>sibling</strong> aggregates that reference a launch by UUID only — not nested inside it. Each aggregate keeps a
+small transaction boundary while the launch stays the single consistency root for its own committee and
+configuration.</p>
+<h2 id="committee-proposals-internal-specifics">Committee &amp; proposals — internal specifics<a class="headerlink" href="#committee-proposals-internal-specifics" title="Permanent link">&para;</a></h2>
+<h3 id="action-types">Action types<a class="headerlink" href="#action-types" title="Permanent link">&para;</a></h3>
+<p>Twelve proposal action types (<code>internal/domain/proposal/payload.go</code>), each with a typed payload:
+<code>APPROVE_VALIDATOR</code>, <code>REJECT_VALIDATOR</code>, <code>REMOVE_APPROVED_VALIDATOR</code>, <code>APPROVE_ALLOCATION_FILE</code>,
+<code>PUBLISH_CHAIN_RECORD</code>, <code>CLOSE_APPLICATION_WINDOW</code>, <code>PUBLISH_GENESIS</code>, <code>UPDATE_GENESIS_TIME</code>,
+<code>REPLACE_COMMITTEE_MEMBER</code>, <code>REVISE_GENESIS</code>, <code>EXPAND_COMMITTEE</code>, <code>SHRINK_COMMITTEE</code>.</p>
+<h3 id="not-everything-is-a-proposal">Not everything is a proposal<a class="headerlink" href="#not-everything-is-a-proposal" title="Permanent link">&para;</a></h3>
+<p><code>OpenWindow</code> and <code>Cancel</code> are <strong>direct</strong> API calls, not proposals. <code>OpenWindow</code> auto-publishes from
+<code>DRAFT</code> when the initial genesis hash is already present (a single-coordinator convenience). <code>Cancel</code> is
+<strong>lead-only</strong> (<code>ErrForbidden</code> for a non-lead) and publishes <code>LaunchCancelled</code> directly — it is <em>not</em> an
+M-of-N vote.</p>
+<h3 id="proposal-ttl">Proposal TTL<a class="headerlink" href="#proposal-ttl" title="Permanent link">&para;</a></h3>
+<p>Proposals expire after <strong>48 h</strong> (<code>defaultProposalTTL</code>); a background job scans pending proposals and
+expires the stale ones.</p>
+<h3 id="quorum-veto-mechanics">Quorum &amp; veto mechanics<a class="headerlink" href="#quorum-veto-mechanics" title="Permanent link">&para;</a></h3>
+<p>Execution counts <code>SIGN</code> entries against <code>ThresholdM</code>; each coordinator signs at most once; a single
+<code>VETO</code> short-circuits to <code>VETOED</code>. Vetoing an <code>APPROVE_ALLOCATION_FILE</code> is the <strong>only</strong> veto with a side
+effect — it marks the bound file <code>REJECTED</code> and emits <code>AllocationFileRejected</code>.</p>
+<h3 id="events">Events<a class="headerlink" href="#events" title="Permanent link">&para;</a></h3>
+<p>Most executed actions emit one domain execution event; the committee-resize actions
+(<code>REPLACE/EXPAND/SHRINK_COMMITTEE</code>) emit <strong>none</strong> — the new committee is persisted directly.</p>
+<h3 id="committee-resize-safety">Committee-resize safety<a class="headerlink" href="#committee-resize-safety" title="Permanent link">&para;</a></h3>
+<p>A resize first <strong>expires all pending proposals</strong> for the launch (<code>ExpireAllPending</code>) — they were sized
+against the old threshold. When <code>new_threshold_m</code> is omitted, M is clamped to <code>[1, newN-1]</code>
+(<code>ResolveThreshold</code>). The <code>M &lt; N</code> liveness guard is enforced <strong>only</strong> on expand/shrink; committee
+<em>creation</em> allows <code>M = N</code>.</p>
+<h3 id="sentinel-errors">Sentinel errors<a class="headerlink" href="#sentinel-errors" title="Permanent link">&para;</a></h3>
+<p>Domain errors are exported sentinels matched with <code>errors.Is</code> and mapped to HTTP status by
+<code>mapLaunchDomainErr</code> / <code>mapProposalDomainErr</code> (invalid transition / insufficient validators / dominant
+voting power / genesis-hash-required / committee-member-not-found|exists → 400/404/409; proposal
+not-pending / TTL-expired / already-signed → 409). Callers and tests distinguish failure kinds by the
+sentinel, never by string matching.</p>
+<p>Construction-time validation follows suit: <code>ChainRecord.Validate</code> / <code>launch.New</code> return per-field sentinels
+(<code>ErrChainIDRequired</code>, <code>ErrCommitteeThresholdRange</code>, …) so tests pin the exact cause and <code>CreateLaunch</code> maps
+them to <code>400</code>, not <code>500</code>. At the storage layer, a SQLite unique-index violation in
+<code>JoinRequestRepository.Save</code> (the active-validator / consensus-key race backstop, past the service's
+pre-checks) maps to <code>ErrConflict</code> → <code>409</code> via <code>isConstraintViolation</code>, not a raw <code>500</code>.</p>
+<h2 id="authentication-identity-and-membership">Authentication, identity, and membership<a class="headerlink" href="#authentication-identity-and-membership" title="Permanent link">&para;</a></h2>
+<p>The auth <em>model</em> (ADR-036 challenge-response, <strong>HRP-independent account identity</strong> — ADR-0011 + ADR-0024),
+the membership/visibility model, and the submitter≠validator identity split are suite ADRs; the mechanics
+below are chaincoord-internal.</p>
+<h3 id="hrp-independent-identity-the-hot-side">HRP-independent identity (the hot side)<a class="headerlink" href="#hrp-independent-identity-the-hot-side" title="Permanent link">&para;</a></h3>
+<p>Identity is the 20-byte account, not the bech32 string, so a key authenticates under any account prefix as
+one identity. Authorization compares on the account
+(<code>launch.AccountID.Equal</code>), and identity state is keyed on it: challenge + nonce (per-account replay
+protection), the <code>operator_revocations</code> fence, the admin set, and the coordinator allowlist. Launch-scoped
+addresses (members, committee, join-request submitter + operator) are stored <strong>under the launch's bech32
+prefix</strong>; global identities (coordinator allowlist, revocation fence) as the <strong>account hex</strong> — a startup
+backfill canonicalizes existing rows. <code>GET /launch/{id}/chain-hint</code> is gated behind the visibility check
+(404 for non-members): a validator authenticates first, then reads the launch prefix for their gentx.</p>
+<h3 id="challenge-nonce-sessions">Challenge / nonce / sessions<a class="headerlink" href="#challenge-nonce-sessions" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Auth challenges have a <strong>5-min TTL</strong>; an unexpired challenge for an operator is reused (conditional
+  upsert) and consumed once on verification.</li>
+<li><strong>Replay protection:</strong> each <code>(operator, nonce)</code> is consumed once, with a <strong>10-min</strong> nonce TTL (must
+  exceed the signed-payload timestamp skew); the nonce is carried in the signed canonical bytes and
+  consumed before the challenge check.</li>
+<li><strong>Challenge rate limits:</strong> 10/IP/min (chi <code>httprate</code>) + 5/operator/5-min.</li>
+<li><strong>Sessions</strong> are stateless Ed25519 JWTs, <strong>1 h</strong> TTL. No per-token revocation; bulk revocation uses an
+  <code>operator_revocations</code> fence table (<code>RevokeAllForOperator</code>), exposed as <code>DELETE /auth/sessions/all</code>
+  (self) and <code>DELETE /admin/sessions/{address}</code> (admin).</li>
+<li><code>POST /auth/verify</code> returns a <strong>uniform 401</strong> for every failure (anti-enumeration), bypassing the normal
+  error responder.</li>
+</ul>
+<h3 id="members-api-storage">Members API &amp; storage<a class="headerlink" href="#members-api-storage" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>POST</code> (201) / <code>DELETE</code> (204) / <code>GET</code> (committee-only array with provenance); authz ladder
+  401 → 404 (missing) → 403 (non-committee) → 409 (frozen); labels capped at 128 chars; editable only in
+  DRAFT/PUBLISHED/WINDOW_OPEN.</li>
+<li>Storage <strong>reused the existing <code>allowlist</code> table + name</strong> (a rename to "members" was declined as cosmetic
+  churn); a <code>label</code> column + <code>added_by</code>/<code>added_at</code> provenance were added by migration. The domain type is
+  <code>Allowlist</code> with <code>Member{Address, Label, AddedBy, AddedAt}</code>.</li>
+</ul>
+<h3 id="submission-cap-dedup">Submission cap &amp; dedup<a class="headerlink" href="#submission-cap-dedup" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Per-submitter cap of <strong>50</strong> open submissions (<code>CountBySubmitter</code>). Dedup keys on the derived validator
+  identity and non-terminal status (a PENDING request supersedes; APPROVED locks; REJECTED/EXPIRED don't
+  block).</li>
+</ul>
+<h3 id="global-coordinator-allowlist-display-only">Global coordinator allowlist (display only)<a class="headerlink" href="#global-coordinator-allowlist-display-only" title="Permanent link">&para;</a></h3>
+<ul>
+<li>An admin-managed <code>coordinator_allowlist</code> exists but only feeds the <code>is_coordinator</code> display flag on
+  <code>GET /auth/session</code>. Stored and compared as the <strong>account hex</strong>, so a coordinator is recognized under any
+  prefix. Per-launch governance authz is <code>Committee.HasMember</code>, unrelated to it.</li>
+</ul>
+<h3 id="invite-token-onboarding-v1x">Invite-token onboarding (v1.x)<a class="headerlink" href="#invite-token-onboarding-v1x" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Deferred: an <code>invite_token{hash, launch_id, label, uses_remaining, …}</code> mint/redeem flow to onboard
+  members and carry chain params — which would also close the <code>chain-hint</code> bootstrap need. Not yet
+  implemented.</li>
+</ul>
+<h2 id="allocation-files-gentx-validation">Allocation files &amp; gentx validation<a class="headerlink" href="#allocation-files-gentx-validation" title="Permanent link">&para;</a></h2>
+<p>The allocation-file governance model and the pre-acceptance validation <em>decisions</em> are suite ADRs; the
+mechanics below are chaincoord-internal.</p>
+<h3 id="allocation-state-on-the-aggregate">Allocation state on the aggregate<a class="headerlink" href="#allocation-state-on-the-aggregate" title="Permanent link">&para;</a></h3>
+<p>Allocation state lives on the <code>Launch</code> aggregate as <code>[]AllocationFile{Type, SHA256, Status,
+ApprovedByProposal, UploadedAt}</code> with domain methods <code>UploadAllocationFile</code> / <code>ApproveAllocationFile</code> /
+<code>RejectAllocationFile</code> / <code>allocationLocked()</code> and sentinels
+<code>ErrAllocation{Locked,StaleHash,NotFound,EmptyHash}</code> + <code>ErrUnknownAllocationType</code>. A re-upload clears
+<code>ApprovedByProposal</code> and rewrites the hash → back to <code>PENDING</code>.</p>
+<h3 id="approval-wiring">Approval wiring<a class="headerlink" href="#approval-wiring" title="Permanent link">&para;</a></h3>
+<p><code>ActionApproveAllocationFile</code> + <code>ApproveAllocationFilePayload{Type, Hash}</code>, applied by
+<code>applyApproveAllocationFile</code>; the VETO side-effect is handled by <code>applyAllocationVeto</code> in the Sign path,
+emitting <code>AllocationFileRejected</code>.</p>
+<h3 id="storage">Storage<a class="headerlink" href="#storage" title="Permanent link">&para;</a></h3>
+<p>A <code>launch_allocation_files</code> <strong>metadata</strong> table (migration 0004, PK <code>(launch_id, alloc_type)</code>, <strong>no blob</strong>);
+the bytes/ref live in the fs <code>AllocationStore</code>. Host-mode uploads reuse the existing <code>genesis_host_mode</code>
+flag + <code>genesis_max_bytes</code> cap (no new allocation config). The migration also drops the old
+<code>launch_genesis_accounts</code> table.</p>
+<h3 id="gentx-validation-wiring">Gentx-validation wiring<a class="headerlink" href="#gentx-validation-wiring" title="Permanent link">&para;</a></h3>
+<p><code>ports.GentxValidator</code> returns <code>GentxValidationOutcome{Results, ConsensusPubKeyB64, ValidatorAddress}</code>; the
+<code>infrastructure/gentxvalidation</code> adapter double-decodes on the pass path only and derives <code>ValidatorAddress</code>
+via <code>g.AccountAddress(prefix)</code>. <code>JoinRequestService.Submit</code> uses it as the validator (self-delegator)
+identity for dedup (<code>supersedePending</code>) and committee vetting, decoupled from the submitter. The
+self-delegation floor is a service-layer <code>Params</code> gate (<code>requiresSelfDelegationFloor</code>).</p>
+<h2 id="security-hardening">Security hardening<a class="headerlink" href="#security-hardening" title="Permanent link">&para;</a></h2>
+<p>The trust model and the tamper-evident audit log are in <a href="../concepts/security/">Trust Model</a> + the suite
+ADR log; the hardening mechanics below are chaincoord-internal.</p>
+<h3 id="ssrf-guard">SSRF guard<a class="headerlink" href="#ssrf-guard" title="Permanent link">&para;</a></h3>
+<p><code>netutil.ValidateRPCURL</code> resolves the host and rejects RFC1918 / loopback / link-local / CGNAT / ULA /
+IMDS (<code>169.254.0.0/16</code>) — applied to operator-supplied monitor RPC + attestor genesis URLs (and again in
+the monitor job as defense-in-depth). <code>COORD_INSECURE_NO_SSRF_CHECK</code> downgrades to format-only for trusted
+smoke networks.</p>
+<h3 id="tls-posture">TLS posture<a class="headerlink" href="#tls-posture" title="Permanent link">&para;</a></h3>
+<p>Three modes: native TLS (<code>tls_cert</code>/<code>tls_key</code>, paired-or-empty), behind-infra (loopback bind, TLS
+terminated upstream), and <code>insecure_no_tls</code> (explicit opt-out). Non-loopback plaintext without the flag is
+refused; <code>ReadHeaderTimeout = 10s</code> guards slowloris.</p>
+<h3 id="secret-key-handling">Secret &amp; key handling<a class="headerlink" href="#secret-key-handling" title="Permanent link">&para;</a></h3>
+<p>Every secret has a <code>_FILE</code> variant (<code>audit_private_key_file</code>, <code>jwt_private_key_file</code>,
+<code>rehearsal_ops_token_file</code>) alongside the inline form (inline takes precedence, whitespace-trimmed).
+<code>coordd keygen</code> prints a random Ed25519 seed with <code>docker secret</code> guidance; the compose omits inline keys.</p>
+<h3 id="dos-caps">DoS caps<a class="headerlink" href="#dos-caps" title="Permanent link">&para;</a></h3>
+<p><code>maxJSONBody = 1 MiB</code>; genesis/allocation uploads capped by <code>genesis_max_bytes</code> (700 MiB default → <code>413</code>);
+per-IP rate limits (challenge 10/min, validator writes 60/min) + the per-operator challenge limiter.</p>
+<h3 id="audit-log-internals">Audit-log internals<a class="headerlink" href="#audit-log-internals" title="Permanent link">&para;</a></h3>
+<p>Per-entry Ed25519 signature + <code>prev_hash</code> SHA-256 chaining; the chain tip is persisted via
+<code>AuditChainStore</code>, and <code>verifyLastLineHash</code> refuses startup on a tip mismatch; <code>coordd audit verify</code>
+re-derives + checks the whole chain (signatures, monotonic timestamps, <code>prev_hash</code>). See
+<a href="../reference/audit/">reference/audit.md</a>.</p>
+<p><code>occurred_at</code> is <strong>record time</strong> — the funnel (<code>writeAuditEvent</code>) stamps it at write time; the <code>WithTime</code>
+seam is reserved for an authoritative domain time, which no current event uses. This keeps <code>occurred_at</code>
+monotonic along the chain, and coordd <strong>detects, never clamps</strong> a backward step: it warns live (at append)
+and during startup, preserving the raw value rather than laundering a clock anomaly. Startup depth is set by
+<code>audit_startup_verify</code> (<code>full</code> default | <code>tail</code>): <code>full</code> scans the whole log (shared code with <code>audit
+verify</code>) and refuses on tamper/corruption while only warning on a backward timestamp; <code>tail</code> is the
+large-log escape hatch. Coverage is guarded by a reflection test — every exported <code>LaunchService</code> /
+<code>ProposalService</code> method must be classified audited-or-not, and there are currently no mutation exemptions
+(<code>ClaimRehearsalRun</code> → <code>RehearsalRunClaimed</code>, <code>ExpireStale</code> → <code>ProposalExpired</code>; only queries and builders
+are unaudited). A <code>PATCH /launch/{id}</code> emits one <code>LaunchPatched</code> event carrying a per-field old→new diff — the trusted
+rehearsal key folded in, no longer a special-cased event.</p>
+<p>Audit-write error policy is split by criticality: a direct action <strong>logs and continues</strong> on a failed audit
+write (the mutation already committed), while a governance proposal is <strong>two-phase</strong> — a <code>ProposalExecuting</code>
+intent is written <em>before</em> the state change commits (abort if that write fails) and the completion event
+<em>after</em> (a failure here is <strong>fatal</strong>: coordd exits rather than run on accumulating unauditable governance).
+A rollback after the intent records an explicit <code>ProposalExecutionAborted</code>, so the trail self-explains.</p>
+<h3 id="admin-set-accepted-for-v1">Admin set (accepted for v1)<a class="headerlink" href="#admin-set-accepted-for-v1" title="Permanent link">&para;</a></h3>
+<p>The admin set is boot-time config (<code>COORD_ADMIN_ADDRESSES</code>); rotating an admin needs a restart and isn't
+self-audited. <strong>Accepted for v1</strong>; a future <code>admins</code> table + management endpoints (mirroring the
+coordinator allowlist) is a possible enhancement, not scheduled.</p>
+<h3 id="observability-response-headers">Observability &amp; response headers<a class="headerlink" href="#observability-response-headers" title="Permanent link">&para;</a></h3>
+<p><code>GET /healthz</code> probes liveness (DB <code>SELECT 1</code> + audit-log stat) → <code>503</code> on a dependency failure, detail
+logged not returned. <code>GET /metrics</code> serves the default Go runtime + process metrics via <code>promhttp</code>,
+unauthenticated (network-restrict it in deploy). A <code>securityHeaders</code> middleware sets <code>nosniff</code> +
+<code>X-Frame-Options: DENY</code> on every response, plus HSTS <strong>only</strong> when coordd terminates TLS itself — in
+infra-TLS mode (a proxy terminates TLS, coordd sees plain HTTP) it defers HSTS to the proxy.</p>
+<h2 id="genesis-readiness-and-launch">Genesis, readiness, and launch<a class="headerlink" href="#genesis-readiness-and-launch" title="Permanent link">&para;</a></h2>
+<p>The genesis storage model (attestor/host), the coordinator-built-genesis boundary, and readiness
+attestation are suite ADRs; the mechanics below are chaincoord-internal.</p>
+<h3 id="genesis-fields-and-gates">Genesis fields and gates<a class="headerlink" href="#genesis-fields-and-gates" title="Permanent link">&para;</a></h3>
+<p><code>InitialGenesisSHA256</code> (uploaded in <code>DRAFT</code>), <code>FinalGenesisSHA256</code> + <code>FinalGenesisInputSetHash</code> (uploaded in
+<code>WINDOW_CLOSED</code>). <code>validateFinalGenesis</code> runs the structural checks (<code>chain_id</code>, gen_tx count = approved,
+consensus-pubkey presence + dedup, future <code>genesis_time</code>) and syncs the file's <code>genesis_time</code> into
+<code>Record.GenesisTime</code>; an attestor-mode final upload takes <code>genesis_time</code> as a required RFC3339 request
+field. Host mode is gated by <code>COORD_GENESIS_HOST_MODE</code> + <code>genesis_max_bytes</code> (shared with allocation
+uploads). <code>GET /launch/{id}/genesis/hash</code> returns both <code>initial_sha256</code> and <code>final_sha256</code>.</p>
+<h3 id="readiness-dashboard-aggregation">Readiness dashboard aggregation<a class="headerlink" href="#readiness-dashboard-aggregation" title="Permanent link">&para;</a></h3>
+<p><code>ThresholdStatus</code> cutoffs: <code>CONFIRMED</code> at ≥ <code>bftThreshold</code> (200/3 %), <code>AT_RISK</code> below <code>atRiskBelow</code> (50 %),
+else <code>REACHABLE</code>. Voting-power % is computed from each confirmed operator's <code>SelfDelegationAmount</code>; only
+valid (non-invalidated) confirmations count.</p>
+<h3 id="block-monitor">Block monitor<a class="headerlink" href="#block-monitor" title="Permanent link">&para;</a></h3>
+<p><code>RunLaunchMonitor</code> (started in <code>serve.go</code>, 1-minute cadence) polls each <code>GENESIS_READY</code> launch with a
+non-empty <code>MonitorRPCURL</code> — a single URL set by a committee member via <code>PATCH /launch/{id}</code>, re-read each
+tick so a <code>PATCH</code> takes effect without restart: <code>GET &lt;rpc&gt;/block?height=1</code> (5 s timeout, SSRF-guarded), and
+on a <code>200</code> with a non-null <code>result.block</code> calls <code>MarkLaunched</code> and emits <code>LaunchDetected{LaunchID,
+SourceRPC}</code>. (Block-<em>identity</em> verification — <code>chain_id</code> / height — is a queued security follow-up.)</p>
+<h2 id="api-cli">API &amp; CLI<a class="headerlink" href="#api-cli" title="Permanent link">&para;</a></h2>
+<p>The OpenAPI-as-source-of-truth decision is a suite ADR; the routing + CLI structure below is
+chaincoord-internal.</p>
+<h3 id="auth-tier-route-taxonomy">Auth-tier route taxonomy<a class="headerlink" href="#auth-tier-route-taxonomy" title="Permanent link">&para;</a></h3>
+<p>Routes are grouped into five tiers on the Chi router (<code>server.go</code>):</p>
+<ul>
+<li><strong>public</strong> — <code>GET /healthz</code>, <code>GET /audit/pubkey</code>, <code>POST /auth/challenge</code> (rate-limited), <code>POST
+  /auth/verify</code>, and <code>GET</code>/<code>DELETE /auth/session</code>.</li>
+<li><strong>optionalAuth</strong> — resolves the caller if a token is present, else anonymous → visibility gating (the
+  reads: <code>GET /launches</code>, <code>/launch/{id}</code>, <code>/committee/{id}</code>, <code>/launch/{id}/chain-hint</code>, genesis, allocations,
+  dashboard, peers, audit, events).</li>
+<li><strong>requireAuth</strong> — the authenticated actions + reads (create/patch, committee create, members, uploads,
+  join/proposal/ready writes, the launch read GETs, <code>DELETE /auth/sessions/all</code>).</li>
+<li><strong>requireOps</strong> — the four <code>/bridge/*</code> endpoints (shared <code>rehearsal_ops_token</code>, <strong>fail-closed</strong> when
+  unset).</li>
+<li><strong>requireAdmin</strong> — <code>/admin/*</code> (coordinators + <code>DELETE /admin/sessions/{address}</code>).</li>
+</ul>
+<h3 id="single-binary-coordd">Single-binary coordd<a class="headerlink" href="#single-binary-coordd" title="Permanent link">&para;</a></h3>
+<p>coordd is one cobra binary with subcommands <code>serve</code> / <code>migrate</code> / <code>keygen</code> / <code>version</code> / <code>audit verify</code> —
+replacing the originally-specced separate <code>coord</code> client CLI, which was never built: interactive use is the
+web, and test signing is the separate <code>smoke-signer</code> binary.</p>
+<h3 id="swagger-toolchain">Swagger toolchain<a class="headerlink" href="#swagger-toolchain" title="Permanent link">&para;</a></h3>
+<p>The spec is generated by <code>swag init</code> and lint-checked by <code>vacuum</code>, both pinned as <code>go.mod</code> tool deps;
+<code>make swagger-check</code> is the CI drift gate that fails if the committed <code>swagger.yaml</code> lags the handlers.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "search.highlight", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

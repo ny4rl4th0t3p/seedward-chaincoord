@@ -426,14 +426,14 @@
   
   
     <li class="md-nav__item">
-      <a href="getting-started/dev-environment/" class="md-nav__link">
+      <a href="getting-started/docker/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Dev Environment
+    Run with Docker
   
 
     
@@ -625,6 +625,62 @@
   
   
     <li class="md-nav__item">
+      <a href="concepts/genesis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Genesis
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="concepts/readiness/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Readiness
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="concepts/proposals/" class="md-nav__link">
         
   
@@ -633,6 +689,62 @@
     
   
     Proposals & M-of-N
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="concepts/validation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gentx Validation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="concepts/security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trust Model
   
 
     
@@ -659,6 +771,33 @@
   
   
   
+    <li class="md-nav__item">
+      <a href="decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
     
     
     
@@ -673,10 +812,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
         
           
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
             
   
   
@@ -694,8 +833,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -917,13 +1056,17 @@
 <h1 id="seedward-chaincoord">seedward-chaincoord<a class="headerlink" href="#seedward-chaincoord" title="Permanent link">&para;</a></h1>
 <p><strong>seedward-chaincoord</strong> is a self-hosted coordination server for <strong>Cosmos SDK</strong> chain genesis launches.</p>
 <p>It manages the full launch lifecycle — from assembling a coordinator committee, through validator applications and
-M-of-N approval, to genesis assembly and block monitoring — with a tamper-evident audit log at every step.</p>
+M-of-N approval, to M-of-N agreement on the final genesis and block monitoring — with a tamper-evident audit log at
+every step. <code>coordd</code> never runs a node, never holds a private key, and never assembles the final genesis itself — the
+coordinator builds that locally with the chain binary once the committee has agreed.</p>
 <div class="admonition danger">
-<p class="admonition-title">Proof of concept — not for production use</p>
+<p class="admonition-title">Not production-ready yet</p>
 </div>
-<p>seedward-chaincoord is research-grade software. It was built to explore the problem space of decentralized genesis
-coordination. APIs, data formats, and behaviours may change without notice. <strong>Do not use it for mainnet launches or any
-environment where correctness and availability are required.</strong></p>
+<p>seedward-chaincoord is a <strong>complete, capable v1</strong> — a Spec-Driven Development project: the protocol, the M-of-N
+committee governance model, the launch-lifecycle state machine, the threat model, and the offline-verifiable audit-log
+design were authored as a spec and implemented with AI assistance under review. It is <strong>not production-ready yet</strong> —
+built to get there with real-world testing, and APIs, data formats, and behaviours may still change. <strong>Do not use it
+for mainnet launches or any environment where correctness and availability are required.</strong></p>
 <div class="admonition warning">
 <p class="admonition-title">Cosmos SDK only</p>
 </div>
@@ -988,7 +1131,7 @@ Once M SIGN decisions are collected it executes immediately.</p>
 (managed directly by the committee) can see it or submit a join request; everyone else gets a <code>404</code>.</p>
 <p><strong>Join request</strong> — A member's application to participate, carrying their <code>gentx</code> and self-delegation amount; the
 operator address is derived from the gentx's signer, not supplied as a trusted field.</p>
-<p><strong>Audit log</strong> — An append-only JSONL file recording every state transition, proposal, and signature. Each entry is
+<p><strong>Audit log</strong> — An append-only JSONL file recording every state transition and committee proposal. Each entry is
 signed with the server's Ed25519 key and can be verified offline with <code>coordd audit verify</code>.</p>
 <hr />
 <h2 id="components">Components<a class="headerlink" href="#components" title="Permanent link">&para;</a></h2>
@@ -1017,8 +1160,8 @@ signed with the server's Ed25519 key and can be verified offline with <code>coor
 <hr />
 <h2 id="next-steps">Next steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="getting-started/dev-environment/">Dev Environment</a> — run <code>coordd</code> with <code>make dev-up</code> (the web frontend runs
-  separately)</li>
+<li><a href="getting-started/docker/">Run with Docker</a> — run <code>coordd</code> from the published image. (The full stack —
+  coordd + web — lives in seedward-suite.)</li>
 <li><a href="getting-started/quickstart/">Quickstart</a> — run <code>coordd</code> locally in five minutes</li>
 <li><a href="reference/setup/">Setup &amp; Configuration</a> — full configuration reference</li>
 <li><a href="concepts/overview/">Concepts</a> — deeper explanation of roles, proposals, and the lifecycle</li>

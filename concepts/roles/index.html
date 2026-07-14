@@ -337,14 +337,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../getting-started/dev-environment/" class="md-nav__link">
+      <a href="../../getting-started/docker/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Dev Environment
+    Run with Docker
   
 
     
@@ -640,6 +640,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../genesis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Genesis
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../readiness/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Readiness
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../proposals/" class="md-nav__link">
         
   
@@ -648,6 +704,62 @@
     
   
     Proposals & M-of-N
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../validation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gentx Validation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trust Model
   
 
     
@@ -674,6 +786,33 @@
   
   
   
+    <li class="md-nav__item">
+      <a href="../../decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
     
     
     
@@ -688,10 +827,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
         
           
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
             
   
   
@@ -709,8 +848,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -968,7 +1107,8 @@ proposals.</p>
 <li>Authenticate to <code>coordd</code> via a secp256k1 challenge–response (the same key used on-chain)</li>
 <li>Can raise any proposal type at any time (subject to the launch's current status)</li>
 <li>Each coordinator signs or vetoes proposals raised by others</li>
-<li>Signatures are verified server-side against the member's declared public key</li>
+<li>Signatures are verified against the compressed secp256k1 public key the caller supplies with each
+  request, which the server proves derives to the claimed operator address — no public key is pre-registered</li>
 </ul>
 <p><strong>What coordinators cannot do unilaterally:</strong></p>
 <ul>
@@ -1035,6 +1175,10 @@ expectation, so an unexpected operator address under a member surfaces at approv
 <li><code>POST /auth/verify</code> with the signed payload → server returns a JWT</li>
 </ol>
 <p>The JWT is short-lived and must be included as a <code>Bearer</code> token on all subsequent requests.</p>
+<p>The identity coordd derives is the <strong>HRP-independent account</strong> (the 20 bytes <code>ripemd160(sha256(pubkey))</code>),
+not the bech32 string — so the <strong>same key authenticates under any account prefix as one identity</strong>
+(<code>cosmos1…</code> and a launch's own <code>network1…</code> are the same member). Only account-form addresses are accepted;
+<code>…valoper…</code> / <code>…valcons…</code> forms are rejected. Challenge, nonce, and session revocation are keyed on the account.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 </div>

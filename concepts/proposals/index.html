@@ -11,10 +11,10 @@
       
       
       
-        <link rel="prev" href="../lifecycle/">
+        <link rel="prev" href="../readiness/">
       
       
-        <link rel="next" href="../../reference/setup/">
+        <link rel="next" href="../validation/">
       
       
         
@@ -337,14 +337,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../getting-started/dev-environment/" class="md-nav__link">
+      <a href="../../getting-started/docker/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Dev Environment
+    Run with Docker
   
 
     
@@ -535,6 +535,62 @@
                 
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../genesis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Genesis
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../readiness/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Readiness
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -682,6 +738,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#finalizing-genesis-consistency-guards-the-optional-rehearsal-gate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Finalizing genesis: consistency guards + the optional rehearsal gate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#committee-management" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -739,9 +806,92 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../validation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gentx Validation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trust Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -766,10 +916,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
         
           
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
             
   
   
@@ -787,8 +937,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1028,6 +1178,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#finalizing-genesis-consistency-guards-the-optional-rehearsal-gate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Finalizing genesis: consistency guards + the optional rehearsal gate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#committee-management" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1210,8 +1371,9 @@ blocked once the genesis is published — revert to <code>WINDOW_CLOSED</code> v
 </tbody>
 </table>
 <h3 id="genesis-metadata-allocations">Genesis metadata &amp; allocations<a class="headerlink" href="#genesis-metadata-allocations" title="Permanent link">&para;</a></h3>
-<p><code>UPDATE_GENESIS_TIME</code> is blocked only after <code>LAUNCHED</code> (it is designed to run at <code>GENESIS_READY</code> as part of the revise
-flow, where it invalidates existing readiness confirmations). <code>APPROVE_ALLOCATION_FILE</code> is rejected once the genesis is
+<p><code>UPDATE_GENESIS_TIME</code> is blocked once the launch is terminal (<code>LAUNCHED</code> or <code>CANCELED</code>); it is designed to run at
+<code>GENESIS_READY</code> as part of the revise flow, where it invalidates existing readiness confirmations.
+<code>APPROVE_ALLOCATION_FILE</code> is rejected once the genesis is
 published (<code>GENESIS_READY</code>, <code>LAUNCHED</code>, or <code>CANCELED</code>) — an approval could no longer affect the published file.</p>
 <table>
 <thead>
@@ -1225,7 +1387,7 @@ published (<code>GENESIS_READY</code>, <code>LAUNCHED</code>, or <code>CANCELED<
 <tr>
 <td><code>UPDATE_GENESIS_TIME</code></td>
 <td>Updates the <code>genesis_time</code> field; invalidates all readiness confirmations</td>
-<td>any pre-<code>LAUNCHED</code></td>
+<td>any non-terminal status</td>
 </tr>
 <tr>
 <td><code>APPROVE_ALLOCATION_FILE</code></td>
@@ -1248,6 +1410,19 @@ emits CSV/TSV, not JSON — so the server stores and hashes the bytes but does n
 </ul>
 <p>This supersedes the old per-entry <code>ADD</code>/<code>REMOVE</code>/<code>MODIFY_GENESIS_ACCOUNT</code> proposals, which no longer exist — curated
 files are reviewed and approved as a unit by humans, with the hash as the integrity anchor.</p>
+<h3 id="finalizing-genesis-consistency-guards-the-optional-rehearsal-gate">Finalizing genesis: consistency guards + the optional rehearsal gate<a class="headerlink" href="#finalizing-genesis-consistency-guards-the-optional-rehearsal-gate" title="Permanent link">&para;</a></h3>
+<p><code>PUBLISH_GENESIS</code> carries safety beyond the status guard, because the approved set can still change in
+<code>WINDOW_CLOSED</code> (a validator approve/remove) after a final genesis was uploaded:</p>
+<ul>
+<li><strong>Genesis ↔ approved-set consistency (always on).</strong> The final genesis is bound at upload to an
+  <code>input_set_hash</code> over the approved gentxs + allocation files + chain params. <code>PUBLISH_GENESIS</code> re-checks that
+  hash at both raise and execute and refuses a genesis that no longer matches the current set. While a
+  <code>PUBLISH_GENESIS</code> is pending, validator approve/remove proposals are frozen (and vice-versa), so the set
+  cannot drift underneath it.</li>
+<li><strong>Rehearsal gate (opt-in).</strong> <code>COORD_REHEARSAL_GATE</code> (default <code>off</code>) can additionally require the latest
+  rehearsal to be a current <code>PASS</code> before the transition is allowed — see
+  <a href="../../reference/setup/"><code>rehearsal_gate</code></a> in the configuration reference.</li>
+</ul>
 <h3 id="committee-management">Committee management<a class="headerlink" href="#committee-management" title="Permanent link">&para;</a></h3>
 <table>
 <thead>

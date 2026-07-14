@@ -11,7 +11,7 @@
       
       
       
-        <link rel="prev" href="../../concepts/proposals/">
+        <link rel="prev" href="../../decisions/">
       
       
         <link rel="next" href="../api/">
@@ -337,14 +337,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../getting-started/dev-environment/" class="md-nav__link">
+      <a href="../../getting-started/docker/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Dev Environment
+    Run with Docker
   
 
     
@@ -536,6 +536,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../concepts/genesis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Genesis
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/readiness/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Readiness
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../concepts/proposals/" class="md-nav__link">
         
   
@@ -557,9 +613,92 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/validation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gentx Validation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trust Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -586,10 +725,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
         
           
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
             
   
   
@@ -607,8 +746,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_4">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -813,6 +952,56 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#observability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Observability
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Observability">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#health-check-get-healthz" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Health check — GET /healthz
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#metrics-get-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Metrics — GET /metrics
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#security-response-headers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security response headers
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#configuration-reference" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -968,10 +1157,32 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#rehearsal_gate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        rehearsal_gate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#log_level" class="md-nav__link">
     <span class="md-ellipsis">
       
         log_level
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#audit_startup_verify" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        audit_startup_verify
       
     </span>
   </a>
@@ -1238,6 +1449,56 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#observability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Observability
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Observability">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#health-check-get-healthz" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Health check — GET /healthz
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#metrics-get-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Metrics — GET /metrics
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#security-response-headers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security response headers
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#configuration-reference" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1393,10 +1654,32 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#rehearsal_gate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        rehearsal_gate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#log_level" class="md-nav__link">
     <span class="md-ellipsis">
       
         log_level
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#audit_startup_verify" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        audit_startup_verify
       
     </span>
   </a>
@@ -1431,10 +1714,11 @@
 <h1 id="coordd-setup-configuration">coordd — Setup &amp; Configuration<a class="headerlink" href="#coordd-setup-configuration" title="Permanent link">&para;</a></h1>
 <p>This document covers how to run and configure the <code>coordd</code> server in both development and production environments.</p>
 <div class="admonition danger">
-<p class="admonition-title">Proof of concept — not for production use</p>
+<p class="admonition-title">Not production-ready yet</p>
 </div>
-<p>seedward-chaincoord is research-grade software. APIs, data formats, and behaviours may change without notice. <strong>Do not
-use it for mainnet launches or any environment where correctness and availability are required.</strong></p>
+<p>seedward-chaincoord is a <strong>complete, capable v1</strong> that is <strong>not production-ready yet</strong> — APIs, data formats, and
+behaviours may still change. <strong>Do not use it for mainnet launches or any environment where correctness and availability
+are required.</strong></p>
 <hr />
 <h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
 <p><code>coordd</code> resolves configuration from three sources, in order of precedence (highest first):</p>
@@ -1547,6 +1831,50 @@ warning — this makes the intent self-documenting in your deploy config:</p>
 the real client address rather than the proxy address.</p>
 <h4 id="local-dev">Local dev<a class="headerlink" href="#local-dev" title="Permanent link">&para;</a></h4>
 <p>Plain HTTP on loopback (<code>127.0.0.1</code> or <code>::1</code>) suppresses the warning automatically — no flag needed.</p>
+<hr />
+<h2 id="observability">Observability<a class="headerlink" href="#observability" title="Permanent link">&para;</a></h2>
+<h3 id="health-check-get-healthz">Health check — <code>GET /healthz</code><a class="headerlink" href="#health-check-get-healthz" title="Permanent link">&para;</a></h3>
+<p>Unauthenticated. Probes liveness dependencies and returns:</p>
+<ul>
+<li><code>200 {"status":"ok"}</code> when the database is queryable (<code>SELECT 1</code>) <strong>and</strong> the audit log file is present.</li>
+<li><code>503 {"status":"unavailable"}</code> when either is down (a DB failure, or the audit log's disk unmounted / full).</li>
+</ul>
+<p>Failure detail is written to the server log, not the response body, so an unauthenticated caller learns only
+up/down. Point your orchestrator's liveness/readiness probe at it.</p>
+<h3 id="metrics-get-metrics">Metrics — <code>GET /metrics</code><a class="headerlink" href="#metrics-get-metrics" title="Permanent link">&para;</a></h3>
+<p>Unauthenticated Prometheus endpoint exposing the default Go runtime and process metrics (goroutines, heap, GC,
+open file descriptors, CPU). <strong>Network-restrict it</strong> — it is not behind auth, so keep it off the public
+interface and scrape it from your monitoring network.</p>
+<h3 id="security-response-headers">Security response headers<a class="headerlink" href="#security-response-headers" title="Permanent link">&para;</a></h3>
+<p>Every response carries defensive headers:</p>
+<table>
+<thead>
+<tr>
+<th>Header</th>
+<th>Value</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>X-Content-Type-Options</code></td>
+<td><code>nosniff</code></td>
+<td>always</td>
+</tr>
+<tr>
+<td><code>X-Frame-Options</code></td>
+<td><code>DENY</code></td>
+<td>always</td>
+</tr>
+<tr>
+<td><code>Strict-Transport-Security</code></td>
+<td><code>max-age=63072000; includeSubDomains</code></td>
+<td>when coordd terminates TLS</td>
+</tr>
+</tbody>
+</table>
+<p>HSTS is added only when <code>coordd</code> terminates TLS itself (native TLS — <code>tls_cert</code>/<code>tls_key</code> set). Behind an
+upstream TLS proxy (infra TLS mode), add HSTS at the proxy instead.</p>
 <hr />
 <h2 id="configuration-reference">Configuration Reference<a class="headerlink" href="#configuration-reference" title="Permanent link">&para;</a></h2>
 <table>
@@ -1714,6 +2042,20 @@ the real client address rather than the proxy address.</p>
 <td><code>45m</code></td>
 <td>No</td>
 </tr>
+<tr>
+<td><code>rehearsal_gate</code></td>
+<td><code>COORD_REHEARSAL_GATE</code></td>
+<td>—</td>
+<td><code>off</code></td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>audit_startup_verify</code></td>
+<td><code>COORD_AUDIT_STARTUP_VERIFY</code></td>
+<td>—</td>
+<td><code>full</code></td>
+<td>No</td>
+</tr>
 </tbody>
 </table>
 <p>¹ Exactly one of <code>audit_private_key</code> (inline base64) or <code>audit_private_key_file</code> (path) must be set.<br />
@@ -1782,11 +2124,39 @@ lease before it is treated as stale and re-claimable. A crashed runner self-heal
 operator intervention; set it comfortably above your longest rehearsal. Accepts a Go duration string
 (<code>45m</code>, <code>1h</code>, <code>90m</code>). Defaults to <strong>45m</strong> when unset. For an immediate override of a stuck lease, a committee
 coordinator can call <code>POST /launch/{id}/rehearsal/{attempt_id}/reset</code> instead of waiting for expiry.</p>
+<h3 id="rehearsal_gate"><code>rehearsal_gate</code><a class="headerlink" href="#rehearsal_gate" title="Permanent link">&para;</a></h3>
+<p>Opt-in policy for whether a launch may finalize genesis (<code>WINDOW_CLOSED → GENESIS_READY</code>) only after a
+passing rehearsal. <strong>Default <code>off</code> — coordd runs fully standalone; rehearsal is an optional bolt-on, never a
+hard dependency.</strong></p>
+<ul>
+<li><code>off</code> (default) — the gate is never consulted. A deployment with no rehearsal service is unaffected.</li>
+<li><code>advisory</code> — the gate is evaluated and, when unsatisfied, recorded in the audit log, but never blocks.</li>
+<li><code>required</code> — publishing genesis is rejected (409) unless the launch's <strong>latest</strong> rehearsal fact is <code>PASS</code>
+  <strong>and current</strong> (its <code>input_set_hash</code> still matches the present approved set). Enforced when the
+  <code>PUBLISH_GENESIS</code> proposal is raised, with a re-check when it executes.</li>
+</ul>
+<p><code>required</code> needs the rehearsal bridge enabled (a <code>rehearsal_ops_token</code>) — coordd <strong>refuses to start</strong> with
+<code>rehearsal_gate=required</code> and no ops token. It also requires a per-launch trusted rehearsal service pubkey
+(set via <code>PATCH /launch/{id}</code>); a <code>required</code> launch with no configured service is rejected at publish time.</p>
+<blockquote>
+<p>Independent of this gate, coordd always enforces that a published genesis matches the approved validator
+set it was assembled from (the set can change in <code>WINDOW_CLOSED</code> via approve/remove) — a correctness
+invariant, not an opt-in.</p>
+</blockquote>
 <h3 id="log_level"><code>log_level</code><a class="headerlink" href="#log_level" title="Permanent link">&para;</a></h3>
 <p>Controls verbosity. Accepted values: <code>debug</code>, <code>info</code>, <code>warn</code>, <code>error</code>.</p>
 <ul>
 <li><code>debug</code> — human-readable console output (stderr), verbose. Use in development only.</li>
 <li><code>info</code> and above — structured JSON to stdout. Use in production.</li>
+</ul>
+<h3 id="audit_startup_verify"><code>audit_startup_verify</code><a class="headerlink" href="#audit_startup_verify" title="Permanent link">&para;</a></h3>
+<p>Depth of the boot-time audit-log integrity check (see
+<a href="../audit/#startup-and-live-integrity-checks">Audit Log → Startup and live integrity checks</a>):</p>
+<ul>
+<li><code>full</code> (default) — scan the whole log on startup (Ed25519 signatures, hash-chain, timestamps) in addition to
+  the cheap chain-tip check. Tamper or corruption <strong>refuses startup</strong>; a backward timestamp only warns.</li>
+<li><code>tail</code> — only the cheap chain-tip check. For operators whose log has grown large; pair it with a scheduled
+  <code>coordd audit verify</code>.</li>
 </ul>
 
 
