@@ -1315,6 +1315,13 @@ func TestBackfillAccountForms(t *testing.T) {
 		`SELECT address FROM allowlist WHERE launch_id=? AND label='acme'`, uuidToStr(l.ID)).Scan(&storedMember))
 	assert.True(t, strings.HasPrefix(storedMember, "network1"), "member re-encoded under launch prefix, got %q", storedMember)
 	assert.True(t, mustAddr(storedMember).Equal(mustAddr(legacyMember)), "same account as the legacy cosmos form")
+
+	// The HRP-independent account key is backfilled too (not just the display address) — this is the
+	// mechanism the FindAll visibility fix relies on to populate pre-migration rows.
+	var storedMemberAccount string
+	require.NoError(t, db.QueryRowContext(ctx,
+		`SELECT account FROM allowlist WHERE launch_id=? AND label='acme'`, uuidToStr(l.ID)).Scan(&storedMemberAccount))
+	assert.Equal(t, mustAddr(legacyMember).Hex(), storedMemberAccount, "member account hex backfilled")
 }
 
 // ---- CoordinatorAllowlistRepo ----
@@ -1441,5 +1448,67 @@ func TestChallengeRateLimiterStore_Allow(t *testing.T) {
 			_ = store.Allow(ctx, addr1)
 		}
 		require.NoError(t, store.Allow(ctx, addr2), "Allow for addr2 after addr1 exhausted limit")
+	})
+}
+
+// TestLaunchRepository_FindAll_CrossHRP is the regression guard for the launch-list visibility
+// bug (plan-chaincoord-list-visibility-hrp.md): list membership must match on the HRP-independent
+// account, not the per-launch display bech32. Each launch is stored under the "osmo" prefix while
+// the caller authenticates under "cosmos" — the same account rendered two ways — so a string match
+// on the stored display address (underPrefix → "osmo1…") misses the caller ("cosmos1…"). Under the
+// account-keyed filter the two resolve to one identity and the launch is visible.
+func TestLaunchRepository_FindAll_CrossHRP(t *testing.T) {
+	t.Parallel()
+
+	// Valid bech32 addresses that are NOT in the test committee (addr1/2/3).
+	const (
+		outsider = "cosmos1v93xxer9venks6t2ddkx6mn0wpchyum5nn4cca"
+		stranger = "cosmos1sxpg8py9s6rc3zv23wxgmr50jzge9yu5r5slya"
+	)
+
+	// A launch whose membership is stored under a prefix ≠ the caller's wallet HRP.
+	newOsmoLaunch := func(t *testing.T) *launch.Launch {
+		t.Helper()
+		l := testLaunch(t)             // committee lead = Members[0] = addr1 (satisfies the invariant)
+		l.Record.Bech32Prefix = "osmo" // saveCommittee/saveAllowlist render stored addresses under "osmo"
+		return l
+	}
+
+	t.Run("committee member authed under a different HRP still sees the launch", func(t *testing.T) {
+		t.Parallel()
+		repo := NewLaunchRepository(openTestDB(t))
+		ctx := context.Background()
+
+		l := newOsmoLaunch(t)
+		require.NoError(t, repo.Save(ctx, l)) // addr1 stored as "osmo1…"
+
+		// Query with addr1's cosmos form — the same account, different HRP string.
+		launches, total, err := repo.FindAll(ctx, addr1, 1, 10)
+		require.NoError(t, err, "FindAll")
+		require.Equal(t, 1, total, "a committee member must see their launch even when its prefix ≠ their wallet HRP")
+		require.Len(t, launches, 1)
+		assert.Equal(t, l.ID, launches[0].ID)
+
+		// A genuine non-member still sees nothing.
+		_, total, err = repo.FindAll(ctx, stranger, 1, 10)
+		require.NoError(t, err)
+		assert.Zero(t, total, "a non-member must see nothing")
+	})
+
+	t.Run("allowlisted member authed under a different HRP still sees the launch", func(t *testing.T) {
+		t.Parallel()
+		repo := NewLaunchRepository(openTestDB(t))
+		ctx := context.Background()
+
+		l := newOsmoLaunch(t)
+		// `outsider` is NOT on the committee, so a match can only come via the allowlist join.
+		l.Allowlist = launch.NewAllowlist([]launch.AccountID{mustAddr(outsider)}) // stored as "osmo1…"
+		require.NoError(t, repo.Save(ctx, l))
+
+		launches, total, err := repo.FindAll(ctx, outsider, 1, 10) // queried as cosmos form
+		require.NoError(t, err, "FindAll")
+		require.Equal(t, 1, total, "an allowlisted member must see the launch across HRPs")
+		require.Len(t, launches, 1)
+		assert.Equal(t, l.ID, launches[0].ID)
 	})
 }

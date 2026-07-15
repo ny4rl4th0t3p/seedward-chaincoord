@@ -153,8 +153,8 @@ func (r *LaunchRepository) saveCommittee(ctx context.Context, l *launch.Launch) 
 	}
 	for i, m := range c.Members {
 		if _, err := q.ExecContext(ctx,
-			`INSERT INTO committee_members (committee_id, position, address, moniker, pubkey_b64) VALUES (?,?,?,?,?)`,
-			uuidToStr(c.ID), i, underPrefix(m.Address, l.Record.Bech32Prefix), m.Moniker, m.PubKeyB64,
+			`INSERT INTO committee_members (committee_id, position, address, account, moniker, pubkey_b64) VALUES (?,?,?,?,?,?)`,
+			uuidToStr(c.ID), i, underPrefix(m.Address, l.Record.Bech32Prefix), m.Address.Hex(), m.Moniker, m.PubKeyB64,
 		); err != nil {
 			return fmt.Errorf("insert committee member %d: %w", i, err)
 		}
@@ -173,8 +173,8 @@ func (r *LaunchRepository) saveAllowlist(ctx context.Context, l *launch.Launch) 
 			addedAt = timeToStr(mem.AddedAt)
 		}
 		if _, err := q.ExecContext(ctx,
-			`INSERT INTO allowlist (launch_id, address, label, added_by, added_at) VALUES (?,?,?,?,?)`,
-			uuidToStr(l.ID), underPrefix(mem.Address, l.Record.Bech32Prefix), mem.Label, mem.AddedBy, addedAt,
+			`INSERT INTO allowlist (launch_id, address, account, label, added_by, added_at) VALUES (?,?,?,?,?,?)`,
+			uuidToStr(l.ID), underPrefix(mem.Address, l.Record.Bech32Prefix), mem.Address.Hex(), mem.Label, mem.AddedBy, addedAt,
 		); err != nil {
 			return fmt.Errorf("insert allowlist: %w", err)
 		}
@@ -208,25 +208,27 @@ func (r *LaunchRepository) FindByChainID(ctx context.Context, chainID string) (*
 // this in one place keeps the paginated results and the total count in agreement.
 const membershipFilterFrom = `
 	FROM launches l
-	LEFT JOIN allowlist al ON al.launch_id = l.id AND al.address = ?
+	LEFT JOIN allowlist al ON al.launch_id = l.id AND al.account = ?
 	LEFT JOIN committees c ON c.launch_id = l.id
-	LEFT JOIN committee_members cm ON cm.committee_id = c.id AND cm.address = ?
-	WHERE al.address IS NOT NULL OR cm.address IS NOT NULL`
+	LEFT JOIN committee_members cm ON cm.committee_id = c.id AND cm.account = ?
+	WHERE al.account IS NOT NULL OR cm.account IS NOT NULL`
 
 func (r *LaunchRepository) FindAll(ctx context.Context, operatorAddr string, page, perPage int) ([]*launch.Launch, int, error) {
 	q := conn(ctx, r.db)
 	offset := (page - 1) * perPage
 
-	// Launches are private: a caller sees a launch only if they are a committee member
-	// or on its members allowlist. An unauthenticated caller sees nothing. (This mirrors the
-	// in-memory IsVisibleTo used by single-launch reads.)
-	if operatorAddr == "" {
+	// Launches are private: a caller sees a launch only if they are a committee member or on its
+	// members allowlist — matched on the HRP-independent account key (like coordinator_allowlist),
+	// NOT the per-launch display address, so a caller sees their launches under any wallet prefix.
+	// An unauthenticated or unparseable caller sees nothing (mirrors the in-memory IsVisibleTo).
+	acct, ok := accountHex(operatorAddr)
+	if !ok {
 		return []*launch.Launch{}, 0, nil
 	}
 	rows, err := q.QueryContext(ctx,
 		`SELECT DISTINCT l.* `+membershipFilterFrom+`
 		ORDER BY l.created_at DESC LIMIT ? OFFSET ?`,
-		operatorAddr, operatorAddr, perPage, offset)
+		acct, acct, perPage, offset)
 	if err != nil {
 		return nil, 0, fmt.Errorf("launch find all: %w", err)
 	}
@@ -256,11 +258,11 @@ func (r *LaunchRepository) FindAll(ctx context.Context, operatorAddr string, pag
 		launches = append(launches, l)
 	}
 
-	// Total count (same membership filter; operatorAddr is non-empty here).
+	// Total count (same membership filter; acct is a valid account key here).
 	var total int
 	err = q.QueryRowContext(ctx,
 		`SELECT COUNT(DISTINCT l.id) `+membershipFilterFrom,
-		operatorAddr, operatorAddr).Scan(&total)
+		acct, acct).Scan(&total)
 	if err != nil {
 		return nil, 0, fmt.Errorf("launch count: %w", err)
 	}

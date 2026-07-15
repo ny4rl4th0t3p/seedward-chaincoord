@@ -852,6 +852,10 @@ func (s *LaunchService) SetCommittee(ctx context.Context, launchID uuid.UUID, co
 		return fmt.Errorf("set committee: %d members provided but total_n is %d: %w",
 			len(committee.Members), committee.TotalN, ports.ErrBadRequest)
 	}
+	// Same invariant New enforces: the lead is the committee's first member (Members[0]).
+	if !committee.Members[0].Address.Equal(committee.LeadAddress) {
+		return fmt.Errorf("set committee: %w: %w", launch.ErrLeadNotFirstMember, ports.ErrBadRequest)
+	}
 	l.Committee = committee
 	if err := s.launches.Save(ctx, l); err != nil {
 		return fmt.Errorf("set committee: save: %w", err)

@@ -56,6 +56,7 @@ var (
 	ErrWindowNotOpen            = errors.New("application window is not open")
 	ErrMembersNotEditable       = errors.New("members list is not editable in the current launch status")
 	ErrNotAMember               = errors.New("address is not a member of this launch")
+	ErrLeadNotFirstMember       = errors.New("committee lead must be the committee's first member")
 	ErrGenesisStale             = errors.New("the final genesis no longer matches the current approved validator set")
 	ErrGenesisHashMismatch      = errors.New("proposal genesis hash does not match the uploaded final genesis")
 	ErrGenesisPublishInProgress = errors.New("a genesis publication is in progress")
@@ -184,7 +185,11 @@ type Launch struct {
 	approvedVotingPower map[string]int64 // account hex → self_delegation
 }
 
-// New creates a new Launch in DRAFT status.
+// New creates a new Launch in DRAFT status. The committee lead must be its first member
+// (Members[0] == LeadAddress) — leadership is position 0; New rejects otherwise with
+// ErrLeadNotFirstMember (compared by account, not display string). This does NOT require the
+// launch's creator to be on the committee: creation is gated separately (the coordinator allowlist),
+// so the committee — lead included — may be an entirely external set of parties (full delegation).
 func New(id uuid.UUID, record ChainRecord, lt LaunchType, committee Committee) (*Launch, error) {
 	if err := validateChainRecord(record); err != nil {
 		return nil, fmt.Errorf("launch: invalid chain record: %w", err)
@@ -196,6 +201,12 @@ func New(id uuid.UUID, record ChainRecord, lt LaunchType, committee Committee) (
 	if len(committee.Members) != committee.TotalN {
 		return nil, fmt.Errorf("launch: committee has %d members but TotalN is %d: %w",
 			len(committee.Members), committee.TotalN, ErrCommitteeSizeMismatch)
+	}
+	// The lead is the committee's first member (Members[0]) — an invariant RemoveMember relies on
+	// when it reassigns the lead to Members[0]. Compare by account (Equal), not display string.
+	if !committee.Members[0].Address.Equal(committee.LeadAddress) {
+		return nil, fmt.Errorf("launch: committee lead must be member #0 (got %s, lead %s): %w",
+			committee.Members[0].Address.Hex(), committee.LeadAddress.Hex(), ErrLeadNotFirstMember)
 	}
 	now := time.Now().UTC()
 	return &Launch{

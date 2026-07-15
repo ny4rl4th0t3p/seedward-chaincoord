@@ -944,3 +944,25 @@ func TestLaunch_MembersEditable_ByStatus(t *testing.T) {
 			"status %s should freeze the members list (remove)", st)
 	}
 }
+
+// TestNewLaunch_LeadFirstMemberInvariant covers the domain invariant that the committee lead is
+// the committee's first member (Members[0]) — assumed by RemoveMember's Members[0] reassignment
+// but previously unenforced (plan-chaincoord-list-visibility-hrp.md, secondary fix).
+func TestNewLaunch_LeadFirstMemberInvariant(t *testing.T) {
+	t.Run("rejects a committee whose lead is not member #0", func(t *testing.T) {
+		c := testCommittee()                                    // lead = testAddr1 = Members[0]
+		c.Members[0], c.Members[1] = c.Members[1], c.Members[0] // lead is now member #1
+		_, err := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, c)
+		require.ErrorIs(t, err, launch.ErrLeadNotFirstMember)
+	})
+
+	t.Run("accepts when lead == member #0 by account, across HRPs", func(t *testing.T) {
+		// Same account, two prefixes (same 20 account bytes). The invariant must compare by
+		// Equal (account), not by display string, so this is a valid committee.
+		c := testCommittee()
+		c.LeadAddress = launch.MustNewAccountID("osmo1am058pdux3hyulcmfgj4m3hhrlfn8nzm0u0hej")
+		c.Members[0].Address = launch.MustNewAccountID("cosmos1am058pdux3hyulcmfgj4m3hhrlfn8nzm88u80q")
+		_, err := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, c)
+		require.NoError(t, err)
+	})
+}

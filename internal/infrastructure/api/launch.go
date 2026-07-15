@@ -438,6 +438,22 @@ func (s *Server) handleLaunchAction(
 
 // committeeRequestJSON mirrors committeeMemberJSON but is used for the
 // POST /launch and POST /launch/{id}/committee request bodies.
+//
+// Membership contract (enforced by launch.New and SetCommittee — both reject with 400 /
+// lead-not-first-member otherwise):
+//
+//   - lead_address MUST equal members[0]. The lead is, by definition, the committee's first
+//     member; leadership is position 0 of the list.
+//   - The authenticated CREATOR need not be a committee member or the lead. Launch creation is
+//     gated only by the coordinator allowlist (under launch_policy=restricted); the committee —
+//     lead included — may be an entirely different set of parties. This is deliberate: a
+//     coordinator may create a launch and delegate its governance wholesale to an external
+//     committee whose lead is members[0].
+//   - creation_signature is the lead's (members[0]'s) secp256k1 signature over the canonical
+//     committee record, so a delegated committee is attested by its own lead, not the creator.
+//
+// UI note: set members[0] to whoever will lead — the connected wallet for a self-run launch, or
+// the delegate for a handed-off one — BEFORE collecting the lead's signature.
 type committeeRequestJSON struct {
 	Members           []committeeMemberJSON `json:"members"`
 	ThresholdM        int                   `json:"threshold_m"`
