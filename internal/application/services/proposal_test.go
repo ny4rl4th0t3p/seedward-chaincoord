@@ -57,6 +57,7 @@ func validRaiseInput(_ *launch.Launch) RaiseInput {
 		Nonce:           uuid.New().String(),
 		Timestamp:       nowTS(),
 		Signature:       testSig,
+		PubKeyB64:       testSig,
 	}
 }
 
@@ -93,6 +94,7 @@ func TestProposalService_Raise_LaunchNotFound(t *testing.T) {
 		Nonce:           uuid.New().String(),
 		Timestamp:       nowTS(),
 		Signature:       testSig,
+		PubKeyB64:       testSig,
 	})
 	require.ErrorIs(t, err, ports.ErrNotFound)
 }
@@ -111,6 +113,7 @@ func TestProposalService_Raise_NotCommitteeMember(t *testing.T) {
 		Nonce:           uuid.New().String(),
 		Timestamp:       nowTS(),
 		Signature:       testSig,
+		PubKeyB64:       testSig,
 	})
 	require.ErrorIs(t, err, ports.ErrForbidden)
 }
@@ -124,6 +127,31 @@ func TestProposalService_Raise_SigFails(t *testing.T) {
 
 	_, err := svc.Raise(context.Background(), l.ID, validRaiseInput(l))
 	require.ErrorIs(t, err, ports.ErrUnauthorized, "a failed signature must map to 401")
+}
+
+func TestProposalService_Raise_EmptyPubkey(t *testing.T) {
+	l := testLaunch()
+	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
+
+	input := validRaiseInput(l)
+	input.PubKeyB64 = "" // the ADR-036 envelope must carry the signer's pubkey
+	_, err := svc.Raise(context.Background(), l.ID, input)
+	require.ErrorIs(t, err, ports.ErrBadRequest, "a missing pubkey_b64 is a bad request")
+}
+
+// TestProposalService_Raise_ForwardsRequestPubkey proves the verified pubkey is the one from the
+// request envelope, not a stored/committee value — that is what lets a member who never pre-registered
+// a key sign, and prevents verifying against a different (stored) key than the one that actually signed.
+func TestProposalService_Raise_ForwardsRequestPubkey(t *testing.T) {
+	l := testLaunch()
+	verifier := &fakeVerifier{}
+	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), verifier)
+
+	input := validRaiseInput(l)
+	input.PubKeyB64 = "request-envelope-pubkey"
+	_, err := svc.Raise(context.Background(), l.ID, input)
+	require.NoError(t, err)
+	require.Equal(t, "request-envelope-pubkey", verifier.gotPubKeyB64, "verifier must receive the request pubkey, not a stored one")
 }
 
 func TestProposalService_Raise_BadCoordinatorAddress(t *testing.T) {
@@ -179,6 +207,7 @@ func TestProposalService_Raise_1of1ExecutesImmediately(t *testing.T) {
 		Nonce:           uuid.New().String(),
 		Timestamp:       nowTS(),
 		Signature:       testSig,
+		PubKeyB64:       testSig,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, proposal.StatusExecuted, p.Status, "want EXECUTED for 1-of-1 committee")
@@ -199,6 +228,7 @@ func TestProposalService_Sign_NonceConflict(t *testing.T) {
 		Nonce:           uuid.New().String(),
 		Timestamp:       nowTS(),
 		Signature:       testSig,
+		PubKeyB64:       testSig,
 	})
 	require.ErrorIs(t, err, ports.ErrConflict, "a rejected nonce must surface as a conflict")
 }
@@ -216,8 +246,25 @@ func TestProposalService_Sign_SigFails(t *testing.T) {
 		Nonce:           uuid.New().String(),
 		Timestamp:       nowTS(),
 		Signature:       testSig,
+		PubKeyB64:       testSig,
 	})
 	require.ErrorIs(t, err, ports.ErrUnauthorized, "a failed signature must map to 401")
+}
+
+func TestProposalService_Sign_EmptyPubkey(t *testing.T) {
+	l := testLaunch()
+	p := testProposal(l.ID)
+	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(p), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
+
+	_, err := svc.Sign(context.Background(), l.ID, p.ID, SignInput{
+		CoordinatorAddr: testAddr1,
+		Decision:        proposal.DecisionSign,
+		Nonce:           uuid.New().String(),
+		Timestamp:       nowTS(),
+		Signature:       testSig,
+		// PubKeyB64 omitted → empty
+	})
+	require.ErrorIs(t, err, ports.ErrBadRequest, "a missing pubkey_b64 is a bad request")
 }
 
 func TestProposalService_Sign_NotCommitteeMember(t *testing.T) {
@@ -232,6 +279,7 @@ func TestProposalService_Sign_NotCommitteeMember(t *testing.T) {
 		Nonce:           uuid.New().String(),
 		Timestamp:       nowTS(),
 		Signature:       testSig,
+		PubKeyB64:       testSig,
 	})
 	require.ErrorIs(t, err, ports.ErrForbidden)
 }
@@ -248,6 +296,7 @@ func TestProposalService_Sign_WrongLaunch(t *testing.T) {
 		Nonce:           uuid.New().String(),
 		Timestamp:       nowTS(),
 		Signature:       testSig,
+		PubKeyB64:       testSig,
 	})
 	require.ErrorIs(t, err, ports.ErrNotFound)
 }
@@ -286,6 +335,7 @@ func TestProposalService_Sign_AlreadySigned(t *testing.T) {
 		Nonce:           uuid.New().String(),
 		Timestamp:       nowTS(),
 		Signature:       testSig,
+		PubKeyB64:       testSig,
 	})
 	require.ErrorIs(t, err, ports.ErrConflict, "a double-sign must map to 409")
 	assert.ErrorIs(t, err, proposal.ErrCoordinatorAlreadySigned, "and preserves the domain sentinel")
@@ -306,6 +356,7 @@ func TestProposalService_Sign_TTLExpired(t *testing.T) {
 		Nonce:           uuid.New().String(),
 		Timestamp:       nowTS(),
 		Signature:       testSig,
+		PubKeyB64:       testSig,
 	})
 	require.ErrorIs(t, err, ports.ErrConflict, "signing a TTL-elapsed proposal must map to 409")
 	assert.ErrorIs(t, err, proposal.ErrProposalTTLExpired, "and preserves the domain sentinel")
@@ -327,6 +378,7 @@ func TestProposalService_Sign_AddsSignature(t *testing.T) {
 		Nonce:           uuid.New().String(),
 		Timestamp:       nowTS(),
 		Signature:       testSig,
+		PubKeyB64:       testSig,
 	})
 	require.NoError(t, err)
 	require.Equal(t, proposal.StatusPendingSignatures, p.Status, "want PENDING after raise")
@@ -338,6 +390,7 @@ func TestProposalService_Sign_AddsSignature(t *testing.T) {
 		Nonce:           uuid.New().String(),
 		Timestamp:       nowTS(),
 		Signature:       testSig,
+		PubKeyB64:       testSig,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, proposal.StatusPendingSignatures, p2.Status, "want still PENDING after second of three")
@@ -442,6 +495,7 @@ func raiseWith(t *testing.T, svc *ProposalService, launchID uuid.UUID, action pr
 		Nonce:           uuid.New().String(),
 		Timestamp:       nowTS(),
 		Signature:       testSig,
+		PubKeyB64:       testSig,
 	})
 }
 
@@ -946,6 +1000,7 @@ func TestProposalService_applyAllocationVeto_RejectsFile(t *testing.T) {
 		Nonce:           uuid.New().String(),
 		Timestamp:       nowTS(),
 		Signature:       testSig,
+		PubKeyB64:       testSig,
 	})
 	require.NoError(t, err)
 	require.Equal(t, proposal.StatusVetoed, p2.Status)
@@ -980,6 +1035,7 @@ func TestProposalService_applyAllocationVeto_StaleNoop(t *testing.T) {
 		Nonce:           uuid.New().String(),
 		Timestamp:       nowTS(),
 		Signature:       testSig,
+		PubKeyB64:       testSig,
 	})
 	require.NoError(t, err)
 

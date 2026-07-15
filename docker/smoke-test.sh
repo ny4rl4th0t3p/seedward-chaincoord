@@ -88,7 +88,7 @@ propose_and_sign() {
 
   local raise_template resp prop_id prop_status
   raise_template=$(printf \
-    '{"coordinator_address":"%s","action_type":"%s","payload":%s,"nonce":"","timestamp":"","signature":""}' \
+    '{"coordinator_address":"%s","action_type":"%s","payload":%s,"nonce":"","timestamp":"","pubkey_b64":"","signature":""}' \
     "${coord_addr}" "${action_type}" "${payload_json}")
   local signed_raise
   signed_raise=$(echo "${raise_template}" | smoke-signer sign --key-index 0)
@@ -103,7 +103,7 @@ propose_and_sign() {
   if [ "${prop_status}" = "PENDING_SIGNATURES" ]; then
     local sign_template signed_sign
     sign_template=$(printf \
-      '{"coordinator_address":"%s","decision":"SIGN","nonce":"","timestamp":"","signature":""}' \
+      '{"coordinator_address":"%s","decision":"SIGN","nonce":"","timestamp":"","pubkey_b64":"","signature":""}' \
       "${coord_addr}")
     signed_sign=$(echo "${sign_template}" | smoke-signer sign --key-index 0)
     curl_check -X POST "${SERVER}/launch/${launch_id}/proposal/${prop_id}/sign" \
@@ -173,10 +173,8 @@ echo "    coordinator: ${COORD_ADDR}"
 # Step 5 — Create launch (with inline committee)
 # ---------------------------------------------------------------------------
 echo "==> [5/20] creating launch..."
-COMMITTEE_PAYLOAD=$(printf \
-  '{"lead_address":"%s","members":[{"address":"%s","moniker":"coordinator","pub_key_b64":"%s"}],"threshold_m":1,"total_n":1}' \
-  "${COORD_ADDR}" "${COORD_ADDR}" "${COORD_PUBKEY}")
-CREATION_SIG=$(echo "${COMMITTEE_PAYLOAD}" | smoke-signer sign-committee --key-index 0)
+# No committee signature: committee members register their pubkey when they first sign a proposal
+# (the ADR-036 envelope carries it), so the member's pub_key_b64 below is optional.
 
 # Launches are private-always: validators must be pre-vetted into the members allowlist to see/join.
 # These addresses are deterministic — the gaiad operator keys are imported from the same smoke-signer
@@ -188,7 +186,6 @@ VAL_ADDR_4=$(smoke-signer address --key-index 4)
 
 LAUNCH_BODY=$(jq -n \
   --arg chain_id       "${CHAIN_ID}" \
-  --arg creation_sig   "${CREATION_SIG}" \
   --arg coord_addr     "${COORD_ADDR}" \
   --arg coord_pubkey   "${COORD_PUBKEY}" \
   --arg val1           "${VAL_ADDR_1}" \
@@ -217,8 +214,7 @@ LAUNCH_BODY=$(jq -n \
       members:            [{ address: $coord_addr, moniker: "coordinator", pub_key_b64: $coord_pubkey }],
       threshold_m:        1,
       total_n:            1,
-      lead_address:       $coord_addr,
-      creation_signature: $creation_sig
+      lead_address:       $coord_addr
     }
   }')
 

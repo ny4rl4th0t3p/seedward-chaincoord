@@ -180,11 +180,3 @@ payload to stdout.
 ```
 echo '<json>' | smoke-signer sign --key-index <n>
 ```
-
-### smoke-signer sign-committee
-
-Read a committee JSON payload from stdin and produce a committee creation signature.
-
-```
-echo '<committee-json>' | smoke-signer sign-committee --key-index <n>
-```

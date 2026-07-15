@@ -96,12 +96,7 @@ type Committee struct {
 	ThresholdM  int
 	TotalN      int
 	LeadAddress AccountID
-	// CreationSignature is the lead coordinator's secp256k1 signature over the canonical
-	// JSON of this committee record. It is stored for the audit log — it proves the
-	// declared committee config was intentional. Verification is the responsibility of
-	// the CommitteeService in the application layer when the committee is created.
-	CreationSignature Signature
-	CreatedAt         time.Time
+	CreatedAt   time.Time
 }
 
 // HasMember reports whether the given address is a committee member.

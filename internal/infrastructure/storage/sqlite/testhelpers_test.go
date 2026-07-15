@@ -48,11 +48,10 @@ func mustSig() launch.Signature {
 
 func testCommittee() launch.Committee {
 	return launch.Committee{
-		ID:                uuid.New(),
-		ThresholdM:        2,
-		TotalN:            3,
-		LeadAddress:       mustAddr(addr1),
-		CreationSignature: mustSig(),
+		ID:          uuid.New(),
+		ThresholdM:  2,
+		TotalN:      3,
+		LeadAddress: mustAddr(addr1),
 		Members: []launch.CommitteeMember{
 			{Address: mustAddr(addr1), Moniker: "coord-1", PubKeyB64: "AAAA"},
 			{Address: mustAddr(addr2), Moniker: "coord-2", PubKeyB64: "BBBB"},

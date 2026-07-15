@@ -76,13 +76,12 @@ func testCommittee(threshold, total int) launch.Committee {
 		}
 	}
 	return launch.Committee{
-		ID:                uuid.New(),
-		Members:           members,
-		ThresholdM:        threshold,
-		TotalN:            total,
-		LeadAddress:       mustAddr(testAddr1),
-		CreationSignature: mustSig(),
-		CreatedAt:         time.Now().UTC(),
+		ID:          uuid.New(),
+		Members:     members,
+		ThresholdM:  threshold,
+		TotalN:      total,
+		LeadAddress: mustAddr(testAddr1),
+		CreatedAt:   time.Now().UTC(),
 	}
 }
 
@@ -118,11 +117,10 @@ func test1of1Launch() *launch.Launch {
 		Members: []launch.CommitteeMember{
 			{Address: mustAddr(testAddr1), Moniker: "coord-1", PubKeyB64: "AAAA"},
 		},
-		ThresholdM:        1,
-		TotalN:            1,
-		LeadAddress:       mustAddr(testAddr1),
-		CreationSignature: mustSig(),
-		CreatedAt:         time.Now().UTC(),
+		ThresholdM:  1,
+		TotalN:      1,
+		LeadAddress: mustAddr(testAddr1),
+		CreatedAt:   time.Now().UTC(),
 	}
 	l, err := launch.New(uuid.New(), rec, launch.LaunchTypeTestnet, committee)
 	if err != nil {
@@ -271,9 +269,15 @@ func (f *fakeNonceStore) Consume(_ context.Context, addr, nonce string) error {
 
 // ---- fakeVerifier ---------------------------------------------------------
 
-type fakeVerifier struct{ err error }
+type fakeVerifier struct {
+	err          error
+	gotPubKeyB64 string // records the pubkey passed to Verify, to assert it is the request-envelope one
+}
 
-func (f *fakeVerifier) Verify(_, _ string, _, _ []byte) error { return f.err }
+func (f *fakeVerifier) Verify(_, pubKeyB64 string, _, _ []byte) error {
+	f.gotPubKeyB64 = pubKeyB64
+	return f.err
+}
 
 // ---- fakeLaunchRepo -------------------------------------------------------
 

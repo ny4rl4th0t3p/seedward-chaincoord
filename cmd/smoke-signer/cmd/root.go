@@ -21,7 +21,6 @@ Key index 0 is the coordinator; indices 1-4 are validators.`,
 		newPrivkeyCmd(),
 		newPubkeyCmd(),
 		newSignCmd(),
-		newSignCommitteeCmd(),
 	)
 	return root
 }

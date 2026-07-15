@@ -305,6 +305,7 @@ func raiseProposal(t *testing.T, c *testClient, launchID string, coord actor, ac
 		Timestamp:       nowTS(),
 	}
 	input.Signature = coord.sign(input)
+	input.PubKeyB64 = coord.pubB64
 
 	var resp struct {
 		ID     string `json:"id"`
@@ -760,6 +761,7 @@ func raiseProposalExpect(t *testing.T, c *testClient, launchID string, coord act
 		Timestamp:       nowTS(),
 	}
 	input.Signature = coord.sign(input)
+	input.PubKeyB64 = coord.pubB64
 
 	var resp struct {
 		ID     string `json:"id"`
@@ -783,6 +785,7 @@ func signProposal(t *testing.T, c *testClient, launchID, propID string, coord ac
 		Timestamp:       nowTS(),
 	}
 	input.Signature = coord.sign(input)
+	input.PubKeyB64 = coord.pubB64
 
 	var resp struct {
 		Status string `json:"status"`
@@ -889,6 +892,7 @@ func publishLaunch(t *testing.T, launchID string, lead signerPair, extras ...sig
 		Timestamp:       nowTS(),
 	}
 	input.Signature = lead.a.sign(input)
+	input.PubKeyB64 = lead.a.pubB64
 
 	var propResp struct {
 		ID     string `json:"id"`
@@ -912,6 +916,51 @@ func publishLaunch(t *testing.T, launchID string, lead signerPair, extras ...sig
 }
 
 // ── TestE2E_AdminFlow ─────────────────────────────────────────────────────────
+
+// TestE2E_ProposalPubkey covers the request-envelope pubkey path end-to-end with the REAL secp256k1
+// verifier: a proposal is authenticated by its ADR-036 signature plus the pubkey it carries, which
+// must derive to the signer's committee address. Happy path + both unhappy paths.
+func TestE2E_ProposalPubkey(t *testing.T) {
+	srv := startServer(t)
+	c := srv.client
+	coord, other, third := newActor(t), newActor(t), newActor(t)
+
+	coordClient := c.withToken(authenticate(t, c, coord))
+	launchID := createLaunch(t, coordClient, coord,
+		[]map[string]any{
+			makeCommitteeMember(coord, "c1"),
+			makeCommitteeMember(other, "c2"),
+			makeCommitteeMember(third, "c3"),
+		}, 2, 3)
+
+	// raise builds a fresh CLOSE_APPLICATION_WINDOW proposal signed by coord with the given pubkey_b64
+	// and returns the HTTP status. A fresh nonce each call avoids nonce-replay conflicts; the signature
+	// is valid every time (canonicaljson strips signature + pubkey_b64), so only the pubkey varies.
+	raise := func(pubKeyB64 string) int {
+		in := services.RaiseInput{
+			ActionType:      proposal.ActionCloseApplicationWindow,
+			Payload:         json.RawMessage("{}"),
+			CoordinatorAddr: coord.addr,
+			Nonce:           newNonce(),
+			Timestamp:       nowTS(),
+		}
+		in.Signature = coord.sign(in)
+		in.PubKeyB64 = pubKeyB64
+		resp := coordClient.do("POST", "/launch/"+launchID+"/proposal", in)
+		defer resp.Body.Close()
+		return resp.StatusCode
+	}
+
+	if got := raise(""); got != http.StatusBadRequest {
+		t.Errorf("empty pubkey: want 400, got %d", got)
+	}
+	if got := raise(other.pubB64); got != http.StatusUnauthorized {
+		t.Errorf("wrong pubkey (derives to a different address): want 401, got %d", got)
+	}
+	if got := raise(coord.pubB64); got != http.StatusCreated {
+		t.Errorf("correct pubkey: want 201, got %d", got)
+	}
+}
 
 func TestE2E_AdminFlow(t *testing.T) {
 	admin := newActor(t)

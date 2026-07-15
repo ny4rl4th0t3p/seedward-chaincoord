@@ -449,27 +449,23 @@ func (s *Server) handleLaunchAction(
 //     lead included — may be an entirely different set of parties. This is deliberate: a
 //     coordinator may create a launch and delegate its governance wholesale to an external
 //     committee whose lead is members[0].
-//   - creation_signature is the lead's (members[0]'s) secp256k1 signature over the canonical
-//     committee record, so a delegated committee is attested by its own lead, not the creator.
 //
-// UI note: set members[0] to whoever will lead — the connected wallet for a self-run launch, or
-// the delegate for a handed-off one — BEFORE collecting the lead's signature.
+// No signature is required at creation: committee members authenticate per action by signing
+// proposals — the ADR-036 envelope carries their pubkey, validated against their address.
+//
+// UI note: set members[0] to whoever will lead — the connected wallet for a self-run launch, or a
+// delegate for a handed-off one.
 type committeeRequestJSON struct {
-	Members           []committeeMemberJSON `json:"members"`
-	ThresholdM        int                   `json:"threshold_m"`
-	TotalN            int                   `json:"total_n"`
-	LeadAddress       string                `json:"lead_address"`
-	CreationSignature string                `json:"creation_signature"`
+	Members     []committeeMemberJSON `json:"members"`
+	ThresholdM  int                   `json:"threshold_m"`
+	TotalN      int                   `json:"total_n"`
+	LeadAddress string                `json:"lead_address"`
 }
 
 func parseCommittee(body committeeRequestJSON) (launch.Committee, error) {
 	leadAddr, err := launch.NewAccountID(body.LeadAddress)
 	if err != nil {
 		return launch.Committee{}, fmt.Errorf("committee.lead_address: %w", err)
-	}
-	sig, err := launch.NewSignature(body.CreationSignature)
-	if err != nil {
-		return launch.Committee{}, fmt.Errorf("committee.creation_signature: %w", err)
 	}
 	members := make([]launch.CommitteeMember, len(body.Members))
 	for i, m := range body.Members {
@@ -484,13 +480,12 @@ func parseCommittee(body committeeRequestJSON) (launch.Committee, error) {
 		}
 	}
 	return launch.Committee{
-		ID:                uuid.New(),
-		Members:           members,
-		ThresholdM:        body.ThresholdM,
-		TotalN:            body.TotalN,
-		LeadAddress:       leadAddr,
-		CreationSignature: sig,
-		CreatedAt:         timeNow(),
+		ID:          uuid.New(),
+		Members:     members,
+		ThresholdM:  body.ThresholdM,
+		TotalN:      body.TotalN,
+		LeadAddress: leadAddr,
+		CreatedAt:   timeNow(),
 	}, nil
 }
 

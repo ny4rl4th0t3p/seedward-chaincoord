@@ -96,6 +96,23 @@ type RaiseInput struct {
 	Nonce           string              `json:"nonce"`
 	Timestamp       string              `json:"timestamp"`
 	Signature       string              `json:"signature"`
+	// PubKeyB64 is the signer's compressed secp256k1 pubkey from the ADR-036 StdSignature envelope.
+	// The verifier asserts it derives to CoordinatorAddr, so it cannot be spoofed.
+	PubKeyB64 string `json:"pubkey_b64"`
+}
+
+// verifyCoordinatorSig authenticates a committee coordinator's ADR-036 signature over message. The
+// pubkey comes from the request's StdSignature envelope (pubkey_b64): it must be present, and the
+// verifier asserts it derives to coordAddr, so it cannot be spoofed. Returns a ports-wrapped error —
+// ErrBadRequest for a missing pubkey, ErrUnauthorized for a signature/pubkey that does not verify.
+func (s *ProposalService) verifyCoordinatorSig(coordAddr, pubKeyB64 string, message, sigBytes []byte) error {
+	if pubKeyB64 == "" {
+		return fmt.Errorf("pubkey_b64 is required: %w", ports.ErrBadRequest)
+	}
+	if err := s.verifier.Verify(coordAddr, pubKeyB64, message, sigBytes); err != nil {
+		return fmt.Errorf("signature invalid: %w: %w", err, ports.ErrUnauthorized)
+	}
+	return nil
 }
 
 // Raise creates a new proposal. The proposer's signature is attached immediately.
@@ -129,11 +146,8 @@ func (s *ProposalService) Raise(ctx context.Context, launchID uuid.UUID, input R
 		return nil, fmt.Errorf("raise proposal: %s is not a committee member: %w", input.CoordinatorAddr, ports.ErrForbidden)
 	}
 
-	// Find the committee member's pubkey for verification.
-	pubKeyB64 := committeeMemberPubKey(l.Committee, coordAddr)
-	if err := s.verifier.Verify(input.CoordinatorAddr, pubKeyB64, message, sigBytes); err != nil {
-		// Invalid signature is an auth failure (401); the verifier returns a bare error.
-		return nil, fmt.Errorf("raise proposal: signature invalid: %w: %w", err, ports.ErrUnauthorized)
+	if err := s.verifyCoordinatorSig(input.CoordinatorAddr, input.PubKeyB64, message, sigBytes); err != nil {
+		return nil, fmt.Errorf("raise proposal: %w", err)
 	}
 
 	// Genesis-finalization guards (Part A): keep the published genesis consistent with the approved
@@ -185,6 +199,9 @@ type SignInput struct {
 	Nonce           string            `json:"nonce"`
 	Timestamp       string            `json:"timestamp"`
 	Signature       string            `json:"signature"`
+	// PubKeyB64 is the signer's compressed secp256k1 pubkey from the ADR-036 StdSignature envelope.
+	// The verifier asserts it derives to CoordinatorAddr, so it cannot be spoofed.
+	PubKeyB64 string `json:"pubkey_b64"`
 }
 
 // Sign adds a coordinator's decision to a pending proposal.
@@ -218,10 +235,8 @@ func (s *ProposalService) Sign(ctx context.Context, launchID, proposalID uuid.UU
 		return nil, fmt.Errorf("sign proposal: %w", ports.ErrForbidden)
 	}
 
-	pubKeyB64 := committeeMemberPubKey(l.Committee, coordAddr)
-	if err := s.verifier.Verify(input.CoordinatorAddr, pubKeyB64, message, sigBytes); err != nil {
-		// Invalid signature is an auth failure (401); the verifier returns a bare error.
-		return nil, fmt.Errorf("sign proposal: signature invalid: %w: %w", err, ports.ErrUnauthorized)
+	if err := s.verifyCoordinatorSig(input.CoordinatorAddr, input.PubKeyB64, message, sigBytes); err != nil {
+		return nil, fmt.Errorf("sign proposal: %w", err)
 	}
 
 	p, err := s.proposals.FindByID(ctx, proposalID)
@@ -965,15 +980,6 @@ func committeeMemberAddrs(c launch.Committee) []string {
 		addrs[i] = m.Address.String()
 	}
 	return addrs
-}
-
-func committeeMemberPubKey(c launch.Committee, addr launch.AccountID) string {
-	for _, m := range c.Members {
-		if m.Address.Equal(addr) {
-			return m.PubKeyB64
-		}
-	}
-	return ""
 }
 
 func pendingStatus() *joinrequest.Status {

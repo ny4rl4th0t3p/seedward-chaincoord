@@ -110,8 +110,6 @@ definitions:
     properties:
       created_at:
         type: string
-      creation_signature:
-        type: string
       id:
         type: string
       lead_address:
@@ -136,8 +134,6 @@ definitions:
     type: object
   api.committeeRequestJSON:
     properties:
-      creation_signature:
-        type: string
       lead_address:
         type: string
       members:
@@ -769,6 +765,11 @@ definitions:
         type: string
       payload:
         type: object
+      pubkey_b64:
+        description: |-
+          PubKeyB64 is the signer's compressed secp256k1 pubkey from the ADR-036 StdSignature envelope.
+          The verifier asserts it derives to CoordinatorAddr, so it cannot be spoofed.
+        type: string
       signature:
         type: string
       timestamp:
@@ -836,6 +837,11 @@ definitions:
       decision:
         $ref: '#/definitions/proposal.Decision'
       nonce:
+        type: string
+      pubkey_b64:
+        description: |-
+          PubKeyB64 is the signer's compressed secp256k1 pubkey from the ADR-036 StdSignature envelope.
+          The verifier asserts it derives to CoordinatorAddr, so it cannot be spoofed.
         type: string
       signature:
         type: string

@@ -80,11 +80,10 @@ func testLaunch() *launch.Launch {
 			{Address: mustAddr(testAddr2), Moniker: "coord-2", PubKeyB64: "AAAA"},
 			{Address: mustAddr(testAddr3), Moniker: "coord-3", PubKeyB64: "AAAA"},
 		},
-		ThresholdM:        2,
-		TotalN:            3,
-		LeadAddress:       mustAddr(testAddr1),
-		CreationSignature: mustSig(),
-		CreatedAt:         time.Now().UTC(),
+		ThresholdM:  2,
+		TotalN:      3,
+		LeadAddress: mustAddr(testAddr1),
+		CreatedAt:   time.Now().UTC(),
 	}
 	l, err := launch.New(uuid.New(), rec, launch.LaunchTypeTestnet, committee)
 	if err != nil {

@@ -136,11 +136,11 @@ func (r *LaunchRepository) saveCommittee(ctx context.Context, l *launch.Launch) 
 	c := l.Committee
 
 	_, err := q.ExecContext(ctx, `
-		INSERT OR REPLACE INTO committees (id, launch_id, threshold_m, total_n, lead_address, creation_signature, created_at)
-		VALUES (?,?,?,?,?,?,?)`,
+		INSERT OR REPLACE INTO committees (id, launch_id, threshold_m, total_n, lead_address, created_at)
+		VALUES (?,?,?,?,?,?)`,
 		uuidToStr(c.ID), uuidToStr(l.ID),
 		c.ThresholdM, c.TotalN,
-		underPrefix(c.LeadAddress, l.Record.Bech32Prefix), c.CreationSignature.String(),
+		underPrefix(c.LeadAddress, l.Record.Bech32Prefix),
 		timeToStr(c.CreatedAt),
 	)
 	if err != nil {
@@ -385,13 +385,13 @@ func (r *LaunchRepository) loadAllocationFiles(ctx context.Context, l *launch.La
 func (r *LaunchRepository) loadCommittee(ctx context.Context, l *launch.Launch) error {
 	q := conn(ctx, r.db)
 	row := q.QueryRowContext(ctx,
-		`SELECT id, threshold_m, total_n, lead_address, creation_signature, created_at FROM committees WHERE launch_id=?`,
+		`SELECT id, threshold_m, total_n, lead_address, created_at FROM committees WHERE launch_id=?`,
 		uuidToStr(l.ID))
 
 	var (
-		idStr, leadAddr, sig, createdAt string
+		idStr, leadAddr, createdAt string
 	)
-	err := row.Scan(&idStr, &l.Committee.ThresholdM, &l.Committee.TotalN, &leadAddr, &sig, &createdAt)
+	err := row.Scan(&idStr, &l.Committee.ThresholdM, &l.Committee.TotalN, &leadAddr, &createdAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil // committee not yet set (DRAFT with no committee)
 	}
@@ -406,10 +406,6 @@ func (r *LaunchRepository) loadCommittee(ctx context.Context, l *launch.Launch) 
 	l.Committee.LeadAddress, err = launch.NewAccountID(leadAddr)
 	if err != nil {
 		return fmt.Errorf("load committee lead: %w", err)
-	}
-	l.Committee.CreationSignature, err = launch.NewSignature(sig)
-	if err != nil {
-		return fmt.Errorf("load committee sig: %w", err)
 	}
 	l.Committee.CreatedAt, err = strToTime(createdAt)
 	if err != nil {

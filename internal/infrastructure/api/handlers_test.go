@@ -68,11 +68,10 @@ func soloCommitteeLaunch() *launch.Launch {
 		Members: []launch.CommitteeMember{
 			{Address: mustAddr(testAddr1), Moniker: "coord-1", PubKeyB64: "AAAA"},
 		},
-		ThresholdM:        1,
-		TotalN:            1,
-		LeadAddress:       mustAddr(testAddr1),
-		CreationSignature: mustSig(),
-		CreatedAt:         time.Now().UTC(),
+		ThresholdM:  1,
+		TotalN:      1,
+		LeadAddress: mustAddr(testAddr1),
+		CreatedAt:   time.Now().UTC(),
 	}
 	return l
 }
@@ -525,22 +524,6 @@ func TestHandleCommitteeCreate_BadLeadAddress(t *testing.T) {
 	w := h.doAuthJSON("POST", "/launch/"+l.ID.String()+"/committee", body, tok)
 	assertStatusCode(t, w, http.StatusBadRequest)
 	assertErrorCode(t, w, "invalid_field") // only lead_address is bad → the field-validation path fired
-}
-
-func TestHandleCommitteeCreate_BadCreationSignature(t *testing.T) {
-	h := newHarness(t)
-	l := testLaunch()
-	h.launches.data[l.ID] = l
-	tok := h.seedSession(testAddr1)
-	body := []byte(`{
-		"members":[{"address":"` + testAddr1 + `","moniker":"c","pub_key_b64":"AAAA"}],
-		"threshold_m":1,"total_n":1,
-		"lead_address":"` + testAddr1 + `",
-		"creation_signature":"!!!invalid!!!"
-	}`)
-	w := h.doAuthJSON("POST", "/launch/"+l.ID.String()+"/committee", body, tok)
-	assertStatusCode(t, w, http.StatusBadRequest)
-	assertErrorCode(t, w, "invalid_field") // only the signature is bad → the field-validation path fired
 }
 
 func TestHandleCommitteeCreate_Success(t *testing.T) {
@@ -1006,7 +989,7 @@ func TestHandleProposalRaise_Success(t *testing.T) {
 		"action_type":"CLOSE_APPLICATION_WINDOW",
 		"payload":{},
 		"coordinator_address":"` + testAddr1 + `",
-		"nonce":"nonce-pr2","timestamp":"` + nowTS() + `","signature":"` + testSig + `"
+		"nonce":"nonce-pr2","timestamp":"` + nowTS() + `","signature":"` + testSig + `","pubkey_b64":"` + testSig + `"
 	}`)
 	w := h.doAuthJSON("POST", "/launch/"+l.ID.String()+"/proposal", body, tok)
 	assertStatusCode(t, w, http.StatusCreated)
@@ -1133,7 +1116,7 @@ func TestHandleProposalSign_Success(t *testing.T) {
 	body := []byte(`{
 		"coordinator_address":"` + testAddr1 + `",
 		"decision":"SIGN",
-		"nonce":"nonce-ps1","timestamp":"` + nowTS() + `","signature":"` + testSig + `"
+		"nonce":"nonce-ps1","timestamp":"` + nowTS() + `","signature":"` + testSig + `","pubkey_b64":"` + testSig + `"
 	}`)
 	w := h.doAuthJSON("POST", "/launch/"+l.ID.String()+"/proposal/"+p.ID.String()+"/sign", body, tok)
 	assertStatusCode(t, w, http.StatusOK)

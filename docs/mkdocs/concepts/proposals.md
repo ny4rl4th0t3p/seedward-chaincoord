@@ -118,8 +118,10 @@ fields removed. The signed bytes therefore include the coordinator's address, th
 timestamp, and the `nonce` — the nonce is bound to the signature, so a captured request can't be replayed by swapping
 it.
 
-The server verifies the signature against the member's declared public key, then consumes the `(coordinator, nonce)`
-pair once for replay protection.
+The server verifies the signature against the `pubkey_b64` carried in the request, requiring that pubkey to hash to the
+signer's committee address (so it can't be spoofed, and it works under any address prefix) — a member registers no key
+in advance; they are recognised when they sign. It then consumes the `(coordinator, nonce)` pair once for replay
+protection.
 
 ---
 

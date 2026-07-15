@@ -21,13 +21,12 @@ type committeeMemberJSON struct {
 
 // committeeJSON is the wire representation of a Committee.
 type committeeJSON struct {
-	ID                string                `json:"id"`
-	Members           []committeeMemberJSON `json:"members"`
-	ThresholdM        int                   `json:"threshold_m"`
-	TotalN            int                   `json:"total_n"`
-	LeadAddress       string                `json:"lead_address"`
-	CreationSignature string                `json:"creation_signature"`
-	CreatedAt         time.Time             `json:"created_at"`
+	ID          string                `json:"id"`
+	Members     []committeeMemberJSON `json:"members"`
+	ThresholdM  int                   `json:"threshold_m"`
+	TotalN      int                   `json:"total_n"`
+	LeadAddress string                `json:"lead_address"`
+	CreatedAt   time.Time             `json:"created_at"`
 }
 
 func committeeToJSON(c launch.Committee) committeeJSON {
@@ -40,19 +39,18 @@ func committeeToJSON(c launch.Committee) committeeJSON {
 		}
 	}
 	return committeeJSON{
-		ID:                c.ID.String(),
-		Members:           members,
-		ThresholdM:        c.ThresholdM,
-		TotalN:            c.TotalN,
-		LeadAddress:       c.LeadAddress.String(),
-		CreationSignature: c.CreationSignature.String(),
-		CreatedAt:         c.CreatedAt,
+		ID:          c.ID.String(),
+		Members:     members,
+		ThresholdM:  c.ThresholdM,
+		TotalN:      c.TotalN,
+		LeadAddress: c.LeadAddress.String(),
+		CreatedAt:   c.CreatedAt,
 	}
 }
 
 // POST /launch/{id}/committee
 // Replaces the committee on a DRAFT launch.  Only the lead coordinator may call this.
-// Body: { members, threshold_m, total_n, lead_address, creation_signature }
+// Body: { members, threshold_m, total_n, lead_address }
 // Response: 200 committee JSON
 //
 // @Summary      Set committee
@@ -78,11 +76,10 @@ func (s *Server) handleCommitteeCreate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var body struct {
-		Members           []committeeMemberJSON `json:"members"`
-		ThresholdM        int                   `json:"threshold_m"`
-		TotalN            int                   `json:"total_n"`
-		LeadAddress       string                `json:"lead_address"`
-		CreationSignature string                `json:"creation_signature"`
+		Members     []committeeMemberJSON `json:"members"`
+		ThresholdM  int                   `json:"threshold_m"`
+		TotalN      int                   `json:"total_n"`
+		LeadAddress string                `json:"lead_address"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_body", "request body must be valid JSON")
@@ -93,11 +90,6 @@ func (s *Server) handleCommitteeCreate(w http.ResponseWriter, r *http.Request) {
 	leadAddr, err := launch.NewAccountID(body.LeadAddress)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_field", "lead_address: "+err.Error())
-		return
-	}
-	sig, err := launch.NewSignature(body.CreationSignature)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_field", "creation_signature: "+err.Error())
 		return
 	}
 	members := make([]launch.CommitteeMember, len(body.Members))
@@ -115,13 +107,12 @@ func (s *Server) handleCommitteeCreate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	committee := launch.Committee{
-		ID:                uuid.New(),
-		Members:           members,
-		ThresholdM:        body.ThresholdM,
-		TotalN:            body.TotalN,
-		LeadAddress:       leadAddr,
-		CreationSignature: sig,
-		CreatedAt:         timeNow(),
+		ID:          uuid.New(),
+		Members:     members,
+		ThresholdM:  body.ThresholdM,
+		TotalN:      body.TotalN,
+		LeadAddress: leadAddr,
+		CreatedAt:   timeNow(),
 	}
 
 	callerAddr := operatorFromContext(r.Context())

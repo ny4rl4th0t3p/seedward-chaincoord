@@ -13,3 +13,14 @@ RUN CGO_ENABLED=0 go build -ldflags "-X github.com/ny4rl4th0t3p/seedward-chainco
 FROM alpine:3.20
 RUN apk add --no-cache ca-certificates
 COPY --from=builder /bin/coordd /usr/local/bin/coordd
+
+# Run as a non-root user. coordd writes its sqlite DB / files / audit log at the configured
+# COORD_DB_PATH / COORD_FILES_PATH / COORD_AUDIT_LOG_PATH — mount those to a path this uid owns.
+RUN adduser -D -u 1000 coordd
+USER coordd
+
+# coordd serves on COORD_LISTEN_ADDR (default :8080).
+EXPOSE 8080
+# Default to `serve`; override with e.g. `docker run <image> migrate` (the e2e chains migrate+serve).
+ENTRYPOINT ["coordd"]
+CMD ["serve"]

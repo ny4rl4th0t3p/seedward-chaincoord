@@ -34,13 +34,11 @@ func testRecord() launch.ChainRecord {
 }
 
 func testCommittee() launch.Committee {
-	sig, _ := launch.NewSignature(validSig())
 	return launch.Committee{
-		ID:                uuid.New(),
-		ThresholdM:        2,
-		TotalN:            3,
-		LeadAddress:       launch.MustNewAccountID(testAddr1),
-		CreationSignature: sig,
+		ID:          uuid.New(),
+		ThresholdM:  2,
+		TotalN:      3,
+		LeadAddress: launch.MustNewAccountID(testAddr1),
 		Members: []launch.CommitteeMember{
 			{Address: launch.MustNewAccountID(testAddr1), Moniker: "coord-1", PubKeyB64: "AAAA"},
 			{Address: launch.MustNewAccountID(testAddr2), Moniker: "coord-2", PubKeyB64: "BBBB"},
@@ -48,11 +46,6 @@ func testCommittee() launch.Committee {
 		},
 		CreatedAt: time.Now(),
 	}
-}
-
-// validSig returns a valid 64-byte base64 signature (all zeros) for test use.
-func validSig() string {
-	return "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
 }
 
 func TestNewLaunch_HappyPath(t *testing.T) {
@@ -635,7 +628,6 @@ func TestLaunch_ShrinkCommittee_LivenessGuard(t *testing.T) {
 
 func TestLaunch_ShrinkCommittee_CannotShrinkBelowOneActiveMember(t *testing.T) {
 	// Build a 1-of-2 committee and try to shrink to 1 member — always blocked by liveness guard.
-	sig, _ := launch.NewSignature(validSig())
 	smallCommittee := launch.Committee{
 		ID:          uuid.New(),
 		ThresholdM:  1,
@@ -645,8 +637,7 @@ func TestLaunch_ShrinkCommittee_CannotShrinkBelowOneActiveMember(t *testing.T) {
 			{Address: launch.MustNewAccountID(testAddr1), Moniker: "coord-1", PubKeyB64: "AAAA"},
 			{Address: launch.MustNewAccountID(testAddr2), Moniker: "coord-2", PubKeyB64: "BBBB"},
 		},
-		CreationSignature: sig,
-		CreatedAt:         time.Now(),
+		CreatedAt: time.Now(),
 	}
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, smallCommittee)
 

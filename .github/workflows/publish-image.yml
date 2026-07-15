@@ -25,9 +25,10 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository_owner }}/seedward-chaincoord
+          # latest=auto tags `latest` only for the highest *stable* release, never a pre-release (rc).
+          flavor: latest=auto
           tags: |
             type=semver,pattern={{version}}
-            type=raw,value=latest
       - uses: docker/build-push-action@v6
         with:
           context: .
@@ -35,6 +36,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          sbom: true
+          provenance: mode=max
           # Stamp the image version; overrides the "dev" default in the Dockerfile's ARG so
           # `coordd --version` reports the release. Use metadata-action's computed version
           # (the `v`-stripped semver, e.g. 1.0.0-rc1) so it matches the image tag exactly and

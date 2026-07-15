@@ -34,6 +34,7 @@ func signAs(t *testing.T, svc *ProposalService, launchID, propID uuid.UUID, d pr
 		Nonce:           uuid.New().String(),
 		Timestamp:       nowTS(),
 		Signature:       testSig,
+		PubKeyB64:       testSig,
 	})
 }
 
