@@ -1007,17 +1007,6 @@
   
 </li>
         
-          <li class="md-nav__item">
-  <a href="#smoke-signer-sign-committee" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        smoke-signer sign-committee
-      
-    </span>
-  </a>
-  
-</li>
-        
       </ul>
     </nav>
   
@@ -1215,17 +1204,6 @@
     <span class="md-ellipsis">
       
         smoke-signer sign
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#smoke-signer-sign-committee" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        smoke-signer sign-committee
       
     </span>
   </a>
@@ -1474,10 +1452,6 @@ keys are derived from a fixed index, not from a real keychain.</p>
 <p>Read a JSON payload from stdin, populate <code>nonce</code>, <code>timestamp</code>, <code>pubkey_b64</code>, and <code>signature</code>, then print the signed
 payload to stdout.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>echo &#39;&lt;json&gt;&#39; | smoke-signer sign --key-index &lt;n&gt;
-</code></pre></div>
-<h3 id="smoke-signer-sign-committee">smoke-signer sign-committee<a class="headerlink" href="#smoke-signer-sign-committee" title="Permanent link">&para;</a></h3>
-<p>Read a committee JSON payload from stdin and produce a committee creation signature.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>echo &#39;&lt;committee-json&gt;&#39; | smoke-signer sign-committee --key-index &lt;n&gt;
 </code></pre></div>
 
 

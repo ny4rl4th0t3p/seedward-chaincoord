@@ -1452,8 +1452,10 @@ files are reviewed and approved as a unit by humans, with the hash as the integr
 fields removed. The signed bytes therefore include the coordinator's address, the decision (<code>SIGN</code> or <code>VETO</code>), the
 timestamp, and the <code>nonce</code> — the nonce is bound to the signature, so a captured request can't be replayed by swapping
 it.</p>
-<p>The server verifies the signature against the member's declared public key, then consumes the <code>(coordinator, nonce)</code>
-pair once for replay protection.</p>
+<p>The server verifies the signature against the <code>pubkey_b64</code> carried in the request, requiring that pubkey to hash to the
+signer's committee address (so it can't be spoofed, and it works under any address prefix) — a member registers no key
+in advance; they are recognised when they sign. It then consumes the <code>(coordinator, nonce)</code> pair once for replay
+protection.</p>
 <hr />
 <h2 id="liveness-guard">Liveness guard<a class="headerlink" href="#liveness-guard" title="Permanent link">&para;</a></h2>
 <p><code>EXPAND_COMMITTEE</code> and <code>SHRINK_COMMITTEE</code> proposals require the resulting threshold to satisfy <code>M &lt; N</code> — strictly less
