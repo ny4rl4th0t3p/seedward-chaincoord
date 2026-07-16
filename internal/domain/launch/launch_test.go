@@ -40,9 +40,9 @@ func testCommittee() launch.Committee {
 		TotalN:      3,
 		LeadAddress: launch.MustNewAccountID(testAddr1),
 		Members: []launch.CommitteeMember{
-			{Address: launch.MustNewAccountID(testAddr1), Moniker: "coord-1", PubKeyB64: "AAAA"},
-			{Address: launch.MustNewAccountID(testAddr2), Moniker: "coord-2", PubKeyB64: "BBBB"},
-			{Address: launch.MustNewAccountID(testAddr3), Moniker: "coord-3", PubKeyB64: "CCCC"},
+			{Address: launch.MustNewAccountID(testAddr1), Moniker: "coord-1"},
+			{Address: launch.MustNewAccountID(testAddr2), Moniker: "coord-2"},
+			{Address: launch.MustNewAccountID(testAddr3), Moniker: "coord-3"},
 		},
 		CreatedAt: time.Now(),
 	}
@@ -480,9 +480,8 @@ func TestLaunch_ReplaceCommitteeMember_Success(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	oldAddr := launch.MustNewAccountID(testAddr2)
 	newMember := launch.CommitteeMember{
-		Address:   launch.MustNewAccountID(testAddr4),
-		Moniker:   "coord-new",
-		PubKeyB64: "DDDD",
+		Address: launch.MustNewAccountID(testAddr4),
+		Moniker: "coord-new",
 	}
 
 	require.NoError(t, l.ReplaceCommitteeMember(oldAddr, newMember))
@@ -501,9 +500,8 @@ func TestLaunch_ReplaceCommitteeMember_UpdatesLead(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	leadAddr := launch.MustNewAccountID(testAddr1)
 	newMember := launch.CommitteeMember{
-		Address:   launch.MustNewAccountID(testAddr4),
-		Moniker:   "new-lead",
-		PubKeyB64: "DDDD",
+		Address: launch.MustNewAccountID(testAddr4),
+		Moniker: "new-lead",
 	}
 
 	require.NoError(t, l.ReplaceCommitteeMember(leadAddr, newMember))
@@ -523,9 +521,8 @@ func TestLaunch_ReplaceCommitteeMember_NotFound(t *testing.T) {
 func TestLaunch_ExpandCommittee_Success(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	newMember := launch.CommitteeMember{
-		Address:   launch.MustNewAccountID(testAddr4),
-		Moniker:   "coord-4",
-		PubKeyB64: "DDDD",
+		Address: launch.MustNewAccountID(testAddr4),
+		Moniker: "coord-4",
 	}
 
 	require.NoError(t, l.ExpandCommittee(newMember, 2))
@@ -545,9 +542,8 @@ func TestLaunch_ExpandCommittee_Success(t *testing.T) {
 func TestLaunch_ExpandCommittee_ExplicitThreshold(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	newMember := launch.CommitteeMember{
-		Address:   launch.MustNewAccountID(testAddr4),
-		Moniker:   "coord-4",
-		PubKeyB64: "DDDD",
+		Address: launch.MustNewAccountID(testAddr4),
+		Moniker: "coord-4",
 	}
 
 	require.NoError(t, l.ExpandCommittee(newMember, 3))
@@ -557,9 +553,8 @@ func TestLaunch_ExpandCommittee_ExplicitThreshold(t *testing.T) {
 func TestLaunch_ExpandCommittee_DuplicateMember(t *testing.T) {
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	duplicate := launch.CommitteeMember{
-		Address:   launch.MustNewAccountID(testAddr2),
-		Moniker:   "dup",
-		PubKeyB64: "BBBB",
+		Address: launch.MustNewAccountID(testAddr2),
+		Moniker: "dup",
 	}
 
 	require.ErrorIs(t, l.ExpandCommittee(duplicate, 2), launch.ErrCommitteeMemberExists, "expected error for duplicate member address")
@@ -569,9 +564,8 @@ func TestLaunch_ExpandCommittee_LivenessGuard(t *testing.T) {
 	// 2-of-3 → expand to 4 members with threshold 4 (M == N) should be rejected.
 	l, _ := launch.New(uuid.New(), testRecord(), launch.LaunchTypeTestnet, testCommittee())
 	newMember := launch.CommitteeMember{
-		Address:   launch.MustNewAccountID(testAddr4),
-		Moniker:   "coord-4",
-		PubKeyB64: "DDDD",
+		Address: launch.MustNewAccountID(testAddr4),
+		Moniker: "coord-4",
 	}
 
 	require.ErrorIs(t, l.ExpandCommittee(newMember, 4), launch.ErrInvalidCommitteeChange, "expected liveness guard error: threshold must be < N")
@@ -634,8 +628,8 @@ func TestLaunch_ShrinkCommittee_CannotShrinkBelowOneActiveMember(t *testing.T) {
 		TotalN:      2,
 		LeadAddress: launch.MustNewAccountID(testAddr1),
 		Members: []launch.CommitteeMember{
-			{Address: launch.MustNewAccountID(testAddr1), Moniker: "coord-1", PubKeyB64: "AAAA"},
-			{Address: launch.MustNewAccountID(testAddr2), Moniker: "coord-2", PubKeyB64: "BBBB"},
+			{Address: launch.MustNewAccountID(testAddr1), Moniker: "coord-1"},
+			{Address: launch.MustNewAccountID(testAddr2), Moniker: "coord-2"},
 		},
 		CreatedAt: time.Now(),
 	}

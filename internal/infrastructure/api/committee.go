@@ -14,9 +14,8 @@ import (
 
 // committeeMemberJSON is the wire representation of a single committee member.
 type committeeMemberJSON struct {
-	Address   string `json:"address"`
-	Moniker   string `json:"moniker"`
-	PubKeyB64 string `json:"pub_key_b64"`
+	Address string `json:"address"`
+	Moniker string `json:"moniker"`
 }
 
 // committeeJSON is the wire representation of a Committee.
@@ -33,9 +32,8 @@ func committeeToJSON(c launch.Committee) committeeJSON {
 	members := make([]committeeMemberJSON, len(c.Members))
 	for i, m := range c.Members {
 		members[i] = committeeMemberJSON{
-			Address:   m.Address.String(),
-			Moniker:   m.Moniker,
-			PubKeyB64: m.PubKeyB64,
+			Address: m.Address.String(),
+			Moniker: m.Moniker,
 		}
 	}
 	return committeeJSON{
@@ -100,9 +98,8 @@ func (s *Server) handleCommitteeCreate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		members[i] = launch.CommitteeMember{
-			Address:   addr,
-			Moniker:   m.Moniker,
-			PubKeyB64: m.PubKeyB64,
+			Address: addr,
+			Moniker: m.Moniker,
 		}
 	}
 

@@ -446,15 +446,13 @@ func TestE2E_HappyPath(t *testing.T) {
 		"committee": map[string]any{
 			"members": []map[string]any{
 				{
-					"address":     coord.addr,
-					"moniker":     "lead",
-					"pub_key_b64": coord.pubB64,
+					"address": coord.addr,
+					"moniker": "lead",
 				},
 			},
-			"threshold_m":        1,
-			"total_n":            1,
-			"lead_address":       coord.addr,
-			"creation_signature": base64.StdEncoding.EncodeToString(make([]byte, 64)),
+			"threshold_m":  1,
+			"total_n":      1,
+			"lead_address": coord.addr,
 		},
 	}
 
@@ -797,9 +795,8 @@ func signProposal(t *testing.T, c *testClient, launchID, propID string, coord ac
 // makeCommitteeMember builds the committee member map for a given actor.
 func makeCommitteeMember(a actor, moniker string) map[string]any {
 	return map[string]any{
-		"address":     a.addr,
-		"moniker":     moniker,
-		"pub_key_b64": a.pubB64,
+		"address": a.addr,
+		"moniker": moniker,
 	}
 }
 
@@ -824,11 +821,10 @@ func createLaunch(t *testing.T, c *testClient, lead actor, members []map[string]
 		"launch_type": "TESTNET",
 		"allowlist":   allowlist,
 		"committee": map[string]any{
-			"members":            members,
-			"threshold_m":        thresholdM,
-			"total_n":            totalN,
-			"lead_address":       lead.addr,
-			"creation_signature": base64.StdEncoding.EncodeToString(make([]byte, 64)),
+			"members":      members,
+			"threshold_m":  thresholdM,
+			"total_n":      totalN,
+			"lead_address": lead.addr,
 		},
 	}
 
@@ -1270,11 +1266,10 @@ func TestE2E_PrivateLaunch(t *testing.T) {
 		},
 		"launch_type": "TESTNET",
 		"committee": map[string]any{
-			"members":            []map[string]any{makeCommitteeMember(coord, "coord")},
-			"threshold_m":        1,
-			"total_n":            1,
-			"lead_address":       coord.addr,
-			"creation_signature": base64.StdEncoding.EncodeToString(make([]byte, 64)),
+			"members":      []map[string]any{makeCommitteeMember(coord, "coord")},
+			"threshold_m":  1,
+			"total_n":      1,
+			"lead_address": coord.addr,
 		},
 	}
 
@@ -1357,11 +1352,10 @@ func TestE2E_MembersManagement(t *testing.T) {
 		},
 		"launch_type": "TESTNET",
 		"committee": map[string]any{
-			"members":            []map[string]any{makeCommitteeMember(coord, "coord")},
-			"threshold_m":        1,
-			"total_n":            1,
-			"lead_address":       coord.addr,
-			"creation_signature": base64.StdEncoding.EncodeToString(make([]byte, 64)),
+			"members":      []map[string]any{makeCommitteeMember(coord, "coord")},
+			"threshold_m":  1,
+			"total_n":      1,
+			"lead_address": coord.addr,
 		},
 	}
 	var launchResp struct {

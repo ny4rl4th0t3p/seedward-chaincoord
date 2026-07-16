@@ -27,8 +27,7 @@ const minimalLaunchBody = `{
 		"members": [{"address":"cosmos1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5lzv7xu","moniker":"m","pubkey_b64":"AAAA"}],
 		"threshold_m": 1,
 		"total_n": 1,
-		"lead_address": "cosmos1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5lzv7xu",
-		"creation_signature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+		"lead_address": "cosmos1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5lzv7xu"
 	}
 }`
 

@@ -70,14 +70,12 @@ type ReplaceCommitteeMemberPayload struct {
 	OldAddress string `json:"old_address"`
 	NewAddress string `json:"new_address"`
 	NewMoniker string `json:"new_moniker"`
-	NewPubKey  string `json:"new_pubkey_base64"`
 }
 
 // CommitteeMemberSpec describes a new committee member in expand/replace payloads.
 type CommitteeMemberSpec struct {
-	Address   string `json:"address"`
-	Moniker   string `json:"moniker"`
-	PubKeyB64 string `json:"pubkey_base64"`
+	Address string `json:"address"`
+	Moniker string `json:"moniker"`
 }
 
 // ExpandCommitteePayload adds a new member to the committee.
@@ -217,9 +215,6 @@ func validateExpandCommitteePayload(actionType ActionType, payload []byte) error
 	}
 	if p.NewMember.Moniker == "" {
 		return fmt.Errorf("payload for %s: new_member.moniker is required", actionType)
-	}
-	if p.NewMember.PubKeyB64 == "" {
-		return fmt.Errorf("payload for %s: new_member.pubkey_base64 is required", actionType)
 	}
 	return nil
 }

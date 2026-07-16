@@ -83,9 +83,8 @@ var (
 
 // CommitteeMember is one member of the M-of-N committee.
 type CommitteeMember struct {
-	Address   AccountID
-	Moniker   string
-	PubKeyB64 string // base64-encoded secp256k1 compressed public key (33 bytes)
+	Address AccountID
+	Moniker string
 }
 
 // Committee is the M-of-N group of committee members that governs a launch.

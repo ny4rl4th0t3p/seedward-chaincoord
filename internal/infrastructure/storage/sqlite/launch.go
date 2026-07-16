@@ -153,8 +153,8 @@ func (r *LaunchRepository) saveCommittee(ctx context.Context, l *launch.Launch) 
 	}
 	for i, m := range c.Members {
 		if _, err := q.ExecContext(ctx,
-			`INSERT INTO committee_members (committee_id, position, address, account, moniker, pubkey_b64) VALUES (?,?,?,?,?,?)`,
-			uuidToStr(c.ID), i, underPrefix(m.Address, l.Record.Bech32Prefix), m.Address.Hex(), m.Moniker, m.PubKeyB64,
+			`INSERT INTO committee_members (committee_id, position, address, account, moniker) VALUES (?,?,?,?,?)`,
+			uuidToStr(c.ID), i, underPrefix(m.Address, l.Record.Bech32Prefix), m.Address.Hex(), m.Moniker,
 		); err != nil {
 			return fmt.Errorf("insert committee member %d: %w", i, err)
 		}
@@ -414,7 +414,7 @@ func (r *LaunchRepository) loadCommittee(ctx context.Context, l *launch.Launch) 
 
 	// Load members ordered by position.
 	rows, err := q.QueryContext(ctx,
-		`SELECT address, moniker, pubkey_b64 FROM committee_members WHERE committee_id=? ORDER BY position`,
+		`SELECT address, moniker FROM committee_members WHERE committee_id=? ORDER BY position`,
 		idStr)
 	if err != nil {
 		return fmt.Errorf("load committee members: %w", err)
@@ -422,8 +422,8 @@ func (r *LaunchRepository) loadCommittee(ctx context.Context, l *launch.Launch) 
 	defer rows.Close()
 
 	for rows.Next() {
-		var addrStr, moniker, pubKey string
-		if err := rows.Scan(&addrStr, &moniker, &pubKey); err != nil {
+		var addrStr, moniker string
+		if err := rows.Scan(&addrStr, &moniker); err != nil {
 			return fmt.Errorf("scan committee member: %w", err)
 		}
 		addr, err := launch.NewAccountID(addrStr)
@@ -431,9 +431,8 @@ func (r *LaunchRepository) loadCommittee(ctx context.Context, l *launch.Launch) 
 			return fmt.Errorf("load member address: %w", err)
 		}
 		l.Committee.Members = append(l.Committee.Members, launch.CommitteeMember{
-			Address:   addr,
-			Moniker:   moniker,
-			PubKeyB64: pubKey,
+			Address: addr,
+			Moniker: moniker,
 		})
 	}
 	return rows.Err()

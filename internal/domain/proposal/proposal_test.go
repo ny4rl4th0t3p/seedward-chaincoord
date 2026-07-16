@@ -209,7 +209,6 @@ func TestValidatePayload_ReplaceCommitteeMember_Valid(t *testing.T) {
 		OldAddress: testAddr1,
 		NewAddress: testAddr2,
 		NewMoniker: "new-node",
-		NewPubKey:  "AAAA",
 	}))
 	assert.NoError(t, err)
 }
@@ -284,9 +283,8 @@ func TestValidatePayload_ReplaceCommitteeMember_MissingAddresses(t *testing.T) {
 func validExpandPayload() proposal.ExpandCommitteePayload {
 	return proposal.ExpandCommitteePayload{
 		NewMember: proposal.CommitteeMemberSpec{
-			Address:   testAddr1,
-			Moniker:   "new-node",
-			PubKeyB64: "AAAA",
+			Address: testAddr1,
+			Moniker: "new-node",
 		},
 	}
 }
@@ -316,13 +314,6 @@ func TestValidatePayload_ExpandCommittee_MissingMoniker(t *testing.T) {
 	p.NewMember.Moniker = ""
 	err := proposal.ValidatePayload(proposal.ActionExpandCommittee, mustPayload(p))
 	assert.Error(t, err, "new_member.moniker is required")
-}
-
-func TestValidatePayload_ExpandCommittee_MissingPubKey(t *testing.T) {
-	p := validExpandPayload()
-	p.NewMember.PubKeyB64 = ""
-	err := proposal.ValidatePayload(proposal.ActionExpandCommittee, mustPayload(p))
-	assert.Error(t, err, "new_member.pubkey_base64 is required")
 }
 
 // ---- ValidatePayload: ShrinkCommittee ---------------------------------------
@@ -453,7 +444,7 @@ func TestProposal_ExecutionEvent_ForEveryActionType(t *testing.T) {
 		{proposal.ActionPublishGenesis, proposal.PublishGenesisPayload{GenesisHash: genesisHash}, "GenesisPublished"},
 		{proposal.ActionUpdateGenesisTime, proposal.UpdateGenesisTimePayload{NewGenesisTime: time.Now().Add(time.Hour), PrevGenesisTime: time.Now()}, "GenesisTimeUpdated"},
 		{proposal.ActionReviseGenesis, proposal.ReviseGenesisPayload{}, "GenesisRevisionApproved"},
-		{proposal.ActionReplaceCommitteeMember, proposal.ReplaceCommitteeMemberPayload{OldAddress: testAddr1, NewAddress: testAddr2, NewMoniker: "n", NewPubKey: "AAAA"}, ""},
+		{proposal.ActionReplaceCommitteeMember, proposal.ReplaceCommitteeMemberPayload{OldAddress: testAddr1, NewAddress: testAddr2, NewMoniker: "n"}, ""},
 		{proposal.ActionExpandCommittee, validExpandPayload(), ""},
 		{proposal.ActionShrinkCommittee, proposal.ShrinkCommitteePayload{RemoveAddress: testAddr1}, ""},
 		{proposal.ActionCancelLaunch, proposal.CancelLaunchPayload{}, "LaunchCancelled"},

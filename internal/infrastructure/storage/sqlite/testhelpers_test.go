@@ -53,9 +53,9 @@ func testCommittee() launch.Committee {
 		TotalN:      3,
 		LeadAddress: mustAddr(addr1),
 		Members: []launch.CommitteeMember{
-			{Address: mustAddr(addr1), Moniker: "coord-1", PubKeyB64: "AAAA"},
-			{Address: mustAddr(addr2), Moniker: "coord-2", PubKeyB64: "BBBB"},
-			{Address: mustAddr(addr3), Moniker: "coord-3", PubKeyB64: "CCCC"},
+			{Address: mustAddr(addr1), Moniker: "coord-1"},
+			{Address: mustAddr(addr2), Moniker: "coord-2"},
+			{Address: mustAddr(addr3), Moniker: "coord-3"},
 		},
 		CreatedAt: time.Now().UTC(),
 	}

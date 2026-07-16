@@ -66,7 +66,7 @@ func soloCommitteeLaunch() *launch.Launch {
 	l.Committee = launch.Committee{
 		ID: uuid.New(),
 		Members: []launch.CommitteeMember{
-			{Address: mustAddr(testAddr1), Moniker: "coord-1", PubKeyB64: "AAAA"},
+			{Address: mustAddr(testAddr1), Moniker: "coord-1"},
 		},
 		ThresholdM:  1,
 		TotalN:      1,
@@ -138,10 +138,9 @@ func validLaunchBody() []byte {
 		},
 		"launch_type":"TESTNET",
 		"committee":{
-			"members":[{"address":"` + testAddr1 + `","moniker":"c1","pub_key_b64":"AAAA"}],
+			"members":[{"address":"` + testAddr1 + `","moniker":"c1"}],
 			"threshold_m":1,"total_n":1,
-			"lead_address":"` + testAddr1 + `",
-			"creation_signature":"` + testSig + `"
+			"lead_address":"` + testAddr1 + `"
 		}
 	}`)
 }
@@ -149,10 +148,9 @@ func validLaunchBody() []byte {
 // validCommitteeBody returns a minimal valid POST /launch/{id}/committee body.
 func validCommitteeBody() []byte {
 	return []byte(`{
-		"members":[{"address":"` + testAddr1 + `","moniker":"c1","pub_key_b64":"AAAA"}],
+		"members":[{"address":"` + testAddr1 + `","moniker":"c1"}],
 		"threshold_m":1,"total_n":1,
-		"lead_address":"` + testAddr1 + `",
-		"creation_signature":"` + testSig + `"
+		"lead_address":"` + testAddr1 + `"
 	}`)
 }
 
@@ -339,7 +337,7 @@ func TestHandleLaunchCreate_BadCommissionRate(t *testing.T) {
 		"record":{"chain_id":"x","max_commission_rate":"bad","max_commission_change_rate":"0.01"},
 		"launch_type":"TESTNET",
 		"committee":{"members":[],"threshold_m":1,"total_n":1,
-			"lead_address":"` + testAddr1 + `","creation_signature":"` + testSig + `"}
+			"lead_address":"` + testAddr1 + `"}
 	}`)
 	w := h.doAuthJSON("POST", "/launch", body, tok)
 	assertStatusCode(t, w, http.StatusBadRequest)
@@ -362,10 +360,9 @@ func TestHandleLaunchCreate_InvalidRecord_BadRequest(t *testing.T) {
 		},
 		"launch_type":"TESTNET",
 		"committee":{
-			"members":[{"address":"` + testAddr1 + `","moniker":"c1","pub_key_b64":"AAAA"}],
+			"members":[{"address":"` + testAddr1 + `","moniker":"c1"}],
 			"threshold_m":1,"total_n":1,
-			"lead_address":"` + testAddr1 + `",
-			"creation_signature":"` + testSig + `"
+			"lead_address":"` + testAddr1 + `"
 		}
 	}`)
 	w := h.doAuthJSON("POST", "/launch", body, tok)
@@ -520,7 +517,7 @@ func TestHandleCommitteeCreate_BadLeadAddress(t *testing.T) {
 	h.launches.data[l.ID] = l
 	tok := h.seedSession(testAddr1)
 	body := []byte(`{"members":[],"threshold_m":1,"total_n":1,
-		"lead_address":"not-valid","creation_signature":"` + testSig + `"}`)
+		"lead_address":"not-valid"}`)
 	w := h.doAuthJSON("POST", "/launch/"+l.ID.String()+"/committee", body, tok)
 	assertStatusCode(t, w, http.StatusBadRequest)
 	assertErrorCode(t, w, "invalid_field") // only lead_address is bad → the field-validation path fired

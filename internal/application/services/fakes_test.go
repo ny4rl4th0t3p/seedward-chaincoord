@@ -70,9 +70,8 @@ func testCommittee(threshold, total int) launch.Committee {
 	members := make([]launch.CommitteeMember, total)
 	for i := range total {
 		members[i] = launch.CommitteeMember{
-			Address:   mustAddr(allAddrs[i]),
-			Moniker:   "coord",
-			PubKeyB64: "AAAA",
+			Address: mustAddr(allAddrs[i]),
+			Moniker: "coord",
 		}
 	}
 	return launch.Committee{
@@ -115,7 +114,7 @@ func test1of1Launch() *launch.Launch {
 	committee := launch.Committee{
 		ID: uuid.New(),
 		Members: []launch.CommitteeMember{
-			{Address: mustAddr(testAddr1), Moniker: "coord-1", PubKeyB64: "AAAA"},
+			{Address: mustAddr(testAddr1), Moniker: "coord-1"},
 		},
 		ThresholdM:  1,
 		TotalN:      1,

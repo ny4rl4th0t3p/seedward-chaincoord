@@ -166,15 +166,14 @@ done
 echo "==> [4/20] authenticating coordinator..."
 COORD_TOKEN=$(auth_and_get_token 0)
 COORD_ADDR=$(smoke-signer address --key-index 0)
-COORD_PUBKEY=$(smoke-signer pubkey --key-index 0)
 echo "    coordinator: ${COORD_ADDR}"
 
 # ---------------------------------------------------------------------------
 # Step 5 — Create launch (with inline committee)
 # ---------------------------------------------------------------------------
 echo "==> [5/20] creating launch..."
-# No committee signature: committee members register their pubkey when they first sign a proposal
-# (the ADR-036 envelope carries it), so the member's pub_key_b64 below is optional.
+# No committee signature and no per-member pubkey: a committee member's pubkey arrives in the ADR-036
+# envelope when they first sign a proposal (verified against their account address), so none is sent here.
 
 # Launches are private-always: validators must be pre-vetted into the members allowlist to see/join.
 # These addresses are deterministic — the gaiad operator keys are imported from the same smoke-signer
@@ -187,7 +186,6 @@ VAL_ADDR_4=$(smoke-signer address --key-index 4)
 LAUNCH_BODY=$(jq -n \
   --arg chain_id       "${CHAIN_ID}" \
   --arg coord_addr     "${COORD_ADDR}" \
-  --arg coord_pubkey   "${COORD_PUBKEY}" \
   --arg val1           "${VAL_ADDR_1}" \
   --arg val2           "${VAL_ADDR_2}" \
   --arg val3           "${VAL_ADDR_3}" \
@@ -211,7 +209,7 @@ LAUNCH_BODY=$(jq -n \
       min_validator_count:        4
     },
     committee: {
-      members:            [{ address: $coord_addr, moniker: "coordinator", pub_key_b64: $coord_pubkey }],
+      members:            [{ address: $coord_addr, moniker: "coordinator" }],
       threshold_m:        1,
       total_n:            1,
       lead_address:       $coord_addr

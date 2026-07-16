@@ -129,8 +129,6 @@ definitions:
         type: string
       moniker:
         type: string
-      pub_key_b64:
-        type: string
     type: object
   api.committeeRequestJSON:
     properties:

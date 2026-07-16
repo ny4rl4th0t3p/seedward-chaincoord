@@ -1057,7 +1057,6 @@ func TestProposalService_ApplyReplaceCommitteeMember_Success(t *testing.T) {
 		OldAddress: originalAddr,
 		NewAddress: testAddr2,
 		NewMoniker: "new-member",
-		NewPubKey:  "AAEC",
 	})
 	require.NoError(t, err)
 	stored, _ := lRepo.FindByID(context.Background(), l.ID)
@@ -1072,7 +1071,6 @@ func TestProposalService_ApplyReplaceCommitteeMember_OldNotFound(t *testing.T) {
 		OldAddress: testAddr3,
 		NewAddress: testAddr2,
 		NewMoniker: "new",
-		NewPubKey:  "AAEC",
 	})
 	require.ErrorIs(t, err, ports.ErrBadRequest, "an unknown old_address is a 400")
 	assert.ErrorIs(t, err, launch.ErrCommitteeMemberNotFound, "and preserves the domain sentinel")
@@ -1132,7 +1130,6 @@ func TestProposalService_ApplyReplaceCommitteeMember_LeadReplaced(t *testing.T) 
 		OldAddress: leadAddr,
 		NewAddress: testAddr2,
 		NewMoniker: "new-lead",
-		NewPubKey:  "AAEC",
 	})
 	require.NoError(t, err)
 	stored, _ := lRepo.FindByID(context.Background(), l.ID)
@@ -1167,7 +1164,7 @@ func TestProposalService_ExpandCommittee_Audited(t *testing.T) {
 	svc := newAuditingProposalSvc(l, audit)
 
 	_, err := raiseWith(t, svc, l.ID, proposal.ActionExpandCommittee, proposal.ExpandCommitteePayload{
-		NewMember: proposal.CommitteeMemberSpec{Address: testAddr2, Moniker: "coord-2", PubKeyB64: "BBBB"},
+		NewMember: proposal.CommitteeMemberSpec{Address: testAddr2, Moniker: "coord-2"},
 	})
 	require.NoError(t, err)
 
@@ -1203,7 +1200,6 @@ func TestProposalService_ReplaceCommitteeMember_Audited(t *testing.T) {
 		OldAddress: testAddr3,
 		NewAddress: newAddr,
 		NewMoniker: "coord-new",
-		NewPubKey:  "DDDD",
 	})
 	require.NoError(t, err)
 
@@ -1322,7 +1318,7 @@ func TestProposalService_DispatchEvents_PublishesAndAudits(t *testing.T) {
 		newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{}, pub, audit, &fakeTransactor{})
 
 	_, err := raiseWith(t, svc, l.ID, proposal.ActionExpandCommittee, proposal.ExpandCommitteePayload{
-		NewMember: proposal.CommitteeMemberSpec{Address: testAddr2, Moniker: "coord-2", PubKeyB64: "BBBB"},
+		NewMember: proposal.CommitteeMemberSpec{Address: testAddr2, Moniker: "coord-2"},
 	})
 	require.NoError(t, err)
 
@@ -1368,7 +1364,7 @@ func newTwoPhaseSvc(l *launch.Launch, audit ports.AuditLogWriter, tx ports.Trans
 
 func expandPayload() (proposal.ActionType, proposal.ExpandCommitteePayload) {
 	return proposal.ActionExpandCommittee, proposal.ExpandCommitteePayload{
-		NewMember: proposal.CommitteeMemberSpec{Address: testAddr2, Moniker: "coord-2", PubKeyB64: "BBBB"},
+		NewMember: proposal.CommitteeMemberSpec{Address: testAddr2, Moniker: "coord-2"},
 	}
 }
 
@@ -1439,9 +1435,8 @@ func TestProposalService_ApplyExpandCommittee_DefaultThreshold(t *testing.T) {
 
 	_, err := raiseWith(t, svc, l.ID, proposal.ActionExpandCommittee, proposal.ExpandCommitteePayload{
 		NewMember: proposal.CommitteeMemberSpec{
-			Address:   testAddr2,
-			Moniker:   "coord-2",
-			PubKeyB64: "BBBB",
+			Address: testAddr2,
+			Moniker: "coord-2",
 		},
 	})
 	require.NoError(t, err)
@@ -1466,9 +1461,8 @@ func TestProposalService_ApplyExpandCommittee_ExplicitThreshold(t *testing.T) {
 
 	_, err := raiseWith(t, svc, l.ID, proposal.ActionExpandCommittee, proposal.ExpandCommitteePayload{
 		NewMember: proposal.CommitteeMemberSpec{
-			Address:   testAddr2,
-			Moniker:   "coord-2",
-			PubKeyB64: "BBBB",
+			Address: testAddr2,
+			Moniker: "coord-2",
 		},
 		NewThresholdM: &m,
 	})
@@ -1486,9 +1480,8 @@ func TestProposalService_ApplyExpandCommittee_ExpiresPendingProposals(t *testing
 
 	_, err := raiseWith(t, svc, l.ID, proposal.ActionExpandCommittee, proposal.ExpandCommitteePayload{
 		NewMember: proposal.CommitteeMemberSpec{
-			Address:   testAddr2,
-			Moniker:   "coord-2",
-			PubKeyB64: "BBBB",
+			Address: testAddr2,
+			Moniker: "coord-2",
 		},
 	})
 	require.NoError(t, err)
@@ -1503,9 +1496,8 @@ func TestProposalService_ApplyExpandCommittee_DuplicateMember(t *testing.T) {
 	// testAddr1 is already a member.
 	_, err := raiseWith(t, svc, l.ID, proposal.ActionExpandCommittee, proposal.ExpandCommitteePayload{
 		NewMember: proposal.CommitteeMemberSpec{
-			Address:   testAddr1,
-			Moniker:   "dup",
-			PubKeyB64: "AAAA",
+			Address: testAddr1,
+			Moniker: "dup",
 		},
 	})
 	require.ErrorIs(t, err, ports.ErrConflict, "a duplicate committee member is a 409")

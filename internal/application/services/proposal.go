@@ -800,9 +800,8 @@ func (s *ProposalService) applyReplaceCommitteeMember(ctx context.Context, l *la
 		return fmt.Errorf("apply replace committee member: invalid new_address: %w", err)
 	}
 	newMember := launch.CommitteeMember{
-		Address:   newAddr,
-		Moniker:   pl.NewMoniker,
-		PubKeyB64: pl.NewPubKey,
+		Address: newAddr,
+		Moniker: pl.NewMoniker,
 	}
 	oldMembers := committeeMemberAddrs(l.Committee)
 	oldM := l.Committee.ThresholdM
@@ -859,9 +858,8 @@ func (s *ProposalService) applyExpandCommittee(ctx context.Context, l *launch.La
 		return fmt.Errorf("apply expand committee: invalid new_member.address: %w", err)
 	}
 	newMember := launch.CommitteeMember{
-		Address:   newAddr,
-		Moniker:   pl.NewMember.Moniker,
-		PubKeyB64: pl.NewMember.PubKeyB64,
+		Address: newAddr,
+		Moniker: pl.NewMember.Moniker,
 	}
 	effectiveM := ResolveThreshold(l.Committee.ThresholdM, l.Committee.TotalN+1, pl.NewThresholdM)
 	if err := s.expirePendingProposals(ctx, l.ID); err != nil {

@@ -477,9 +477,8 @@ func parseCommittee(body committeeRequestJSON) (launch.Committee, error) {
 			return launch.Committee{}, fmt.Errorf("committee.members[%d].address: %w", i, err)
 		}
 		members[i] = launch.CommitteeMember{
-			Address:   addr,
-			Moniker:   m.Moniker,
-			PubKeyB64: m.PubKeyB64,
+			Address: addr,
+			Moniker: m.Moniker,
 		}
 	}
 	return launch.Committee{

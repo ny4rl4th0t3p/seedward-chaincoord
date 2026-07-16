@@ -76,9 +76,9 @@ func testLaunch() *launch.Launch {
 	committee := launch.Committee{
 		ID: uuid.New(),
 		Members: []launch.CommitteeMember{
-			{Address: mustAddr(testAddr1), Moniker: "coord-1", PubKeyB64: "AAAA"},
-			{Address: mustAddr(testAddr2), Moniker: "coord-2", PubKeyB64: "AAAA"},
-			{Address: mustAddr(testAddr3), Moniker: "coord-3", PubKeyB64: "AAAA"},
+			{Address: mustAddr(testAddr1), Moniker: "coord-1"},
+			{Address: mustAddr(testAddr2), Moniker: "coord-2"},
+			{Address: mustAddr(testAddr3), Moniker: "coord-3"},
 		},
 		ThresholdM:  2,
 		TotalN:      3,
