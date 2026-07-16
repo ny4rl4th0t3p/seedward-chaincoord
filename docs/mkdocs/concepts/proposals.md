@@ -1,7 +1,7 @@
 # Proposals & M-of-N
 
 Every governance decision in seedward-chaincoord goes through a **proposal**. A proposal is a signed, time-limited
-action that executes automatically when M coordinators sign it.
+action that executes automatically when M committee members sign it.
 
 ---
 
@@ -57,6 +57,13 @@ blocked once the genesis is published — revert to `WINDOW_CLOSED` via `REVISE_
 | `CLOSE_APPLICATION_WINDOW` | `WINDOW_OPEN` → `WINDOW_CLOSED`   | `WINDOW_OPEN`              |
 | `PUBLISH_GENESIS`          | `WINDOW_CLOSED` → `GENESIS_READY` | `WINDOW_CLOSED`            |
 | `REVISE_GENESIS`           | `GENESIS_READY` → `WINDOW_CLOSED` | `GENESIS_READY`            |
+| `CANCEL_LAUNCH`            | any non-terminal → `CANCELED`     | any non-terminal           |
+
+`CANCEL_LAUNCH` is the **governed** cancel path (see the direct/proposal split under
+[Not everything is a proposal](../decisions/index.md#not-everything-is-a-proposal)). It is the *only*
+way to cancel once a launch is past `PUBLISHED`, and it stays available in `DRAFT`/`PUBLISHED` too so a
+non-lead committee member can still initiate a governed cancel. Canceling from `GENESIS_READY`
+invalidates existing readiness confirmations, exactly as the direct path did.
 
 ### Genesis metadata & allocations
 
@@ -114,13 +121,13 @@ files are reviewed and approved as a unit by humans, with the hash as the integr
 ## Signing a proposal
 
 Each signature is a secp256k1 signature over the **canonical JSON** of the request with the `signature` and `pubkey_b64`
-fields removed. The signed bytes therefore include the coordinator's address, the decision (`SIGN` or `VETO`), the
+fields removed. The signed bytes therefore include the committee member's address, the decision (`SIGN` or `VETO`), the
 timestamp, and the `nonce` — the nonce is bound to the signature, so a captured request can't be replayed by swapping
 it.
 
 The server verifies the signature against the `pubkey_b64` carried in the request, requiring that pubkey to hash to the
 signer's committee address (so it can't be spoofed, and it works under any address prefix) — a member registers no key
-in advance; they are recognised when they sign. It then consumes the `(coordinator, nonce)` pair once for replay
+in advance; they are recognised when they sign. It then consumes the `(member, nonce)` pair once for replay
 protection.
 
 ---
@@ -134,6 +141,31 @@ This guard applies only to committee **modification**. At launch creation (and w
 launch) any threshold from `1` to `N` is accepted, including `M = N` — so a deadlock-prone committee such as 3-of-3
 *can* be created directly (it just can't be reached afterward via expand/shrink). A 1-of-1 committee (`M = N = 1`) is
 always valid, since there is no other member to lose.
+
+---
+
+## Known limitation — a member can veto their own removal
+
+The single-VETO kill switch is deliberate — any member with a strong objection can block a proposal — but
+it has a sharp edge. The **only** veto exclusion is that the proposer can't veto their own proposal (raising
+it implicitly casts their SIGN). There is **no exclusion for the target of a removal**: a member removed via
+`SHRINK_COMMITTEE` / `REPLACE_COMMITTEE_MEMBER` (raised by someone else) is still a committee member at vote
+time, so **they can veto their own removal** and remain. Past `PUBLISHED` they can also veto `CANCEL_LAUNCH`,
+so a single rogue member can **freeze a launch**: it can't advance, they can't be removed, and it can't be
+canceled (proposals TTL-expire after 48 h, but re-raising just gets re-vetoed).
+
+This is a **safety-over-liveness tradeoff, not an oversight**. Forbidding self-veto would let a malicious
+*majority* eject an honest minority member to clear the way for something that member would have blocked —
+there is no free lunch. The design accepts the griefing risk because:
+
+- A rogue can only **block**, never execute or steal — the worst case is a denial of service on *this*
+  launch, and VETO is observable and audited, so misuse is visible and reputationally costly.
+- The committee is a **small, chosen set for a time-boxed launch**, not an open-membership DAO — pick
+  members you trust.
+- **Escape hatches by stage:** in `DRAFT` the lead can `SetCommittee` (a direct, wholesale reconfigure — not
+  a vetoable proposal) and drop the rogue; in `DRAFT`/`PUBLISHED` the lead can direct-cancel. From
+  `WINDOW_OPEN` on there is no in-launch escape — abandon the launch and start a fresh one (a rogue can kill
+  *this* launch but cannot hijack it or carry anything over).
 
 ---
 

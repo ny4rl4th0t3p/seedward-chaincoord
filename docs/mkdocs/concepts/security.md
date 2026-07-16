@@ -4,9 +4,9 @@ What the coordination server **can** and **cannot** do. coordd is a *coordinator
 
 ## The server holds no user keys
 
-Coordinators and validators authenticate by signing a challenge with their own wallet; coordd stores no
+Committee members and validators authenticate by signing a challenge with their own wallet; coordd stores no
 private keys and pre-registers no public keys — identity is the address, proven per request. So coordd
-**cannot impersonate** a coordinator or a validator. (See [Roles → Authentication](roles.md).)
+**cannot impersonate** a committee member or a validator. (See [Roles → Authentication](roles.md).)
 
 ## Governance decisions require M-of-N
 
@@ -15,7 +15,14 @@ window, publishing genesis, changing the committee, approving an allocation file
 proposal. coordd **cannot execute a quorum action below the threshold**, and a single VETO kills a
 proposal. coordd can *reject*, *filter*, and *rate-limit* — it cannot *forge* a committee decision.
 Operational steps (uploading a genesis or allocation file, editing the members list, opening the window,
-or the lead's emergency cancel) are single-actor by design. (See [Proposals & M-of-N](proposals.md).)
+or the lead's direct cancel in `DRAFT`/`PUBLISHED`) are single-actor by design. Canceling a launch that
+is past `PUBLISHED` is *not* single-actor — it requires an M-of-N `CANCEL_LAUNCH` proposal like every
+other consequential decision. (See [Proposals & M-of-N](proposals.md).)
+
+The single VETO is a safety kill-switch, and it has a deliberate liveness cost: a member can veto their
+**own** removal (and, past `PUBLISHED`, the cancel), so a rogue member can freeze a launch — a denial of
+service, never an exploit. This is a safety-over-liveness tradeoff with social + lead-reconfigure
+mitigations; see [Proposals → Known limitation](proposals.md#known-limitation-a-member-can-veto-their-own-removal).
 
 ## Coordinate over signed facts
 

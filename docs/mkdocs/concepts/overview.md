@@ -1,6 +1,7 @@
 # Concepts Overview
 
-seedward-chaincoord coordinates the genesis launch of a **Cosmos SDK** chain between a group of coordinators and a set
+seedward-chaincoord coordinates the genesis launch of a **Cosmos SDK** chain between a group of committee members and a
+set
 of
 validator applicants. It provides a structured protocol, an HTTP API, and a tamper-evident audit log — but it does not
 run a chain node, does not hold keys on behalf of anyone, and does not require trust in a central authority beyond the
@@ -35,7 +36,8 @@ action (except opening the application window, which any committee member trigge
 
 ### Committee
 
-A **Committee** is the M-of-N group of coordinators that governs a launch. Any member can raise a proposal; a proposal
+A **Committee** is the M-of-N group of committee members that governs a launch. Any member can raise a proposal; a
+proposal
 executes when M members sign it. A single VETO from any member kills it immediately.
 
 The committee is declared at launch creation and can be modified later via proposals (`REPLACE_COMMITTEE_MEMBER`,
@@ -46,7 +48,8 @@ member is absent) is enforced only when the committee is modified via `EXPAND_CO
 ### Proposal
 
 A **Proposal** is a signed, time-limited committee action. Every governance decision — and every state transition except
-opening the application window — goes through a proposal. See [Proposals & M-of-N](proposals.md) for the full list of action types and how signing works.
+opening the application window — goes through a proposal. See [Proposals & M-of-N](proposals.md) for the full list of
+action types and how signing works.
 
 ### Membership & privacy
 
@@ -68,7 +71,7 @@ carries:
 The server validates the `gentx` at submission against the launch's rules (chain ID, self-delegation floor, commission
 bounds, consensus-key shape, signature) using a shared validation library — an invalid `gentx` is rejected with a
 `gentx_invalid` error carrying a per-invariant breakdown of what failed. It does **not** invoke the chain binary; full
-semantic validation happens when the coordinator runs `gaiad genesis collect-gentxs` during genesis assembly.
+semantic validation happens when a committee member runs `gaiad genesis collect-gentxs` during genesis assembly.
 
 ### Audit Log
 
@@ -86,7 +89,8 @@ down, and posts back a **signed** PASS/FAIL result. `coordd` never boots a chain
 signed result (rejecting any it didn't itself serve). The committee reads results back at `GET /launch/{id}/rehearsal`.
 A PASS certifies the input set assembles and a representative chain advances — it is **not** a guarantee the real
 network produces blocks. (Rehearsal defaults to off and is manually triggered; the opt-in gate can require a current
-passing rehearsal before publishing genesis — advisory records the check, required blocks — with auto-triggering a later addition.)
+passing rehearsal before publishing genesis — advisory records the check, required blocks — with auto-triggering a later
+addition.)
 
 ---
 
@@ -94,8 +98,8 @@ passing rehearsal before publishing genesis — advisory records the check, requ
 
 - It does not run or connect to a chain node during the launch (monitoring polls CometBFT RPC only after
   `GENESIS_READY`)
-- It does not store private keys for coordinators or validators
-- It does not assemble the final genesis file — that step is done locally by the coordinator using
+- It does not store private keys for committee members or validators
+- It does not assemble the final genesis file — that step is done locally by a committee member using
   `gaiad genesis collect-gentxs`
 - It does not guarantee BFT safety beyond a warning when a single entity reaches or exceeds 1/3 of committed voting
   power (and a hard precondition that blocks closing the window in that case)
@@ -104,6 +108,6 @@ passing rehearsal before publishing genesis — advisory records the check, requ
 
 ## Further reading
 
-- [Roles](roles.md) — coordinator, lead coordinator, validator
+- [Roles](roles.md) — coordinator, committee member, lead, validator
 - [Launch Lifecycle](lifecycle.md) — the seven states in detail
 - [Proposals & M-of-N](proposals.md) — how committee decisions work

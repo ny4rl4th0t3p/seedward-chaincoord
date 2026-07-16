@@ -1,48 +1,91 @@
 # Roles
 
-seedward-chaincoord has three distinct roles. A single person or organisation can hold more than one role.
+seedward-chaincoord separates one **server-plane** role (admin) from the **per-launch** roles
+(coordinator, committee member, lead, validator). A single person or organisation can hold more than one.
+
+The distinction that trips people up: **admin** runs the whole server; a **coordinator** is merely *permitted
+to create a launch*; the **committee members** are the ones who actually *govern* a launch; and a **validator**
+*joins the chain* the launch produces. "Coordinator" is **not** a synonym for "committee member."
 
 ---
 
-## Lead Coordinator
+## Admin
 
-The lead coordinator is the committee member who creates the launch and declares the initial committee. Their one
-privilege beyond ordinary committee members is the emergency **cancel**: they can cancel the launch from any
-non-terminal state without a proposal or quorum. (Opening the application window is *not* lead-exclusive — any committee
-member may call `open-window`.)
+*Server plane — the whole coordd deployment.*
 
-Every committee has exactly one lead. The lead can change if the current lead is replaced via a
-`REPLACE_COMMITTEE_MEMBER` proposal — the replacement automatically inherits the lead role.
-
-**Responsibilities:**
-
-- Create the launch and declare the initial committee
-- Upload the initial genesis file
-- Open the application window
-- Assemble the final genesis file locally (`gaiad genesis collect-gentxs`) and upload it
-- Set the monitor RPC URL so `coordd` polls for block production
+Whoever operates the coordd server: the operator addresses listed in `COORD_ADMIN_ADDRESSES`. Admin holds the
+`/admin/*` endpoints; concretely, admin **manages the coordinator allowlist** (who may create launches when
+`launch_policy=restricted`) and can revoke sessions. Admin is **not a participant in any launch** — it never
+declares a committee, signs a proposal, or submits a gentx. See [Setup](../reference/setup.md).
 
 ---
 
 ## Coordinator
 
-Any member of the launch committee. Coordinators govern every state transition and governance decision through
-proposals.
+*The party permitted to **create** a launch.*
+
+Under the default `restricted` policy that permission is the **coordinator allowlist** the admin manages; under
+`open` policy any authenticated address may create one. A coordinator:
+
+- Creates the launch (the chain record) and **declares its initial committee** — the M-of-N governance group.
+- **Need not be a member of that committee.** Creation is gated only by the allowlist, so a coordinator may hand
+  governance to an entirely external committee ("full delegation"). In the common case the coordinator places
+  itself as the committee's first member and is therefore *also* the **lead** (below) — but that is a choice, not a
+  requirement.
+
+Beyond creating the launch and declaring its committee, a coordinator has **no special power** over it — all
+subsequent governance belongs to the committee. The "coordinator allowlist" is a **global, admin-managed gate**;
+it is **not** any launch's committee, and being on it does not make you a committee member of anything.
+
+---
+
+## Committee member
+
+*One launch — a member of its governing committee.*
+
+The **committee** is the M-of-N group that governs a single launch. Its members — **committee members** — drive
+every state transition and governance decision through **proposals**.
 
 **Key facts:**
 
 - Identified by their Cosmos SDK operator address (bech32)
 - Authenticate to `coordd` via a secp256k1 challenge–response (the same key used on-chain)
 - Can raise any proposal type at any time (subject to the launch's current status)
-- Each coordinator signs or vetoes proposals raised by others
-- Signatures are verified against the compressed secp256k1 public key the caller supplies with each
-  request, which the server proves derives to the claimed operator address — no public key is pre-registered
+- Each committee member signs or vetoes proposals raised by others
+- Signatures are verified against the compressed secp256k1 public key the caller supplies with each request,
+  which the server proves derives to the claimed operator address — no public key is pre-registered
 
-**What coordinators cannot do unilaterally:**
+**What a committee member cannot do unilaterally:**
 
 - Execute any state transition alone (unless M=1)
 - Modify the launch record outside of proposals
-- Override another coordinator's veto
+- Override another committee member's veto
+
+---
+
+## Lead
+
+*One launch — the committee's first member (`Members[0]`).*
+
+The lead is an ordinary committee member with two extra privileges, both deliberately narrow:
+
+- **Direct cancel in `DRAFT`/`PUBLISHED`** — a lead-only shortcut to scrap a launch before any validator has
+  committed, without a proposal. Once a launch is past `PUBLISHED` this shortcut is gone: canceling then
+  requires an M-of-N `CANCEL_LAUNCH` committee proposal (which *any* committee member can raise, so the
+  committee stays in control). This is the lead's *only* unilateral, irreversible power, and it is confined to
+  the harmless early stages on purpose.
+- **Reconfigure the committee while the launch is still in `DRAFT`** — wholesale replacement, before governance
+  is live.
+
+By convention the lead also handles the operational **DRAFT setup and genesis assembly** — upload the initial
+genesis, assemble the final genesis locally (`gaiad genesis collect-gentxs`) and upload it, and set the monitor
+RPC URL so `coordd` polls for block production. (These, and opening the application window, are open to **any**
+committee member; only the direct early-stage cancel and the `DRAFT` committee reconfigure are lead-exclusive.)
+
+**Leadership is position 0, not a separate credential.** The lead is simply whoever sits at `Members[0]` of the
+declared committee — it is **not** defined by having created the launch (that is the coordinator's action). Every
+committee has exactly one lead; if the lead is removed or replaced via a `REPLACE_COMMITTEE_MEMBER` proposal, the
+lead role transfers automatically to the new `Members[0]`.
 
 ---
 
@@ -67,9 +110,9 @@ onboarding model:
 **What validators do:**
 
 1. Be added to the launch's **members list** by the committee (off-band, with a label) — a non-member can't see the
-   launch or submit (see [Membership](#membership)). 
-2. Generate a `gentx` locally using their chain binary (e.g. `gaiad genesis gentx`). 
-3. Authenticate to `coordd` with their **hot** address (same secp256k1 challenge–response as coordinators).
+   launch or submit (see [Membership](#membership)).
+2. Generate a `gentx` locally using their chain binary (e.g. `gaiad genesis gentx`).
+3. Authenticate to `coordd` with their **hot** address (same secp256k1 challenge–response as committee members).
 4. Submit a join request carrying the `gentx`, peer address, and RPC endpoint. The consensus key is read from the
    gentx; the operator address is **derived from the gentx's signer** (then checked against its self-declared
    `validator_address`). The server rejects an invalid gentx with a `gentx_invalid` error + per-invariant detail.
@@ -106,7 +149,8 @@ expectation, so an unexpected operator address under a member surfaces at approv
 
 ## Authentication
 
-All three roles authenticate identically: secp256k1 challenge–response.
+Every role that signs (coordinator, committee member, validator, and admin) authenticates identically: secp256k1
+challenge–response.
 
 1. `POST /auth/challenge` with `operator_address` → server returns a nonce
 2. Sign a payload containing the challenge with your secp256k1 operator key

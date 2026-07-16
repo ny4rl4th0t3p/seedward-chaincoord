@@ -15,7 +15,8 @@ own.
 
 ## Authentication
 
-All coordinators and validators authenticate the same way: a two-step secp256k1 challenge–response. The public key must
+All committee members and validators authenticate the same way: a two-step secp256k1 challenge–response. The public key
+must
 be supplied explicitly — bech32 addresses are hashes, so the server cannot recover the key from them.
 
 1. `POST /auth/challenge` with your `operator_address` → the server returns a short-lived `challenge` nonce. (
@@ -122,7 +123,10 @@ in-browser validator):
 
 ## Streaming & health
 
-- `GET /launch/{id}/events` — Server-Sent Events stream; emits on every state change and proposal execution. No
-  authentication. Connect directly to the server rather than through a buffering reverse proxy.
-- `GET /healthz` — returns `{"status":"ok"}` when the server is up; used by Docker health checks and load-balancer
-  probes.
+- `GET /launch/{id}/events` — Server-Sent Events stream; emits on every state change and proposal execution.
+  **Visibility-gated** (optionalAuth): launches are private-always, so a caller who is not on the launch's
+  committee or members list — including an anonymous one — gets `404`. Connect directly to the server rather
+  than through a buffering reverse proxy.
+- `GET /healthz` — deep liveness probe: `200 {"status":"ok"}` when the database and audit log are both healthy,
+  `503 {"status":"unavailable"}` if a dependency is down (see [Setup → Observability](setup.md#observability)).
+  Used by Docker health checks and load-balancer probes.

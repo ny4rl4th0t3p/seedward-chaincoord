@@ -27,17 +27,24 @@ configuration.
 
 ### Action types
 
-Twelve proposal action types (`internal/domain/proposal/payload.go`), each with a typed payload:
-`APPROVE_VALIDATOR`, `REJECT_VALIDATOR`, `REMOVE_APPROVED_VALIDATOR`, `APPROVE_ALLOCATION_FILE`,
-`PUBLISH_CHAIN_RECORD`, `CLOSE_APPLICATION_WINDOW`, `PUBLISH_GENESIS`, `UPDATE_GENESIS_TIME`,
-`REPLACE_COMMITTEE_MEMBER`, `REVISE_GENESIS`, `EXPAND_COMMITTEE`, `SHRINK_COMMITTEE`.
+Thirteen proposal action types (constants in `internal/domain/proposal/proposal.go`; typed payloads in
+`payload.go`, some empty): `APPROVE_VALIDATOR`, `REJECT_VALIDATOR`, `REMOVE_APPROVED_VALIDATOR`,
+`APPROVE_ALLOCATION_FILE`, `PUBLISH_CHAIN_RECORD`, `CLOSE_APPLICATION_WINDOW`, `PUBLISH_GENESIS`,
+`UPDATE_GENESIS_TIME`, `REPLACE_COMMITTEE_MEMBER`, `REVISE_GENESIS`, `EXPAND_COMMITTEE`, `SHRINK_COMMITTEE`,
+`CANCEL_LAUNCH`.
 
 ### Not everything is a proposal
 
-`OpenWindow` and `Cancel` are **direct** API calls, not proposals. `OpenWindow` auto-publishes from
-`DRAFT` when the initial genesis hash is already present (a single-coordinator convenience). `Cancel` is
-**lead-only** (`ErrForbidden` for a non-lead) and publishes `LaunchCancelled` directly — it is *not* an
-M-of-N vote.
+`OpenWindow` is a **direct** API call, not a proposal — it auto-publishes from `DRAFT` when the initial
+genesis hash is already present (a single-step convenience).
+
+**Cancel is hybrid.** The direct `POST /launch/{id}/cancel` endpoint is **lead-only** and valid only in
+`DRAFT`/`PUBLISHED`, where no validators have committed — a harmless unilateral scrap. Once a launch is
+past `PUBLISHED` (`WINDOW_OPEN` and later) external parties have committed gentxs, so the direct path
+returns `409` and cancellation must go through an **M-of-N `CANCEL_LAUNCH` proposal** instead. That
+proposal path is also available in `DRAFT`/`PUBLISHED`, so a non-lead committee member can always
+initiate a governed cancel. Both paths publish `LaunchCancelled`; the proposal path additionally leaves
+the full raise/sign/execute signed trail. The authority to cancel now tracks the cost of cancelling.
 
 ### Proposal TTL
 
@@ -46,14 +53,17 @@ expires the stale ones.
 
 ### Quorum & veto mechanics
 
-Execution counts `SIGN` entries against `ThresholdM`; each coordinator signs at most once; a single
+Execution counts `SIGN` entries against `ThresholdM`; each committee member signs at most once; a single
 `VETO` short-circuits to `VETOED`. Vetoing an `APPROVE_ALLOCATION_FILE` is the **only** veto with a side
 effect — it marks the bound file `REJECTED` and emits `AllocationFileRejected`.
 
 ### Events
 
-Most executed actions emit one domain execution event; the committee-resize actions
-(`REPLACE/EXPAND/SHRINK_COMMITTEE`) emit **none** — the new committee is persisted directly.
+Most executed actions emit one execution event from the domain (`emitExecutionEvents`) — including
+`CANCEL_LAUNCH` → `LaunchCancelled`. The committee-resize actions (`REPLACE`/`EXPAND`/`SHRINK_COMMITTEE`)
+instead have the **application layer** record theirs via `Proposal.RecordEvent` — `CommitteeMemberReplaced`
+/ `CommitteeExpanded` / `CommitteeShrunk`, each carrying the old→new membership + threshold snapshot the
+payload alone can't provide.
 
 ### Committee-resize safety
 
@@ -238,7 +248,7 @@ infra-TLS mode (a proxy terminates TLS, coordd sees plain HTTP) it defers HSTS t
 
 ## Genesis, readiness, and launch
 
-The genesis storage model (attestor/host), the coordinator-built-genesis boundary, and readiness
+The genesis storage model (attestor/host), the committee-built-genesis boundary, and readiness
 attestation are suite ADRs; the mechanics below are chaincoord-internal.
 
 ### Genesis fields and gates
@@ -261,8 +271,10 @@ valid (non-invalidated) confirmations count.
 `RunLaunchMonitor` (started in `serve.go`, 1-minute cadence) polls each `GENESIS_READY` launch with a
 non-empty `MonitorRPCURL` — a single URL set by a committee member via `PATCH /launch/{id}`, re-read each
 tick so a `PATCH` takes effect without restart: `GET <rpc>/block?height=1` (5 s timeout, SSRF-guarded), and
-on a `200` with a non-null `result.block` calls `MarkLaunched` and emits `LaunchDetected{LaunchID,
-SourceRPC}`. (Block-*identity* verification — `chain_id` / height — is a queued security follow-up.)
+on a `200` whose `result.block` is non-null **and** whose header `chain_id` matches the launch at height `1`,
+calls `MarkLaunched` and emits `LaunchDetected{LaunchID, SourceRPC}`. The `chain_id`/height check stops a
+committee-set, content-trusted `MonitorRPCURL` from flipping an unrelated chain's block 1 into a LAUNCHED
+(NHP-5).
 
 ## API & CLI
 
@@ -273,8 +285,9 @@ chaincoord-internal.
 
 Routes are grouped into five tiers on the Chi router (`server.go`):
 
-- **public** — `GET /healthz`, `GET /audit/pubkey`, `POST /auth/challenge` (rate-limited), `POST
-  /auth/verify`, and `GET`/`DELETE /auth/session`.
+- **public** — `GET /healthz`, `GET /metrics` (unauthenticated — network-restrict it in deploy), `GET
+  /audit/pubkey`, `POST /auth/challenge` (rate-limited), `POST /auth/verify`, and `GET`/`DELETE
+  /auth/session`.
 - **optionalAuth** — resolves the caller if a token is present, else anonymous → visibility gating (the
   reads: `GET /launches`, `/launch/{id}`, `/committee/{id}`, `/launch/{id}/chain-hint`, genesis, allocations,
   dashboard, peers, audit, events).

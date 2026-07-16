@@ -14,7 +14,9 @@ genesis assembly steps.
 
 - Docker with Compose v2
 - `make`
-- `bin/coordd` built locally (needed to generate keys — `make build`)
+
+That's it — `coordd`, `gaiad`, the `smoke-signer`, and even the signing-key generation all run in containers.
+**No local Go toolchain is required.**
 
 ---
 
@@ -27,7 +29,8 @@ make test-smoke
 This single target:
 
 1. Brings down any previous run (`test-down-smoke`)
-2. Generates `docker/secrets/audit_key` and `docker/secrets/jwt_key` if missing (`test-secrets-smoke`)
+2. Generates `docker/secrets/audit_key` and `docker/secrets/jwt_key` if missing — via `coordd keygen` in a
+   throwaway container built from `Dockerfile.smoke`, so no local `coordd` binary is needed (`test-secrets-smoke`)
 3. Builds all Docker images from `Dockerfile.smoke` (via `--build`)
 4. Starts the Compose stack and runs to completion
 5. Tears everything down on exit

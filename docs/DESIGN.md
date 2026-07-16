@@ -33,7 +33,7 @@ tool (`gentool`); it wraps the social process around them.
 
 ## What this is
 
-A self-hosted server with a web UI where a chain team's coordinators and validators interact through their existing
+A self-hosted server with a web UI where a chain team's committee members and validators interact through their existing
 Cosmos wallets to drive a chain launch through a defined lifecycle.
 
 **In scope:**
@@ -46,7 +46,7 @@ Cosmos wallets to drive a chain launch through a defined lifecycle.
   the file)
 - Offline-verifiable audit log; per-entry Ed25519 signatures detect content modification and timestamp reversals; hash
   chaining links each entry to the SHA-256 of the previous line, making entry deletion detectable across server restarts
-- Keplr / Leap wallet sign-in for both coordinators and validators
+- Keplr / Leap wallet sign-in for both committee members and validators
 - Client-side signing of all user actions (no user wallet key custody on the server)
 - Self-hostable: a single Go server binary (`coordd`) paired with a companion Next.js web UI deployed as a separate
   service
@@ -55,7 +55,7 @@ Cosmos wallets to drive a chain launch through a defined lifecycle.
 **Out of scope:**
 
 - Final genesis assembly (delegated to the chain binary's `collect-gentxs` and to `gentool`)
-- Running or operating a chain node; the server reads from an optional coordinator-configured CometBFT RPC endpoint for
+- Running or operating a chain node; the server reads from an optional committee-configured CometBFT RPC endpoint for
   launch detection but does not run consensus or chain execution
 - Custodial management of user wallet keys; the server manages its own operational keys (audit log signing, JWT signing)
   but never holds keys that enable user-attributable actions
@@ -79,7 +79,7 @@ cannot subsequently VETO their own proposal.
 
 **Rationale:** Chain launches are high-stakes, low-frequency events. A single coordinator is structurally too
 centralized; one mistake or one bad actor compromises the launch. Unanimous consent is too brittle; one absent
-coordinator blocks every decision. Simple majority handles normal disagreement but does not protect against "the
+committee member blocks every decision. Simple majority handles normal disagreement but does not protect against "the
 majority is about to make a serious mistake" cases. The M-of-N with VETO model resembles real-world governance bodies:
 most decisions require a meaningful threshold of agreement, but any single member with strong objection can block the
 action and force discussion. Token-weighted voting is inappropriate because the committee predates the chain's token
@@ -101,11 +101,14 @@ existence.
 - Workflow tool integration (e.g., GitHub Issues, Jira) for state tracking
 
 **Choice:** A defined lifecycle of seven states — DRAFT, PUBLISHED, WINDOW_OPEN, WINDOW_CLOSED, GENESIS_READY, LAUNCHED,
-with CANCELED as an escape hatch from any state. Most transitions are driven by committee proposals. Two are direct
-actions that bypass the proposal mechanism (while still being audited): `open-window` (PUBLISHED → WINDOW_OPEN) can be
-called by any coordinator without a proposal, and `cancel` (any → CANCELED) can be called by the lead coordinator
-without a proposal. The GENESIS_READY → LAUNCHED transition is automated: the server polls a
-coordinator-configured CometBFT RPC endpoint for block 1 and executes the transition when the chain is observed to
+with CANCELED as an escape hatch from any state. Most transitions are driven by committee proposals. `open-window`
+(PUBLISHED → WINDOW_OPEN) is a direct action any committee member can call without a proposal. Cancellation is **hybrid
+**:
+the lead may cancel directly from `DRAFT`/`PUBLISHED` (no validators have committed yet), but once a launch is past
+`PUBLISHED` the direct path is closed (409) and cancellation requires an M-of-N `CANCEL_LAUNCH` proposal — so a single
+seat cannot destroy a committee-approved, readiness-confirmed launch. The GENESIS_READY → LAUNCHED transition is
+automated: the server polls a
+committee-configured CometBFT RPC endpoint for block 1 and executes the transition when the chain is observed to
 have started.
 
 **Rationale:** Launch coordination has a natural sequence: the chain team prepares the baseline (DRAFT), publishes the
@@ -113,7 +116,8 @@ launch parameters (PUBLISHED), opens the window for validators to submit gentxs 
 (WINDOW_CLOSED), assembles and distributes the genesis (GENESIS_READY), and the chain starts (LAUNCHED). Free-form state
 allows actions to happen in the wrong order (validators submitting before the window opens, the chain team finalizing
 the genesis before validators have submitted). Two-state models are too coarse to express the actual workflow. External
-workflow tools are not designed for cryptographic signing and audit, and they require coordinators and validators to use
+workflow tools are not designed for cryptographic signing and audit, and they require committee members and validators
+to use
 a separate system from the one that handles their actual transactions.
 
 **Consequences:**
@@ -121,14 +125,18 @@ a separate system from the one that handles their actual transactions.
 - Actions are gated on the current state; the tool refuses to accept validator submissions while WINDOW_OPEN is not the
   current state
 - The CANCELED escape hatch from any state allows the committee to abort a launch cleanly if conditions change
-- The state machine is documented in the project docs, so new coordinators can orient themselves before joining a launch
+- The state machine is documented in the project docs, so new committee members can orient themselves before joining a
+  launch
 - One regression path exists: GENESIS_READY → WINDOW_CLOSED via the `REVISE_GENESIS` proposal, allowing the committee
   to correct a genesis file after it has been published; this requires a proposal, making the regression auditable
-- The `open-window` and `cancel` direct-action paths are intentional exceptions to the proposal-for-everything model:
-  `open-window` (callable by any committee member) is normally used from `PUBLISHED`, but from `DRAFT` it auto-publishes
-  first when the initial genesis hash is already set — a single-coordinator shortcut equivalent to executing
-  `PUBLISH_CHAIN_RECORD` — and carries low risk on its own; `cancel` gives the lead coordinator an emergency stop that
-  cannot be blocked by an absent quorum
+- The `open-window` and early-stage `cancel` direct-action paths are intentional exceptions to the
+  proposal-for-everything model: `open-window` (callable by any committee member) is normally used from `PUBLISHED`, but
+  from `DRAFT` it auto-publishes first when the initial genesis hash is already set — a single-step shortcut
+  equivalent to executing `PUBLISH_CHAIN_RECORD` — and carries low risk on its own; the direct `cancel` gives the lead
+  an
+  emergency scrap in `DRAFT`/`PUBLISHED` that cannot be blocked by an absent quorum. Past `PUBLISHED` this shortcut is
+  withdrawn: cancellation becomes a governed `CANCEL_LAUNCH` proposal, because by then external parties have committed
+  and the cost of a unilateral, irreversible cancel is too high — the authority to cancel tracks that cost
 - The GENESIS_READY → LAUNCHED transition is informational: the coordination work is complete at GENESIS_READY; LAUNCHED
   records that the chain actually produced block 1
 
@@ -175,7 +183,8 @@ the file post-launch as a public record.
 **Choice:** Standard Cosmos wallet sign-in using existing wallet extensions (Keplr, Leap). The user's Cosmos address is
 their identity.
 
-**Rationale:** The coordinators and validators in a Cosmos chain launch already have Cosmos wallets. They already know
+**Rationale:** The committee members and validators in a Cosmos chain launch already have Cosmos wallets. They already
+know
 how to use them. Their existing keys are the natural identity to bind authority to. Email and password add a new
 credential to manage and fall back to email-based recovery, which is the weak link. OAuth ties the launch's authority
 to a third-party service.
@@ -183,7 +192,8 @@ to a third-party service.
 **Consequences:**
 
 - Sign-in is one-click for anyone who already has a Cosmos wallet
-- The identity space is already keyed by Cosmos addresses, so validator and coordinator identities compose naturally
+- The identity space is already keyed by Cosmos addresses, so validator and committee-member identities compose
+  naturally
 - The server never sees a password and cannot leak one
 - A user who loses their wallet recovery phrase loses access; this is the same risk model they already accept for their
   on-chain funds
@@ -245,14 +255,15 @@ replication, and observability. The interface allows both without bifurcating th
 - Server runs `<chaind> collect-gentxs` internally
 - Server integrates with `gentool` directly as a library
 
-**Choice:** The server records gentxs and committee decisions, then leaves the final genesis assembly to the coordinator
+**Choice:** The server records gentxs and committee decisions, then leaves the final genesis assembly to a committee
+member
 running the chain binary (or `gentool`) locally.
 
 **Rationale:** The server's job is to coordinate, not to execute. Genesis assembly requires access to the specific chain
 binary's behavior, which varies across chains and SDK versions. Embedding that logic in the coordination server couples
 them tightly and forces the server to track every chain binary it might be used with. The clean boundary is: the server
 is the source of truth for what was decided; the chain binary (or `gentool`) is the source of truth for what the
-resulting genesis looks like. The coordinator who runs `gaiad genesis collect-gentxs` (or equivalent) is taking on
+resulting genesis looks like. The committee member who runs `gaiad genesis collect-gentxs` (or equivalent) is taking on
 accountability for the final result, which is the correct allocation of responsibility.
 
 **Consequences:**
@@ -261,7 +272,8 @@ accountability for the final result, which is the correct allocation of responsi
 - A new chain on a new SDK version requires zero changes to the server
 - `gentool` and `coordd` compose: coordd coordinates the human process; gentool deterministically assembles the
   result; the chain binary validates and runs it
-- The handoff from coordination to assembly is explicit and auditable; the audit log records the moment the coordinator
+- The handoff from coordination to assembly is explicit and auditable; the audit log records the moment the committee
+  member
   marked the gentxs as final
 
 ### 8. Join requests carry the validator's full submission
@@ -269,7 +281,7 @@ accountability for the final result, which is the correct allocation of responsi
 **Alternatives considered:**
 
 - Validators submit only an operator address; gentx attached later out-of-band
-- Validators submit identity first; coordinator manually links to gentx
+- Validators submit identity first; a committee member manually links to gentx
 - Validators submit gentx URLs; server fetches the file
 
 **Choice:** A validator's join request includes the gentx file, operator address, and self-delegation amount in a single
@@ -291,15 +303,16 @@ making provenance unambiguous.
 
 **Alternatives considered:**
 
-- Direct mutations by coordinators with role-based permissions
+- Direct mutations by committee members with role-based permissions
 - Single-signature actions for low-stakes operations
 - Off-chain Snapshot-style polling
 
 **Choice:** Actions that change server state — adding or removing validators, most lifecycle transitions, committee
 modifications, and genesis account management — are structured as signed proposals that require M-of-N committee
-signatures within a time limit before they execute. Two lifecycle transitions are direct actions rather than proposals:
-`open-window` (PUBLISHED → WINDOW_OPEN, callable by any coordinator) and `cancel` (any → CANCELED, callable by the
-lead coordinator). See decision 2 for the rationale for these exceptions.
+signatures within a time limit before they execute. `open-window` (PUBLISHED → WINDOW_OPEN, callable by any committee
+member)
+is a direct action rather than a proposal, and the lead's `cancel` is a direct action in `DRAFT`/`PUBLISHED` only —
+cancelling a launch past `PUBLISHED` requires a `CANCEL_LAUNCH` proposal. See decision 2 for the rationale.
 
 **Rationale:** The audit log's value comes from the property that nothing happens without a verifiable trail. Direct
 mutations that bypass the audit entirely break the model. Single-signature low-stakes operations create ambiguity about
@@ -309,50 +322,57 @@ pool is unbounded.
 
 **Consequences:**
 
-- The proposal is the dominant primitive for state changes; the two direct-action exceptions (`open-window`, `cancel`)
-  are intentional carve-outs for a routine coordinator operation and an emergency stop, both of which are audited
+- The proposal is the dominant primitive for state changes; the direct-action exceptions (`open-window`, and the lead's
+  early-stage `cancel` in `DRAFT`/`PUBLISHED`) are intentional carve-outs for a routine committee-member operation and a
+  pre-commitment emergency scrap, both of which are audited
 - The audit log is comprehensive; every proposal-driven change is preceded by a proposal record and signature records,
   and every direct action (open-window, cancel) writes its own audit event
 - Routine operations are slightly more verbose than direct mutation; this is a deliberate trade for auditability
 - The time-limit forces the committee to actively decide on a proposal rather than letting it linger
 
-### 10. Lead coordinator role separate from coordinator and validator
+### 10. Distinct roles: coordinator, committee member, lead, validator
 
 **Alternatives considered:**
 
-- Flat coordinator role; any coordinator can do anything within their share of M-of-N
-- Hierarchical roles (chain founder → coordinators → validators)
+- Flat committee-member role; any committee member can do anything within their share of M-of-N
+- Hierarchical roles (chain founder → committee members → validators)
 - Permissionless validator role; any wallet can submit a gentx
 
-**Choice:** Three explicit roles: lead coordinator (creates the launch record, sets the initial committee, holds the
-emergency cancel), coordinator (committee member, can propose and sign), and validator (can submit join requests but
-does not sit on the committee).
+**Choice:** Four per-launch roles, plus a server-plane admin. A **coordinator** is a party permitted to *create* a
+launch (gated by the admin-managed allowlist) and declare its committee; it need **not** sit on that committee. A
+**committee member** is one of the M-of-N who govern the launch through proposals. The **lead** is the committee's
+first member (`Members[0]`), distinguished only by the early-stage emergency cancel and the DRAFT committee reconfigure.
+A **validator** submits a join request but does not sit on the committee.
 
-**Rationale:** A chain launch has a natural hierarchy that pretending it doesn't exist creates more confusion than it
-removes. The lead coordinator is the person who created the launch record; they need exclusive authority over the
-initial committee composition and an emergency abort that cannot be blocked by a quorum that may not be reachable. The
-coordinator role is the committee membership. The validator role is the chain participant. Mixing this creates ambiguity
-about who decides what.
+**Rationale:** A chain launch has a natural division of labour, but folding it all into one "coordinator" concept
+blurred who decides what. Someone must be permitted to *start* a launch — the coordinator, gated by the admin's
+allowlist — but who *governs* it is the committee, and the coordinator may delegate governance to an entirely external
+committee. The lead is **not** a separate seat, and **not** defined by having created the launch: it is simply position
+0 of the committee, holding an emergency abort that cannot be blocked by a quorum that may not be reachable. Separating
+creation, governance, and chain participation makes authority explicit.
 
 **Consequences:**
 
-- The lead coordinator is always a committee member — the lead designation is a property of one of the existing members,
-  not a separate seat. The lead participates in all committee votes like any other member, and additionally holds
-  exclusive authority over `cancel` (the emergency stop). `open-window` is not lead-exclusive — any committee member may
-  call it
+- The lead is always a committee member — position 0 of the committee, not a separate seat and not necessarily the
+  launch's creator. The lead participates in all committee votes like any other member, and additionally holds the
+  direct early-stage `cancel` shortcut (`DRAFT`/`PUBLISHED` only); past `PUBLISHED`, cancellation is an M-of-N
+  `CANCEL_LAUNCH` proposal that any committee member may raise. `open-window` is not lead-exclusive either — any
+  committee member may call it
+- A coordinator need not be on the committee: a launch can be created and its governance delegated wholesale to an
+  external committee (full delegation)
 - Validators have a defined seat at the table (their join request) without sitting on the committee
 - The role assignments are themselves audited, so changes in a role are visible
-- A coordinator can also be a validator, with the two roles cleanly separated in the audit trail
+- A committee member can also be a validator, with the two roles cleanly separated in the audit trail
 
 ### 11. Automated LAUNCHED detection via CometBFT block polling
 
 **Alternatives considered:**
 
-- Lead coordinator manually marks the launch as LAUNCHED via a direct action
+- The lead manually marks the launch as LAUNCHED via a direct action
 - No LAUNCHED state (GENESIS_READY as the terminal coordination state)
 - WebSocket subscription to a chain node for new-block events
 
-**Choice:** A background server job polls a coordinator-configured CometBFT RPC endpoint at a fixed interval for a block
+**Choice:** A background server job polls a committee-configured CometBFT RPC endpoint at a fixed interval for a block
 
 1. When a non-null block is returned, the server transitions the aggregate to LAUNCHED and publishes a `LaunchDetected`
    event. The `monitor_rpc_url` is set by any committee member via `PATCH /launch/{id}` and can be updated at any time
@@ -401,12 +421,15 @@ its value as a historical document.
   committee is the sole gate that vets it (anchored off-band on the operator/self-delegation, per decision #8). This is
   deliberate — a validator-set allowlist would force every fleet node to pre-register a valoper + hot wallet, which is
   friction for ~zero gain, and the blast radius is bounded (an attacker can only submit for *their own* validator, can't
-  overwrite a member's pending gentx, and the anomaly surfaces at approval). It remains **open to revisit**: whether v1.x
-  should offer an optional per-launch validator-address allow/deny list for coordinators who want the set bounded before
+  overwrite a member's pending gentx, and the anomaly surfaces at approval). It remains **open to revisit**: whether
+  v1.x
+  should offer an optional per-launch validator-address allow/deny list for committee members who want the set bounded
+  before
   approval rather than at it. Tracked against the membership/onboarding plan.
 - **Authored spec, AI-assisted build.** This is a Spec-Driven Development project: the architecture — the protocol, the
   M-of-N committee governance model, the lifecycle state machine, the threat model, and the offline-verifiable audit-log
-  security design — is mine, authored as a spec and then implemented with AI assistance under my review. The architecture
+  security design — is mine, authored as a spec and then implemented with AI assistance under my review. The
+  architecture
   is intentional and the test coverage is real; the maturity is "interesting prototype," not "battle-tested production
   tool" — validate against a real test launch before production use.
 
@@ -416,7 +439,7 @@ The natural direction of travel:
 
 - **Tighter composition with `gentool`.** The coordination tool can hand off the collected gentxs directly to `gentool`
   as the assembly engine, closing the loop between "what the committee decided" and "what the resulting genesis looks
-  like" without requiring the coordinator to invoke a separate tool manually.
+  like" without requiring a committee member to invoke a separate tool manually.
 - **Production hardening of the web UI.** The current UI has not been fully validated end-to-end; reaching a state where
   it can be recommended for real chain launches requires sustained UI testing work.
 - **First real launch dogfood.** The tool has no real users yet. Using it for an actual chain launch — either an

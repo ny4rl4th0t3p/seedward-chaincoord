@@ -3,7 +3,8 @@
 This document covers how to run and configure the `coordd` server in both development and production environments.
 
 !!! danger "Not production-ready yet"
-seedward-chaincoord is a **complete, capable v1** that is **not production-ready yet** — APIs, data formats, and
+seedward-chaincoord is a **feature-complete v1 release candidate** that is **not production-ready yet** — APIs, data
+formats, and
 behaviours may still change. **Do not use it for mainnet launches or any environment where correctness and availability
 are required.**
 
@@ -161,7 +162,9 @@ Plain HTTP on loopback (`127.0.0.1` or `::1`) suppresses the warning automatical
 Unauthenticated. Probes liveness dependencies and returns:
 
 - `200 {"status":"ok"}` when the database is queryable (`SELECT 1`) **and** the audit log file is present.
-- `503 {"status":"unavailable"}` when either is down (a DB failure, or the audit log's disk unmounted / full).
+- `503 {"status":"unavailable"}` when either fails — a DB error, or the audit log path can't be `stat`'d
+  (unmounted, deleted, or unreadable). It is an existence probe, not a write test, so a mounted-but-full disk still
+  passes.
 
 Failure detail is written to the server log, not the response body, so an unauthenticated caller learns only
 up/down. Point your orchestrator's liveness/readiness probe at it.
@@ -176,11 +179,11 @@ interface and scrape it from your monitoring network.
 
 Every response carries defensive headers:
 
-| Header                      | Value                                   | When                       |
-|-----------------------------|-----------------------------------------|----------------------------|
-| `X-Content-Type-Options`    | `nosniff`                               | always                     |
-| `X-Frame-Options`           | `DENY`                                  | always                     |
-| `Strict-Transport-Security` | `max-age=63072000; includeSubDomains`   | when coordd terminates TLS |
+| Header                      | Value                                 | When                       |
+|-----------------------------|---------------------------------------|----------------------------|
+| `X-Content-Type-Options`    | `nosniff`                             | always                     |
+| `X-Frame-Options`           | `DENY`                                | always                     |
+| `Strict-Transport-Security` | `max-age=63072000; includeSubDomains` | when coordd terminates TLS |
 
 HSTS is added only when `coordd` terminates TLS itself (native TLS — `tls_cert`/`tls_key` set). Behind an
 upstream TLS proxy (infra TLS mode), add HSTS at the proxy instead.
@@ -254,7 +257,8 @@ Controls who may create new launches:
 ### `genesis_host_mode`
 
 When `true`, `coordd` accepts raw genesis file uploads (`POST /launch/:id/genesis`) and serves them directly from disk.
-When `false` (the default), only attestor mode is available — coordinators register an external URL and SHA-256 hash.
+When `false` (the default), only attestor mode is available — committee members register an external URL and SHA-256
+hash.
 
 ### `genesis_max_bytes`
 
@@ -309,8 +313,9 @@ prefix), since the ops plane must not be internet-reachable.
 How long a claimed rehearsal run (`POST /bridge/launches/{id}/rehearsal-claim`) holds its single-writer
 lease before it is treated as stale and re-claimable. A crashed runner self-heals after this window without
 operator intervention; set it comfortably above your longest rehearsal. Accepts a Go duration string
-(`45m`, `1h`, `90m`). Defaults to **45m** when unset. For an immediate override of a stuck lease, a committee
-coordinator can call `POST /launch/{id}/rehearsal/{attempt_id}/reset` instead of waiting for expiry.
+(`45m`, `1h`, `90m`). Defaults to **45m** when unset. For an immediate override of a stuck lease, a committee member can
+call
+`POST /launch/{id}/rehearsal/{attempt_id}/reset` instead of waiting for expiry.
 
 ### `rehearsal_gate`
 

@@ -159,10 +159,12 @@ docker-build: ## Build the coordd image locally (same Dockerfile the GHCR image 
 	docker build --build-arg VERSION=$(VERSION) -f docker/Dockerfile -t seedward-chaincoord .
 
 .PHONY: test-secrets-smoke
-test-secrets-smoke: build-server ## Generate audit/jwt keys for the smoke stack (if absent)
+test-secrets-smoke: ## Generate audit/jwt keys for the smoke stack (if absent) — in a container, no local build
 	@mkdir -p docker/secrets
-	@[ -f docker/secrets/audit_key ] || ($(BINARY_SERVER) keygen > docker/secrets/audit_key && chmod 600 docker/secrets/audit_key)
-	@[ -f docker/secrets/jwt_key ]   || ($(BINARY_SERVER) keygen > docker/secrets/jwt_key   && chmod 600 docker/secrets/jwt_key)
+	@[ -f docker/secrets/audit_key ] && [ -f docker/secrets/jwt_key ] || \
+	  docker build -q --build-arg VERSION=$(VERSION) -f docker/Dockerfile.smoke -t seedward-chaincoord-smoke . >/dev/null
+	@[ -f docker/secrets/audit_key ] || (docker run --rm seedward-chaincoord-smoke coordd keygen > docker/secrets/audit_key && chmod 600 docker/secrets/audit_key)
+	@[ -f docker/secrets/jwt_key ]   || (docker run --rm seedward-chaincoord-smoke coordd keygen > docker/secrets/jwt_key   && chmod 600 docker/secrets/jwt_key)
 
 .PHONY: test-smoke
 test-smoke: test-down-smoke test-secrets-smoke ## Run the dockerized smoke test

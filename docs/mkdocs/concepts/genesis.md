@@ -3,10 +3,10 @@
 A launch carries two genesis hashes, uploaded at different phases:
 
 - **Initial genesis** (`InitialGenesisSHA256`) — the bare, pre-gentx genesis, uploaded in `DRAFT`.
-- **Final genesis** (`FinalGenesisSHA256`) — the coordinator-assembled, post-gentx genesis, uploaded in
+- **Final genesis** (`FinalGenesisSHA256`) — the committee-assembled, post-gentx genesis, uploaded in
   `WINDOW_CLOSED`.
 
-coordd **never assembles genesis** — the coordinator builds it locally (gentool folds the approved
+coordd **never assembles genesis** — a committee member builds it locally (gentool folds the approved
 allocation files into a base genesis; the chain binary's `collect-gentxs` adds the gentxs) and uploads it.
 coordd only runs light well-formedness checks and anchors the hash; **the committee is what validates the
 genesis it publishes** — by review (optionally backed by a rehearsal) plus the M-of-N `PUBLISH_GENESIS`
@@ -35,6 +35,23 @@ vet (with gentool / rehearsal) — the file is opaque to coordd.
 
 Because attestor-mode can't read the file, `genesis_time` is a **required request field** for an
 attestor-mode final upload (and must be in the future).
+
+## Verifying the genesis — reproduce, don't trust
+
+Those checks are mechanical guardrails, and coordd never assembles the genesis itself — so the trust anchor
+is **independent reproduction by the committee**, not the proposer's uploaded file. The approved inputs are
+deterministic and pinned: the approved gentxs (`GET /launch/{id}/gentxs`), the approved allocation files, and
+the chain record, all fingerprinted by `FinalGenesisInputSetHash`. So any committee member can rebuild the
+genesis locally (`gentool` folds the allocation files; the chain binary's `collect-gentxs` adds the gentxs)
+and confirm their result's hash equals the proposer's `FinalGenesisSHA256`. The M-of-N `PUBLISH_GENESIS`
+signatures are that **reproduction-backed attestation** — each signer vouches for a hash they can regenerate
+from the approved set, not one they merely downloaded.
+
+The optional **rehearsal** service is the automated, enforceable form of this: `rehearsald` pulls the same
+approved input set, rebuilds the genesis, boots an ephemeral chain, and posts a *signed* PASS/FAIL bound to
+the input-set fingerprint — and the rehearsal gate can require a PASS before `PUBLISH_GENESIS` executes.
+(Validators, at `GENESIS_READY`, download the file and verify its SHA256 to run their node — last-mile
+distribution against the already-attested hash, not the trust anchor.)
 
 ## Publishing
 
