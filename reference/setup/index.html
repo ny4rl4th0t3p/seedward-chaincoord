@@ -1716,7 +1716,8 @@
 <div class="admonition danger">
 <p class="admonition-title">Not production-ready yet</p>
 </div>
-<p>seedward-chaincoord is a <strong>complete, capable v1</strong> that is <strong>not production-ready yet</strong> — APIs, data formats, and
+<p>seedward-chaincoord is a <strong>feature-complete v1 release candidate</strong> that is <strong>not production-ready yet</strong> — APIs, data
+formats, and
 behaviours may still change. <strong>Do not use it for mainnet launches or any environment where correctness and availability
 are required.</strong></p>
 <hr />
@@ -1837,7 +1838,9 @@ the real client address rather than the proxy address.</p>
 <p>Unauthenticated. Probes liveness dependencies and returns:</p>
 <ul>
 <li><code>200 {"status":"ok"}</code> when the database is queryable (<code>SELECT 1</code>) <strong>and</strong> the audit log file is present.</li>
-<li><code>503 {"status":"unavailable"}</code> when either is down (a DB failure, or the audit log's disk unmounted / full).</li>
+<li><code>503 {"status":"unavailable"}</code> when either fails — a DB error, or the audit log path can't be <code>stat</code>'d
+  (unmounted, deleted, or unreadable). It is an existence probe, not a write test, so a mounted-but-full disk still
+  passes.</li>
 </ul>
 <p>Failure detail is written to the server log, not the response body, so an unauthenticated caller learns only
 up/down. Point your orchestrator's liveness/readiness probe at it.</p>
@@ -2082,7 +2085,8 @@ admin access.</p>
 </ul>
 <h3 id="genesis_host_mode"><code>genesis_host_mode</code><a class="headerlink" href="#genesis_host_mode" title="Permanent link">&para;</a></h3>
 <p>When <code>true</code>, <code>coordd</code> accepts raw genesis file uploads (<code>POST /launch/:id/genesis</code>) and serves them directly from disk.
-When <code>false</code> (the default), only attestor mode is available — coordinators register an external URL and SHA-256 hash.</p>
+When <code>false</code> (the default), only attestor mode is available — committee members register an external URL and SHA-256
+hash.</p>
 <h3 id="genesis_max_bytes"><code>genesis_max_bytes</code><a class="headerlink" href="#genesis_max_bytes" title="Permanent link">&para;</a></h3>
 <p>Maximum raw genesis upload size in bytes when host mode is enabled. Defaults to 700 MiB. Ignored when
 <code>genesis_host_mode</code> is <code>false</code>.</p>
@@ -2122,8 +2126,9 @@ prefix), since the ops plane must not be internet-reachable.</p>
 <p>How long a claimed rehearsal run (<code>POST /bridge/launches/{id}/rehearsal-claim</code>) holds its single-writer
 lease before it is treated as stale and re-claimable. A crashed runner self-heals after this window without
 operator intervention; set it comfortably above your longest rehearsal. Accepts a Go duration string
-(<code>45m</code>, <code>1h</code>, <code>90m</code>). Defaults to <strong>45m</strong> when unset. For an immediate override of a stuck lease, a committee
-coordinator can call <code>POST /launch/{id}/rehearsal/{attempt_id}/reset</code> instead of waiting for expiry.</p>
+(<code>45m</code>, <code>1h</code>, <code>90m</code>). Defaults to <strong>45m</strong> when unset. For an immediate override of a stuck lease, a committee member can
+call
+<code>POST /launch/{id}/rehearsal/{attempt_id}/reset</code> instead of waiting for expiry.</p>
 <h3 id="rehearsal_gate"><code>rehearsal_gate</code><a class="headerlink" href="#rehearsal_gate" title="Permanent link">&para;</a></h3>
 <p>Opt-in policy for whether a launch may finalize genesis (<code>WINDOW_CLOSED → GENESIS_READY</code>) only after a
 passing rehearsal. <strong>Default <code>off</code> — coordd runs fully standalone; rehearsal is an optional bolt-on, never a

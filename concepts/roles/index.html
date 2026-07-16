@@ -542,10 +542,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#lead-coordinator" class="md-nav__link">
+  <a href="#admin" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Lead Coordinator
+        Admin
       
     </span>
   </a>
@@ -557,6 +557,28 @@
     <span class="md-ellipsis">
       
         Coordinator
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#committee-member" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Committee member
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lead" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lead
       
     </span>
   </a>
@@ -1005,10 +1027,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#lead-coordinator" class="md-nav__link">
+  <a href="#admin" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Lead Coordinator
+        Admin
       
     </span>
   </a>
@@ -1020,6 +1042,28 @@
     <span class="md-ellipsis">
       
         Coordinator
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#committee-member" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Committee member
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lead" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lead
       
     </span>
   </a>
@@ -1080,42 +1124,74 @@
 
 
 <h1 id="roles">Roles<a class="headerlink" href="#roles" title="Permanent link">&para;</a></h1>
-<p>seedward-chaincoord has three distinct roles. A single person or organisation can hold more than one role.</p>
+<p>seedward-chaincoord separates one <strong>server-plane</strong> role (admin) from the <strong>per-launch</strong> roles
+(coordinator, committee member, lead, validator). A single person or organisation can hold more than one.</p>
+<p>The distinction that trips people up: <strong>admin</strong> runs the whole server; a <strong>coordinator</strong> is merely <em>permitted
+to create a launch</em>; the <strong>committee members</strong> are the ones who actually <em>govern</em> a launch; and a <strong>validator</strong>
+<em>joins the chain</em> the launch produces. "Coordinator" is <strong>not</strong> a synonym for "committee member."</p>
 <hr />
-<h2 id="lead-coordinator">Lead Coordinator<a class="headerlink" href="#lead-coordinator" title="Permanent link">&para;</a></h2>
-<p>The lead coordinator is the committee member who creates the launch and declares the initial committee. Their one
-privilege beyond ordinary committee members is the emergency <strong>cancel</strong>: they can cancel the launch from any
-non-terminal state without a proposal or quorum. (Opening the application window is <em>not</em> lead-exclusive — any committee
-member may call <code>open-window</code>.)</p>
-<p>Every committee has exactly one lead. The lead can change if the current lead is replaced via a
-<code>REPLACE_COMMITTEE_MEMBER</code> proposal — the replacement automatically inherits the lead role.</p>
-<p><strong>Responsibilities:</strong></p>
-<ul>
-<li>Create the launch and declare the initial committee</li>
-<li>Upload the initial genesis file</li>
-<li>Open the application window</li>
-<li>Assemble the final genesis file locally (<code>gaiad genesis collect-gentxs</code>) and upload it</li>
-<li>Set the monitor RPC URL so <code>coordd</code> polls for block production</li>
-</ul>
+<h2 id="admin">Admin<a class="headerlink" href="#admin" title="Permanent link">&para;</a></h2>
+<p><em>Server plane — the whole coordd deployment.</em></p>
+<p>Whoever operates the coordd server: the operator addresses listed in <code>COORD_ADMIN_ADDRESSES</code>. Admin holds the
+<code>/admin/*</code> endpoints; concretely, admin <strong>manages the coordinator allowlist</strong> (who may create launches when
+<code>launch_policy=restricted</code>) and can revoke sessions. Admin is <strong>not a participant in any launch</strong> — it never
+declares a committee, signs a proposal, or submits a gentx. See <a href="../../reference/setup/">Setup</a>.</p>
 <hr />
 <h2 id="coordinator">Coordinator<a class="headerlink" href="#coordinator" title="Permanent link">&para;</a></h2>
-<p>Any member of the launch committee. Coordinators govern every state transition and governance decision through
-proposals.</p>
+<p><em>The party permitted to </em><em>create</em><em> a launch.</em></p>
+<p>Under the default <code>restricted</code> policy that permission is the <strong>coordinator allowlist</strong> the admin manages; under
+<code>open</code> policy any authenticated address may create one. A coordinator:</p>
+<ul>
+<li>Creates the launch (the chain record) and <strong>declares its initial committee</strong> — the M-of-N governance group.</li>
+<li><strong>Need not be a member of that committee.</strong> Creation is gated only by the allowlist, so a coordinator may hand
+  governance to an entirely external committee ("full delegation"). In the common case the coordinator places
+  itself as the committee's first member and is therefore <em>also</em> the <strong>lead</strong> (below) — but that is a choice, not a
+  requirement.</li>
+</ul>
+<p>Beyond creating the launch and declaring its committee, a coordinator has <strong>no special power</strong> over it — all
+subsequent governance belongs to the committee. The "coordinator allowlist" is a <strong>global, admin-managed gate</strong>;
+it is <strong>not</strong> any launch's committee, and being on it does not make you a committee member of anything.</p>
+<hr />
+<h2 id="committee-member">Committee member<a class="headerlink" href="#committee-member" title="Permanent link">&para;</a></h2>
+<p><em>One launch — a member of its governing committee.</em></p>
+<p>The <strong>committee</strong> is the M-of-N group that governs a single launch. Its members — <strong>committee members</strong> — drive
+every state transition and governance decision through <strong>proposals</strong>.</p>
 <p><strong>Key facts:</strong></p>
 <ul>
 <li>Identified by their Cosmos SDK operator address (bech32)</li>
 <li>Authenticate to <code>coordd</code> via a secp256k1 challenge–response (the same key used on-chain)</li>
 <li>Can raise any proposal type at any time (subject to the launch's current status)</li>
-<li>Each coordinator signs or vetoes proposals raised by others</li>
-<li>Signatures are verified against the compressed secp256k1 public key the caller supplies with each
-  request, which the server proves derives to the claimed operator address — no public key is pre-registered</li>
+<li>Each committee member signs or vetoes proposals raised by others</li>
+<li>Signatures are verified against the compressed secp256k1 public key the caller supplies with each request,
+  which the server proves derives to the claimed operator address — no public key is pre-registered</li>
 </ul>
-<p><strong>What coordinators cannot do unilaterally:</strong></p>
+<p><strong>What a committee member cannot do unilaterally:</strong></p>
 <ul>
 <li>Execute any state transition alone (unless M=1)</li>
 <li>Modify the launch record outside of proposals</li>
-<li>Override another coordinator's veto</li>
+<li>Override another committee member's veto</li>
 </ul>
+<hr />
+<h2 id="lead">Lead<a class="headerlink" href="#lead" title="Permanent link">&para;</a></h2>
+<p><em>One launch — the committee's first member (<code>Members[0]</code>).</em></p>
+<p>The lead is an ordinary committee member with two extra privileges, both deliberately narrow:</p>
+<ul>
+<li><strong>Direct cancel in <code>DRAFT</code>/<code>PUBLISHED</code></strong> — a lead-only shortcut to scrap a launch before any validator has
+  committed, without a proposal. Once a launch is past <code>PUBLISHED</code> this shortcut is gone: canceling then
+  requires an M-of-N <code>CANCEL_LAUNCH</code> committee proposal (which <em>any</em> committee member can raise, so the
+  committee stays in control). This is the lead's <em>only</em> unilateral, irreversible power, and it is confined to
+  the harmless early stages on purpose.</li>
+<li><strong>Reconfigure the committee while the launch is still in <code>DRAFT</code></strong> — wholesale replacement, before governance
+  is live.</li>
+</ul>
+<p>By convention the lead also handles the operational <strong>DRAFT setup and genesis assembly</strong> — upload the initial
+genesis, assemble the final genesis locally (<code>gaiad genesis collect-gentxs</code>) and upload it, and set the monitor
+RPC URL so <code>coordd</code> polls for block production. (These, and opening the application window, are open to <strong>any</strong>
+committee member; only the direct early-stage cancel and the <code>DRAFT</code> committee reconfigure are lead-exclusive.)</p>
+<p><strong>Leadership is position 0, not a separate credential.</strong> The lead is simply whoever sits at <code>Members[0]</code> of the
+declared committee — it is <strong>not</strong> defined by having created the launch (that is the coordinator's action). Every
+committee has exactly one lead; if the lead is removed or replaced via a <code>REPLACE_COMMITTEE_MEMBER</code> proposal, the
+lead role transfers automatically to the new <code>Members[0]</code>.</p>
 <hr />
 <h2 id="validator">Validator<a class="headerlink" href="#validator" title="Permanent link">&para;</a></h2>
 <p>A validator is an operator who wants to participate in the genesis validator set. They interact with <code>coordd</code> during
@@ -1136,9 +1212,9 @@ onboarding model:</p>
 <p><strong>What validators do:</strong></p>
 <ol>
 <li>Be added to the launch's <strong>members list</strong> by the committee (off-band, with a label) — a non-member can't see the
-   launch or submit (see <a href="#membership">Membership</a>). </li>
-<li>Generate a <code>gentx</code> locally using their chain binary (e.g. <code>gaiad genesis gentx</code>). </li>
-<li>Authenticate to <code>coordd</code> with their <strong>hot</strong> address (same secp256k1 challenge–response as coordinators).</li>
+   launch or submit (see <a href="#membership">Membership</a>).</li>
+<li>Generate a <code>gentx</code> locally using their chain binary (e.g. <code>gaiad genesis gentx</code>).</li>
+<li>Authenticate to <code>coordd</code> with their <strong>hot</strong> address (same secp256k1 challenge–response as committee members).</li>
 <li>Submit a join request carrying the <code>gentx</code>, peer address, and RPC endpoint. The consensus key is read from the
    gentx; the operator address is <strong>derived from the gentx's signer</strong> (then checked against its self-declared
    <code>validator_address</code>). The server rejects an invalid gentx with a <code>gentx_invalid</code> error + per-invariant detail.</li>
@@ -1168,7 +1244,8 @@ approval-review meaningful: the committee vets each submitted <strong>operator a
 expectation, so an unexpected operator address under a member surfaces at approval.</p>
 <hr />
 <h2 id="authentication">Authentication<a class="headerlink" href="#authentication" title="Permanent link">&para;</a></h2>
-<p>All three roles authenticate identically: secp256k1 challenge–response.</p>
+<p>Every role that signs (coordinator, committee member, validator, and admin) authenticates identically: secp256k1
+challenge–response.</p>
 <ol>
 <li><code>POST /auth/challenge</code> with <code>operator_address</code> → server returns a nonce</li>
 <li>Sign a payload containing the challenge with your secp256k1 operator key</li>

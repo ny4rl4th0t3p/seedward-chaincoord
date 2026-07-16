@@ -569,7 +569,8 @@ own.</p>
 <p><iframe class="swagger-ui-iframe" frameborder="0" id="611039e1" onload="this.style.display = 'block'; this.style.overflow = 'hidden'; this.style.width = '100%';" src="swagger-611039e1.html" style="display:none;" width="100%"></iframe></p>
 <hr/>
 <h2 id="authentication">Authentication<a class="headerlink" href="#authentication" title="Permanent link">¶</a></h2>
-<p>All coordinators and validators authenticate the same way: a two-step secp256k1 challenge–response. The public key must
+<p>All committee members and validators authenticate the same way: a two-step secp256k1 challenge–response. The public key
+must
 be supplied explicitly — bech32 addresses are hashes, so the server cannot recover the key from them.</p>
 <ol>
 <li><code>POST /auth/challenge</code> with your <code>operator_address</code> → the server returns a short-lived <code>challenge</code> nonce. (
@@ -654,10 +655,13 @@ in-browser validator):</p>
 <hr/>
 <h2 id="streaming-health">Streaming &amp; health<a class="headerlink" href="#streaming-health" title="Permanent link">¶</a></h2>
 <ul>
-<li><code>GET /launch/{id}/events</code> — Server-Sent Events stream; emits on every state change and proposal execution. No
-  authentication. Connect directly to the server rather than through a buffering reverse proxy.</li>
-<li><code>GET /healthz</code> — returns <code>{"status":"ok"}</code> when the server is up; used by Docker health checks and load-balancer
-  probes.</li>
+<li><code>GET /launch/{id}/events</code> — Server-Sent Events stream; emits on every state change and proposal execution.
+  <strong>Visibility-gated</strong> (optionalAuth): launches are private-always, so a caller who is not on the launch's
+  committee or members list — including an anonymous one — gets <code>404</code>. Connect directly to the server rather
+  than through a buffering reverse proxy.</li>
+<li><code>GET /healthz</code> — deep liveness probe: <code>200 {"status":"ok"}</code> when the database and audit log are both healthy,
+  <code>503 {"status":"unavailable"}</code> if a dependency is down (see <a href="../setup/#observability">Setup → Observability</a>).
+  Used by Docker health checks and load-balancer probes.</li>
 </ul>
 </article>
 </div>

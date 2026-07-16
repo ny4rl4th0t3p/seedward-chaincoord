@@ -1082,16 +1082,22 @@
 <h1 id="trust-model">Trust model<a class="headerlink" href="#trust-model" title="Permanent link">&para;</a></h1>
 <p>What the coordination server <strong>can</strong> and <strong>cannot</strong> do. coordd is a <em>coordinator</em>, not a custodian.</p>
 <h2 id="the-server-holds-no-user-keys">The server holds no user keys<a class="headerlink" href="#the-server-holds-no-user-keys" title="Permanent link">&para;</a></h2>
-<p>Coordinators and validators authenticate by signing a challenge with their own wallet; coordd stores no
+<p>Committee members and validators authenticate by signing a challenge with their own wallet; coordd stores no
 private keys and pre-registers no public keys — identity is the address, proven per request. So coordd
-<strong>cannot impersonate</strong> a coordinator or a validator. (See <a href="../roles/">Roles → Authentication</a>.)</p>
+<strong>cannot impersonate</strong> a committee member or a validator. (See <a href="../roles/">Roles → Authentication</a>.)</p>
 <h2 id="governance-decisions-require-m-of-n">Governance decisions require M-of-N<a class="headerlink" href="#governance-decisions-require-m-of-n" title="Permanent link">&para;</a></h2>
 <p>Every <strong>governance decision</strong> that moves a launch forward — approving or removing validators, closing the
 window, publishing genesis, changing the committee, approving an allocation file — is an M-of-N committee
 proposal. coordd <strong>cannot execute a quorum action below the threshold</strong>, and a single VETO kills a
 proposal. coordd can <em>reject</em>, <em>filter</em>, and <em>rate-limit</em> — it cannot <em>forge</em> a committee decision.
 Operational steps (uploading a genesis or allocation file, editing the members list, opening the window,
-or the lead's emergency cancel) are single-actor by design. (See <a href="../proposals/">Proposals &amp; M-of-N</a>.)</p>
+or the lead's direct cancel in <code>DRAFT</code>/<code>PUBLISHED</code>) are single-actor by design. Canceling a launch that
+is past <code>PUBLISHED</code> is <em>not</em> single-actor — it requires an M-of-N <code>CANCEL_LAUNCH</code> proposal like every
+other consequential decision. (See <a href="../proposals/">Proposals &amp; M-of-N</a>.)</p>
+<p>The single VETO is a safety kill-switch, and it has a deliberate liveness cost: a member can veto their
+<strong>own</strong> removal (and, past <code>PUBLISHED</code>, the cancel), so a rogue member can freeze a launch — a denial of
+service, never an exploit. This is a safety-over-liveness tradeoff with social + lead-reconfigure
+mitigations; see <a href="../proposals/#known-limitation-a-member-can-veto-their-own-removal">Proposals → Known limitation</a>.</p>
 <h2 id="coordinate-over-signed-facts">Coordinate over signed facts<a class="headerlink" href="#coordinate-over-signed-facts" title="Permanent link">&para;</a></h2>
 <p>The server stores signed facts and applies rules over them; it never fabricates them. A rehearsal result
 is an Ed25519-signed fact from the rehearsal service, verified against a per-launch trusted key — coordd

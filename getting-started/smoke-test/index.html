@@ -1115,8 +1115,9 @@ genesis assembly steps.</p>
 <ul>
 <li>Docker with Compose v2</li>
 <li><code>make</code></li>
-<li><code>bin/coordd</code> built locally (needed to generate keys — <code>make build</code>)</li>
 </ul>
+<p>That's it — <code>coordd</code>, <code>gaiad</code>, the <code>smoke-signer</code>, and even the signing-key generation all run in containers.
+<strong>No local Go toolchain is required.</strong></p>
 <hr />
 <h2 id="run-it">Run it<a class="headerlink" href="#run-it" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>make<span class="w"> </span>test-smoke
@@ -1124,7 +1125,8 @@ genesis assembly steps.</p>
 <p>This single target:</p>
 <ol>
 <li>Brings down any previous run (<code>test-down-smoke</code>)</li>
-<li>Generates <code>docker/secrets/audit_key</code> and <code>docker/secrets/jwt_key</code> if missing (<code>test-secrets-smoke</code>)</li>
+<li>Generates <code>docker/secrets/audit_key</code> and <code>docker/secrets/jwt_key</code> if missing — via <code>coordd keygen</code> in a
+   throwaway container built from <code>Dockerfile.smoke</code>, so no local <code>coordd</code> binary is needed (<code>test-secrets-smoke</code>)</li>
 <li>Builds all Docker images from <code>Dockerfile.smoke</code> (via <code>--build</code>)</li>
 <li>Starts the Compose stack and runs to completion</li>
 <li>Tears everything down on exit</li>

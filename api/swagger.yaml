@@ -129,8 +129,6 @@ definitions:
         type: string
       moniker:
         type: string
-      pub_key_b64:
-        type: string
     type: object
   api.committeeRequestJSON:
     properties:
@@ -625,9 +623,9 @@ definitions:
     type: object
   api.signatureEntryJSON:
     properties:
-      coordinator_address:
-        type: string
       decision:
+        type: string
+      member_address:
         type: string
       timestamp:
         type: string
@@ -713,6 +711,7 @@ definitions:
     - REVISE_GENESIS
     - EXPAND_COMMITTEE
     - SHRINK_COMMITTEE
+    - CANCEL_LAUNCH
     type: string
     x-enum-varnames:
     - ActionApproveValidator
@@ -727,6 +726,7 @@ definitions:
     - ActionReviseGenesis
     - ActionExpandCommittee
     - ActionShrinkCommittee
+    - ActionCancelLaunch
   proposal.Decision:
     enum:
     - SIGN
@@ -759,7 +759,7 @@ definitions:
     properties:
       action_type:
         $ref: '#/definitions/proposal.ActionType'
-      coordinator_address:
+      member_address:
         type: string
       nonce:
         type: string
@@ -768,7 +768,7 @@ definitions:
       pubkey_b64:
         description: |-
           PubKeyB64 is the signer's compressed secp256k1 pubkey from the ADR-036 StdSignature envelope.
-          The verifier asserts it derives to CoordinatorAddr, so it cannot be spoofed.
+          The verifier asserts it derives to MemberAddr, so it cannot be spoofed.
         type: string
       signature:
         type: string
@@ -832,16 +832,16 @@ definitions:
     type: object
   services.SignInput:
     properties:
-      coordinator_address:
-        type: string
       decision:
         $ref: '#/definitions/proposal.Decision'
+      member_address:
+        type: string
       nonce:
         type: string
       pubkey_b64:
         description: |-
           PubKeyB64 is the signer's compressed secp256k1 pubkey from the ADR-036 StdSignature envelope.
-          The verifier asserts it derives to CoordinatorAddr, so it cannot be spoofed.
+          The verifier asserts it derives to MemberAddr, so it cannot be spoofed.
         type: string
       signature:
         type: string
@@ -902,8 +902,9 @@ definitions:
 host: localhost:8080
 info:
   contact: {}
-  description: Chain launch coordination server. Coordinators and validators authenticate
-    via secp256k1 challenge-response (ADR-036)
+  description: |-
+    Chain launch coordination server. Coordinators, committee members, and
+    validators authenticate via secp256k1 challenge-response (ADR-036)
   title: ChainCoord API
   version: "1.0"
 paths:
@@ -1444,7 +1445,7 @@ paths:
       consumes:
       - application/json
       description: |-
-        Partially updates mutable fields on a launch (coordinator only). Most fields require
+        Partially updates mutable fields on a launch (committee member only). Most fields require
         DRAFT status; monitor_rpc_url and the rehearsal bridge fields are settable at any status.
       parameters:
       - description: Launch UUID
@@ -1638,8 +1639,10 @@ paths:
   /launch/{id}/cancel:
     post:
       description: |-
-        Transitions a launch to CANCELED. Only the committee lead may call this.
-        No quorum required — cancellation is a single-actor emergency action.
+        Transitions a DRAFT or PUBLISHED launch to CANCELED. Only the committee lead may call
+        this — no quorum required while no validators have committed. Once a launch is past
+        PUBLISHED (WINDOW_OPEN and later), this endpoint returns 409 and cancellation must go
+        through an M-of-N `CANCEL_LAUNCH` committee proposal instead.
       parameters:
       - description: Launch UUID
         in: path
@@ -1666,12 +1669,12 @@ paths:
           schema:
             $ref: '#/definitions/api.errorEnvelope'
         "409":
-          description: Launch is already in a terminal status
+          description: Past PUBLISHED (use a CANCEL_LAUNCH proposal), or already terminal
           schema:
             $ref: '#/definitions/api.errorEnvelope'
       security:
       - BearerAuth: []
-      summary: Cancel a launch
+      summary: Cancel a launch (direct, DRAFT/PUBLISHED only)
       tags:
       - launches
   /launch/{id}/chain-hint:
@@ -1709,7 +1712,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: Replaces the committee on a DRAFT launch. Lead coordinator only.
+      description: Replaces the committee on a DRAFT launch. Committee lead only.
       parameters:
       - description: Launch UUID
         in: path
@@ -2060,7 +2063,8 @@ paths:
       - join-requests
   /launch/{id}/join/{req_id}:
     get:
-      description: Coordinator or the owning validator may fetch a single join request.
+      description: A committee member or the owning validator may fetch a single join
+        request.
       parameters:
       - description: Launch UUID
         in: path
@@ -2279,7 +2283,7 @@ paths:
       - members
   /launch/{id}/open-window:
     post:
-      description: Transitions a launch from DRAFT to OPEN. Coordinator only.
+      description: Transitions a launch from DRAFT to OPEN. Committee member only.
       parameters:
       - description: Launch UUID
         in: path
@@ -2307,6 +2311,10 @@ paths:
             $ref: '#/definitions/api.errorEnvelope'
         "404":
           description: Not Found
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "409":
+          description: Conflict
           schema:
             $ref: '#/definitions/api.errorEnvelope'
       security:
@@ -2353,7 +2361,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: Coordinator raises a new action proposal. Rate-limited to 60 req/IP/min.
+      description: Committee member raises a new action proposal. Rate-limited to
+        60 req/IP/min.
       parameters:
       - description: Launch UUID
         in: path
@@ -2431,8 +2440,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: Coordinator adds their SIGN or VETO decision to a pending proposal.
-        Rate-limited to 60 req/IP/min.
+      description: Committee member adds their SIGN or VETO decision to a pending
+        proposal. Rate-limited to 60 req/IP/min.
       parameters:
       - description: Launch UUID
         in: path
@@ -2598,7 +2607,7 @@ paths:
   /launch/{id}/rehearsal/{attempt_id}/reset:
     post:
       description: |-
-        Coordinator override that returns a stuck (crashed-runner) rehearsal attempt to OPEN so
+        Committee-member override that returns a stuck (crashed-runner) rehearsal attempt to OPEN so
         the run can be re-claimed before the lease TTL expires. Committee members only.
       parameters:
       - description: Launch UUID

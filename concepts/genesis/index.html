@@ -620,6 +620,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#verifying-the-genesis-reproduce-dont-trust" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verifying the genesis — reproduce, don't trust
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#publishing" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1016,6 +1027,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#verifying-the-genesis-reproduce-dont-trust" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verifying the genesis — reproduce, don't trust
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#publishing" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1061,10 +1083,10 @@
 <p>A launch carries two genesis hashes, uploaded at different phases:</p>
 <ul>
 <li><strong>Initial genesis</strong> (<code>InitialGenesisSHA256</code>) — the bare, pre-gentx genesis, uploaded in <code>DRAFT</code>.</li>
-<li><strong>Final genesis</strong> (<code>FinalGenesisSHA256</code>) — the coordinator-assembled, post-gentx genesis, uploaded in
+<li><strong>Final genesis</strong> (<code>FinalGenesisSHA256</code>) — the committee-assembled, post-gentx genesis, uploaded in
   <code>WINDOW_CLOSED</code>.</li>
 </ul>
-<p>coordd <strong>never assembles genesis</strong> — the coordinator builds it locally (gentool folds the approved
+<p>coordd <strong>never assembles genesis</strong> — a committee member builds it locally (gentool folds the approved
 allocation files into a base genesis; the chain binary's <code>collect-gentxs</code> adds the gentxs) and uploads it.
 coordd only runs light well-formedness checks and anchors the hash; <strong>the committee is what validates the
 genesis it publishes</strong> — by review (optionally backed by a rehearsal) plus the M-of-N <code>PUBLISH_GENESIS</code>
@@ -1088,6 +1110,20 @@ duplicates). It then binds <code>FinalGenesisInputSetHash</code> (the approved-s
 vet (with gentool / rehearsal) — the file is opaque to coordd.</p>
 <p>Because attestor-mode can't read the file, <code>genesis_time</code> is a <strong>required request field</strong> for an
 attestor-mode final upload (and must be in the future).</p>
+<h2 id="verifying-the-genesis-reproduce-dont-trust">Verifying the genesis — reproduce, don't trust<a class="headerlink" href="#verifying-the-genesis-reproduce-dont-trust" title="Permanent link">&para;</a></h2>
+<p>Those checks are mechanical guardrails, and coordd never assembles the genesis itself — so the trust anchor
+is <strong>independent reproduction by the committee</strong>, not the proposer's uploaded file. The approved inputs are
+deterministic and pinned: the approved gentxs (<code>GET /launch/{id}/gentxs</code>), the approved allocation files, and
+the chain record, all fingerprinted by <code>FinalGenesisInputSetHash</code>. So any committee member can rebuild the
+genesis locally (<code>gentool</code> folds the allocation files; the chain binary's <code>collect-gentxs</code> adds the gentxs)
+and confirm their result's hash equals the proposer's <code>FinalGenesisSHA256</code>. The M-of-N <code>PUBLISH_GENESIS</code>
+signatures are that <strong>reproduction-backed attestation</strong> — each signer vouches for a hash they can regenerate
+from the approved set, not one they merely downloaded.</p>
+<p>The optional <strong>rehearsal</strong> service is the automated, enforceable form of this: <code>rehearsald</code> pulls the same
+approved input set, rebuilds the genesis, boots an ephemeral chain, and posts a <em>signed</em> PASS/FAIL bound to
+the input-set fingerprint — and the rehearsal gate can require a PASS before <code>PUBLISH_GENESIS</code> executes.
+(Validators, at <code>GENESIS_READY</code>, download the file and verify its SHA256 to run their node — last-mile
+distribution against the already-attested hash, not the trust anchor.)</p>
 <h2 id="publishing">Publishing<a class="headerlink" href="#publishing" title="Permanent link">&para;</a></h2>
 <p>Uploading only records the hash. The <code>WINDOW_CLOSED → GENESIS_READY</code> transition happens when the
 <code>PUBLISH_GENESIS</code> committee proposal executes (see <a href="../proposals/">Proposals &amp; M-of-N</a>).</p>

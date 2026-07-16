@@ -1929,25 +1929,34 @@ small transaction boundary while the launch stays the single consistency root fo
 configuration.</p>
 <h2 id="committee-proposals-internal-specifics">Committee &amp; proposals — internal specifics<a class="headerlink" href="#committee-proposals-internal-specifics" title="Permanent link">&para;</a></h2>
 <h3 id="action-types">Action types<a class="headerlink" href="#action-types" title="Permanent link">&para;</a></h3>
-<p>Twelve proposal action types (<code>internal/domain/proposal/payload.go</code>), each with a typed payload:
-<code>APPROVE_VALIDATOR</code>, <code>REJECT_VALIDATOR</code>, <code>REMOVE_APPROVED_VALIDATOR</code>, <code>APPROVE_ALLOCATION_FILE</code>,
-<code>PUBLISH_CHAIN_RECORD</code>, <code>CLOSE_APPLICATION_WINDOW</code>, <code>PUBLISH_GENESIS</code>, <code>UPDATE_GENESIS_TIME</code>,
-<code>REPLACE_COMMITTEE_MEMBER</code>, <code>REVISE_GENESIS</code>, <code>EXPAND_COMMITTEE</code>, <code>SHRINK_COMMITTEE</code>.</p>
+<p>Thirteen proposal action types (constants in <code>internal/domain/proposal/proposal.go</code>; typed payloads in
+<code>payload.go</code>, some empty): <code>APPROVE_VALIDATOR</code>, <code>REJECT_VALIDATOR</code>, <code>REMOVE_APPROVED_VALIDATOR</code>,
+<code>APPROVE_ALLOCATION_FILE</code>, <code>PUBLISH_CHAIN_RECORD</code>, <code>CLOSE_APPLICATION_WINDOW</code>, <code>PUBLISH_GENESIS</code>,
+<code>UPDATE_GENESIS_TIME</code>, <code>REPLACE_COMMITTEE_MEMBER</code>, <code>REVISE_GENESIS</code>, <code>EXPAND_COMMITTEE</code>, <code>SHRINK_COMMITTEE</code>,
+<code>CANCEL_LAUNCH</code>.</p>
 <h3 id="not-everything-is-a-proposal">Not everything is a proposal<a class="headerlink" href="#not-everything-is-a-proposal" title="Permanent link">&para;</a></h3>
-<p><code>OpenWindow</code> and <code>Cancel</code> are <strong>direct</strong> API calls, not proposals. <code>OpenWindow</code> auto-publishes from
-<code>DRAFT</code> when the initial genesis hash is already present (a single-coordinator convenience). <code>Cancel</code> is
-<strong>lead-only</strong> (<code>ErrForbidden</code> for a non-lead) and publishes <code>LaunchCancelled</code> directly — it is <em>not</em> an
-M-of-N vote.</p>
+<p><code>OpenWindow</code> is a <strong>direct</strong> API call, not a proposal — it auto-publishes from <code>DRAFT</code> when the initial
+genesis hash is already present (a single-step convenience).</p>
+<p><strong>Cancel is hybrid.</strong> The direct <code>POST /launch/{id}/cancel</code> endpoint is <strong>lead-only</strong> and valid only in
+<code>DRAFT</code>/<code>PUBLISHED</code>, where no validators have committed — a harmless unilateral scrap. Once a launch is
+past <code>PUBLISHED</code> (<code>WINDOW_OPEN</code> and later) external parties have committed gentxs, so the direct path
+returns <code>409</code> and cancellation must go through an <strong>M-of-N <code>CANCEL_LAUNCH</code> proposal</strong> instead. That
+proposal path is also available in <code>DRAFT</code>/<code>PUBLISHED</code>, so a non-lead committee member can always
+initiate a governed cancel. Both paths publish <code>LaunchCancelled</code>; the proposal path additionally leaves
+the full raise/sign/execute signed trail. The authority to cancel now tracks the cost of cancelling.</p>
 <h3 id="proposal-ttl">Proposal TTL<a class="headerlink" href="#proposal-ttl" title="Permanent link">&para;</a></h3>
 <p>Proposals expire after <strong>48 h</strong> (<code>defaultProposalTTL</code>); a background job scans pending proposals and
 expires the stale ones.</p>
 <h3 id="quorum-veto-mechanics">Quorum &amp; veto mechanics<a class="headerlink" href="#quorum-veto-mechanics" title="Permanent link">&para;</a></h3>
-<p>Execution counts <code>SIGN</code> entries against <code>ThresholdM</code>; each coordinator signs at most once; a single
+<p>Execution counts <code>SIGN</code> entries against <code>ThresholdM</code>; each committee member signs at most once; a single
 <code>VETO</code> short-circuits to <code>VETOED</code>. Vetoing an <code>APPROVE_ALLOCATION_FILE</code> is the <strong>only</strong> veto with a side
 effect — it marks the bound file <code>REJECTED</code> and emits <code>AllocationFileRejected</code>.</p>
 <h3 id="events">Events<a class="headerlink" href="#events" title="Permanent link">&para;</a></h3>
-<p>Most executed actions emit one domain execution event; the committee-resize actions
-(<code>REPLACE/EXPAND/SHRINK_COMMITTEE</code>) emit <strong>none</strong> — the new committee is persisted directly.</p>
+<p>Most executed actions emit one execution event from the domain (<code>emitExecutionEvents</code>) — including
+<code>CANCEL_LAUNCH</code> → <code>LaunchCancelled</code>. The committee-resize actions (<code>REPLACE</code>/<code>EXPAND</code>/<code>SHRINK_COMMITTEE</code>)
+instead have the <strong>application layer</strong> record theirs via <code>Proposal.RecordEvent</code> — <code>CommitteeMemberReplaced</code>
+/ <code>CommitteeExpanded</code> / <code>CommitteeShrunk</code>, each carrying the old→new membership + threshold snapshot the
+payload alone can't provide.</p>
 <h3 id="committee-resize-safety">Committee-resize safety<a class="headerlink" href="#committee-resize-safety" title="Permanent link">&para;</a></h3>
 <p>A resize first <strong>expires all pending proposals</strong> for the launch (<code>ExpireAllPending</code>) — they were sized
 against the old threshold. When <code>new_threshold_m</code> is omitted, M is clamped to <code>[1, newN-1]</code>
@@ -2093,7 +2102,7 @@ unauthenticated (network-restrict it in deploy). A <code>securityHeaders</code> 
 <code>X-Frame-Options: DENY</code> on every response, plus HSTS <strong>only</strong> when coordd terminates TLS itself — in
 infra-TLS mode (a proxy terminates TLS, coordd sees plain HTTP) it defers HSTS to the proxy.</p>
 <h2 id="genesis-readiness-and-launch">Genesis, readiness, and launch<a class="headerlink" href="#genesis-readiness-and-launch" title="Permanent link">&para;</a></h2>
-<p>The genesis storage model (attestor/host), the coordinator-built-genesis boundary, and readiness
+<p>The genesis storage model (attestor/host), the committee-built-genesis boundary, and readiness
 attestation are suite ADRs; the mechanics below are chaincoord-internal.</p>
 <h3 id="genesis-fields-and-gates">Genesis fields and gates<a class="headerlink" href="#genesis-fields-and-gates" title="Permanent link">&para;</a></h3>
 <p><code>InitialGenesisSHA256</code> (uploaded in <code>DRAFT</code>), <code>FinalGenesisSHA256</code> + <code>FinalGenesisInputSetHash</code> (uploaded in
@@ -2110,16 +2119,19 @@ valid (non-invalidated) confirmations count.</p>
 <p><code>RunLaunchMonitor</code> (started in <code>serve.go</code>, 1-minute cadence) polls each <code>GENESIS_READY</code> launch with a
 non-empty <code>MonitorRPCURL</code> — a single URL set by a committee member via <code>PATCH /launch/{id}</code>, re-read each
 tick so a <code>PATCH</code> takes effect without restart: <code>GET &lt;rpc&gt;/block?height=1</code> (5 s timeout, SSRF-guarded), and
-on a <code>200</code> with a non-null <code>result.block</code> calls <code>MarkLaunched</code> and emits <code>LaunchDetected{LaunchID,
-SourceRPC}</code>. (Block-<em>identity</em> verification — <code>chain_id</code> / height — is a queued security follow-up.)</p>
+on a <code>200</code> whose <code>result.block</code> is non-null <strong>and</strong> whose header <code>chain_id</code> matches the launch at height <code>1</code>,
+calls <code>MarkLaunched</code> and emits <code>LaunchDetected{LaunchID, SourceRPC}</code>. The <code>chain_id</code>/height check stops a
+committee-set, content-trusted <code>MonitorRPCURL</code> from flipping an unrelated chain's block 1 into a LAUNCHED
+(NHP-5).</p>
 <h2 id="api-cli">API &amp; CLI<a class="headerlink" href="#api-cli" title="Permanent link">&para;</a></h2>
 <p>The OpenAPI-as-source-of-truth decision is a suite ADR; the routing + CLI structure below is
 chaincoord-internal.</p>
 <h3 id="auth-tier-route-taxonomy">Auth-tier route taxonomy<a class="headerlink" href="#auth-tier-route-taxonomy" title="Permanent link">&para;</a></h3>
 <p>Routes are grouped into five tiers on the Chi router (<code>server.go</code>):</p>
 <ul>
-<li><strong>public</strong> — <code>GET /healthz</code>, <code>GET /audit/pubkey</code>, <code>POST /auth/challenge</code> (rate-limited), <code>POST
-  /auth/verify</code>, and <code>GET</code>/<code>DELETE /auth/session</code>.</li>
+<li><strong>public</strong> — <code>GET /healthz</code>, <code>GET /metrics</code> (unauthenticated — network-restrict it in deploy), <code>GET
+  /audit/pubkey</code>, <code>POST /auth/challenge</code> (rate-limited), <code>POST /auth/verify</code>, and <code>GET</code>/<code>DELETE
+  /auth/session</code>.</li>
 <li><strong>optionalAuth</strong> — resolves the caller if a token is present, else anonymous → visibility gating (the
   reads: <code>GET /launches</code>, <code>/launch/{id}</code>, <code>/committee/{id}</code>, <code>/launch/{id}/chain-hint</code>, genesis, allocations,
   dashboard, peers, audit, events).</li>

@@ -1326,7 +1326,7 @@ entry is stamped at write time.)</p>
 </tr>
 <tr>
 <td><code>LaunchCancelled</code></td>
-<td>Lead coordinator cancels the launch</td>
+<td>Launch canceled — lead direct (<code>DRAFT</code>/<code>PUBLISHED</code>) or a <code>CANCEL_LAUNCH</code> proposal</td>
 </tr>
 <tr>
 <td><code>LaunchDetected</code></td>
@@ -1338,11 +1338,15 @@ entry is stamped at write time.)</p>
 </tr>
 <tr>
 <td><code>RehearsalAttemptReset</code></td>
-<td>A coordinator force-releases a stuck rehearsal run lease (<code>POST .../rehearsal/{attempt_id}/reset</code>)</td>
+<td>A committee member force-releases a stuck rehearsal run lease (<code>POST .../rehearsal/{attempt_id}/reset</code>)</td>
 </tr>
 <tr>
 <td><code>RehearsalRunClaimed</code></td>
 <td>A runner claims the rehearsal-run lease via the bridge — payload carries the attempt ID (the anti-fabrication anchor) and the runner ID</td>
+</tr>
+<tr>
+<td><code>RehearsalGateNotSatisfied</code></td>
+<td>Advisory rehearsal gate only (<code>rehearsal_gate=advisory</code>): a <code>PUBLISH_GENESIS</code> raise proceeded while the latest rehearsal fact was absent, not <code>PASS</code>, or stale — recorded for the trail, <strong>never blocks</strong> (payload carries the reason)</td>
 </tr>
 <tr>
 <td><code>LaunchPatched</code></td>
@@ -1358,7 +1362,7 @@ entry is stamped at write time.)</p>
 </tr>
 <tr>
 <td><code>CommitteeSet</code></td>
-<td>The lead coordinator replaces a DRAFT launch's committee — payload carries the new membership and threshold</td>
+<td>The committee lead replaces a DRAFT launch's committee — payload carries the new membership and threshold</td>
 </tr>
 <tr>
 <td><code>JoinRequestSubmitted</code></td>
@@ -1366,7 +1370,7 @@ entry is stamped at write time.)</p>
 </tr>
 <tr>
 <td><code>ReadinessConfirmed</code></td>
-<td>A validator confirms readiness (<code>POST /launch/{id}/readiness</code>) — payload carries the operator address</td>
+<td>A validator confirms readiness (<code>POST /launch/{id}/ready</code>) — payload carries the operator address</td>
 </tr>
 <tr>
 <td><code>ProposalExpired</code></td>

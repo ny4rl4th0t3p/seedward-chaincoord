@@ -787,6 +787,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#known-limitation-a-member-can-veto-their-own-removal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Known limitation — a member can veto their own removal
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#bft-voting-power-warning" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1227,6 +1238,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#known-limitation-a-member-can-veto-their-own-removal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Known limitation — a member can veto their own removal
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#bft-voting-power-warning" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1259,7 +1281,7 @@
 
 <h1 id="proposals-m-of-n">Proposals &amp; M-of-N<a class="headerlink" href="#proposals-m-of-n" title="Permanent link">&para;</a></h1>
 <p>Every governance decision in seedward-chaincoord goes through a <strong>proposal</strong>. A proposal is a signed, time-limited
-action that executes automatically when M coordinators sign it.</p>
+action that executes automatically when M committee members sign it.</p>
 <hr />
 <h2 id="how-proposals-work">How proposals work<a class="headerlink" href="#how-proposals-work" title="Permanent link">&para;</a></h2>
 <ol>
@@ -1368,8 +1390,18 @@ blocked once the genesis is published — revert to <code>WINDOW_CLOSED</code> v
 <td><code>GENESIS_READY</code> → <code>WINDOW_CLOSED</code></td>
 <td><code>GENESIS_READY</code></td>
 </tr>
+<tr>
+<td><code>CANCEL_LAUNCH</code></td>
+<td>any non-terminal → <code>CANCELED</code></td>
+<td>any non-terminal</td>
+</tr>
 </tbody>
 </table>
+<p><code>CANCEL_LAUNCH</code> is the <strong>governed</strong> cancel path (see the direct/proposal split under
+<a href="../../decisions/#not-everything-is-a-proposal">Not everything is a proposal</a>). It is the <em>only</em>
+way to cancel once a launch is past <code>PUBLISHED</code>, and it stays available in <code>DRAFT</code>/<code>PUBLISHED</code> too so a
+non-lead committee member can still initiate a governed cancel. Canceling from <code>GENESIS_READY</code>
+invalidates existing readiness confirmations, exactly as the direct path did.</p>
 <h3 id="genesis-metadata-allocations">Genesis metadata &amp; allocations<a class="headerlink" href="#genesis-metadata-allocations" title="Permanent link">&para;</a></h3>
 <p><code>UPDATE_GENESIS_TIME</code> is blocked once the launch is terminal (<code>LAUNCHED</code> or <code>CANCELED</code>); it is designed to run at
 <code>GENESIS_READY</code> as part of the revise flow, where it invalidates existing readiness confirmations.
@@ -1449,12 +1481,12 @@ files are reviewed and approved as a unit by humans, with the hash as the integr
 <hr />
 <h2 id="signing-a-proposal">Signing a proposal<a class="headerlink" href="#signing-a-proposal" title="Permanent link">&para;</a></h2>
 <p>Each signature is a secp256k1 signature over the <strong>canonical JSON</strong> of the request with the <code>signature</code> and <code>pubkey_b64</code>
-fields removed. The signed bytes therefore include the coordinator's address, the decision (<code>SIGN</code> or <code>VETO</code>), the
+fields removed. The signed bytes therefore include the committee member's address, the decision (<code>SIGN</code> or <code>VETO</code>), the
 timestamp, and the <code>nonce</code> — the nonce is bound to the signature, so a captured request can't be replayed by swapping
 it.</p>
 <p>The server verifies the signature against the <code>pubkey_b64</code> carried in the request, requiring that pubkey to hash to the
 signer's committee address (so it can't be spoofed, and it works under any address prefix) — a member registers no key
-in advance; they are recognised when they sign. It then consumes the <code>(coordinator, nonce)</code> pair once for replay
+in advance; they are recognised when they sign. It then consumes the <code>(member, nonce)</code> pair once for replay
 protection.</p>
 <hr />
 <h2 id="liveness-guard">Liveness guard<a class="headerlink" href="#liveness-guard" title="Permanent link">&para;</a></h2>
@@ -1464,6 +1496,28 @@ than the new committee size. This keeps the committee able to reach quorum even 
 launch) any threshold from <code>1</code> to <code>N</code> is accepted, including <code>M = N</code> — so a deadlock-prone committee such as 3-of-3
 <em>can</em> be created directly (it just can't be reached afterward via expand/shrink). A 1-of-1 committee (<code>M = N = 1</code>) is
 always valid, since there is no other member to lose.</p>
+<hr />
+<h2 id="known-limitation-a-member-can-veto-their-own-removal">Known limitation — a member can veto their own removal<a class="headerlink" href="#known-limitation-a-member-can-veto-their-own-removal" title="Permanent link">&para;</a></h2>
+<p>The single-VETO kill switch is deliberate — any member with a strong objection can block a proposal — but
+it has a sharp edge. The <strong>only</strong> veto exclusion is that the proposer can't veto their own proposal (raising
+it implicitly casts their SIGN). There is <strong>no exclusion for the target of a removal</strong>: a member removed via
+<code>SHRINK_COMMITTEE</code> / <code>REPLACE_COMMITTEE_MEMBER</code> (raised by someone else) is still a committee member at vote
+time, so <strong>they can veto their own removal</strong> and remain. Past <code>PUBLISHED</code> they can also veto <code>CANCEL_LAUNCH</code>,
+so a single rogue member can <strong>freeze a launch</strong>: it can't advance, they can't be removed, and it can't be
+canceled (proposals TTL-expire after 48 h, but re-raising just gets re-vetoed).</p>
+<p>This is a <strong>safety-over-liveness tradeoff, not an oversight</strong>. Forbidding self-veto would let a malicious
+<em>majority</em> eject an honest minority member to clear the way for something that member would have blocked —
+there is no free lunch. The design accepts the griefing risk because:</p>
+<ul>
+<li>A rogue can only <strong>block</strong>, never execute or steal — the worst case is a denial of service on <em>this</em>
+  launch, and VETO is observable and audited, so misuse is visible and reputationally costly.</li>
+<li>The committee is a <strong>small, chosen set for a time-boxed launch</strong>, not an open-membership DAO — pick
+  members you trust.</li>
+<li><strong>Escape hatches by stage:</strong> in <code>DRAFT</code> the lead can <code>SetCommittee</code> (a direct, wholesale reconfigure — not
+  a vetoable proposal) and drop the rogue; in <code>DRAFT</code>/<code>PUBLISHED</code> the lead can direct-cancel. From
+  <code>WINDOW_OPEN</code> on there is no in-launch escape — abandon the launch and start a fresh one (a rogue can kill
+  <em>this</em> launch but cannot hijack it or carry anything over).</li>
+</ul>
 <hr />
 <h2 id="bft-voting-power-warning">BFT voting power warning<a class="headerlink" href="#bft-voting-power-warning" title="Permanent link">&para;</a></h2>
 <p>When a validator is approved, the server recalculates the share of total committed self-delegation held by each
