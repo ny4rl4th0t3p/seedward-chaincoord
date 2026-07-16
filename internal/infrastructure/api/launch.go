@@ -392,11 +392,14 @@ func (s *Server) handleOpenWindow(w http.ResponseWriter, r *http.Request) {
 }
 
 // POST /launch/{id}/cancel
-// Committee lead only — transitions the launch to CANCELED from any non-terminal status.
+// Committee lead only — the direct cancel path, valid only in DRAFT/PUBLISHED. Past PUBLISHED,
+// cancellation requires an M-of-N CANCEL_LAUNCH committee proposal (this endpoint returns 409).
 //
-// @Summary      Cancel a launch
-// @Description  Transitions a launch to CANCELED. Only the committee lead may call this.
-// @Description  No quorum required — cancellation is a single-actor emergency action.
+// @Summary      Cancel a launch (direct, DRAFT/PUBLISHED only)
+// @Description  Transitions a DRAFT or PUBLISHED launch to CANCELED. Only the committee lead may call
+// @Description  this — no quorum required while no validators have committed. Once a launch is past
+// @Description  PUBLISHED (WINDOW_OPEN and later), this endpoint returns 409 and cancellation must go
+// @Description  through an M-of-N `CANCEL_LAUNCH` committee proposal instead.
 // @Tags         launches
 // @Security     BearerAuth
 // @Produce      json
@@ -405,7 +408,7 @@ func (s *Server) handleOpenWindow(w http.ResponseWriter, r *http.Request) {
 // @Failure      401  {object}  errorEnvelope
 // @Failure      403  {object}  errorEnvelope
 // @Failure      404  {object}  errorEnvelope
-// @Failure      409  {object}  errorEnvelope  "Launch is already in a terminal status"
+// @Failure      409  {object}  errorEnvelope  "Past PUBLISHED (use a CANCEL_LAUNCH proposal), or already terminal"
 // @Router       /launch/{id}/cancel [post]
 func (s *Server) handleLaunchCancel(w http.ResponseWriter, r *http.Request) {
 	s.handleLaunchAction(w, r, s.launches.CancelLaunch)

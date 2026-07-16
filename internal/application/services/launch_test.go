@@ -1038,20 +1038,47 @@ func TestLaunchService_CancelLaunch_AlreadyCancelled(t *testing.T) {
 	require.ErrorIs(t, err, ports.ErrConflict, "canceling an already-canceled launch is a conflict")
 }
 
-func TestLaunchService_CancelLaunch_FromGenesisReady_InvalidatesReadiness(t *testing.T) {
-	l := testLaunch()
-	l.Status = launch.StatusGenesisReady
-	rc := &launch.ReadinessConfirmation{
-		ID:              uuid.New(),
-		LaunchID:        l.ID,
-		OperatorAddress: mustAddr(testAddr2),
-		ConfirmedAt:     time.Now().UTC(),
-	}
-	readinessRepo := newFakeReadinessRepo(rc)
-	svc := newLaunchSvcWithReadiness(newFakeLaunchRepo(l), readinessRepo)
+func TestLaunchService_CancelLaunch_Published_Success(t *testing.T) {
+	l := testLaunch() // lead = testAddr1
+	l.Status = launch.StatusPublished
+	lRepo := newFakeLaunchRepo(l)
+	svc := newLaunchSvcWithReadiness(lRepo, newFakeReadinessRepo())
 
-	require.NoError(t, svc.CancelLaunch(context.Background(), l.ID, testAddr1))
-	assert.False(t, readinessRepo.data[rc.ID].IsValid(), "readiness confirmation should have been invalidated")
+	require.NoError(t, svc.CancelLaunch(context.Background(), l.ID, testAddr1),
+		"PUBLISHED is still on the direct-cancel side of the boundary (no validators yet)")
+	stored, _ := lRepo.FindByID(context.Background(), l.ID)
+	assert.Equal(t, launch.StatusCancelled, stored.Status)
+}
+
+// Past PUBLISHED the direct cancel path is closed: cancellation must route through an M-of-N
+// CANCEL_LAUNCH proposal. The direct path returns 409 and touches nothing — in particular it never
+// reaches GENESIS_READY, so any readiness confirmations survive (their invalidation lives on the
+// proposal apply path; see TestProposalService_CancelLaunch_* in proposal_test.go).
+func TestLaunchService_CancelLaunch_PastPublished_RequiresProposal(t *testing.T) {
+	for _, status := range []launch.Status{
+		launch.StatusWindowOpen, launch.StatusWindowClosed, launch.StatusGenesisReady,
+	} {
+		t.Run(string(status), func(t *testing.T) {
+			l := testLaunch()
+			l.Status = status
+			rc := &launch.ReadinessConfirmation{
+				ID:              uuid.New(),
+				LaunchID:        l.ID,
+				OperatorAddress: mustAddr(testAddr2),
+				ConfirmedAt:     time.Now().UTC(),
+			}
+			readinessRepo := newFakeReadinessRepo(rc)
+			lRepo := newFakeLaunchRepo(l)
+			svc := newLaunchSvcWithReadiness(lRepo, readinessRepo)
+
+			err := svc.CancelLaunch(context.Background(), l.ID, testAddr1) // the lead
+			require.ErrorIs(t, err, ports.ErrConflict)
+			assert.Contains(t, err.Error(), "committee proposal")
+			stored, _ := lRepo.FindByID(context.Background(), l.ID)
+			assert.Equal(t, status, stored.Status, "launch must be untouched by the rejected direct cancel")
+			assert.True(t, readinessRepo.data[rc.ID].IsValid(), "direct path must not invalidate readiness")
+		})
+	}
 }
 
 func TestLaunchService_CancelLaunch_NotGenesisReady_DoesNotInvalidate(t *testing.T) {

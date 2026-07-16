@@ -1466,13 +1466,22 @@ func TestE2E_LaunchCancellation(t *testing.T) {
 	// Validator joins while window is open.
 	submitJoin(t, valClient, launchID, val)
 
-	// Lead coordinator cancels.
-	var cancelResp struct {
+	// The launch is past PUBLISHED (window is open), so the direct lead-only cancel is closed: it
+	// returns 409, and cancellation must go through an M-of-N CANCEL_LAUNCH committee proposal.
+	directCancel := coordClient.do("POST", "/launch/"+launchID+"/cancel", nil)
+	if directCancel.StatusCode != http.StatusConflict {
+		t.Fatalf("direct cancel past PUBLISHED: want 409 (needs a proposal), got %d", directCancel.StatusCode)
+	}
+	directCancel.Body.Close()
+
+	// 1-of-1 committee → a single raise executes the cancel immediately.
+	raiseProposal(t, coordClient, launchID, coord, proposal.ActionCancelLaunch, proposal.CancelLaunchPayload{})
+	var launchAfterCancel struct {
 		Status string `json:"status"`
 	}
-	mustDecode(t, coordClient.do("POST", "/launch/"+launchID+"/cancel", nil), http.StatusOK, &cancelResp)
-	if cancelResp.Status != "CANCELED" {
-		t.Fatalf("cancel: want CANCELED, got %s", cancelResp.Status)
+	mustDecode(t, coordClient.do("GET", "/launch/"+launchID, nil), http.StatusOK, &launchAfterCancel)
+	if launchAfterCancel.Status != "CANCELED" {
+		t.Fatalf("cancel via proposal: want CANCELED, got %s", launchAfterCancel.Status)
 	}
 
 	// A late validator attempting to join gets an error (launch is not in a joinable state).
@@ -1494,7 +1503,7 @@ func TestE2E_LaunchCancellation(t *testing.T) {
 	}
 	resp.Body.Close()
 
-	// Cancelling an already-CANCELED launch is a terminal-state conflict (409). (Lead-only
+	// Canceling an already-CANCELED launch is a terminal-state conflict (409). (Lead-only
 	// authorization is a separate concern, exercised by TestE2E_NonLeadCannotCancel — a 1-of-1
 	// committee has no non-lead member to test it here.)
 	resp = coordClient.do("POST", "/launch/"+launchID+"/cancel", nil)
@@ -1506,10 +1515,11 @@ func TestE2E_LaunchCancellation(t *testing.T) {
 	t.Logf("E2E launch cancellation complete: launch %s canceled, post-cancel actions rejected", launchID)
 }
 
-// TestE2E_NonLeadCannotCancel verifies the lead-only authorization on cancel with a real
-// multi-member committee: a committee member who is NOT the lead gets 403 — distinct from the
-// terminal-state guard, which a 1-of-1 committee cannot exercise (no non-lead member exists).
-func TestE2E_NonLeadCannotCancel(t *testing.T) {
+// TestE2E_NonLeadCancelGoverned proves the two halves of the cancel model with a real multi-member
+// committee: a non-lead committee member is blocked on the DIRECT cancel endpoint (lead-only → 403),
+// but is NOT locked out of canceling — the M-of-N CANCEL_LAUNCH proposal path stays open to any
+// committee member, so the same non-lead can drive a governed cancel to completion.
+func TestE2E_NonLeadCancelGoverned(t *testing.T) {
 	lead := newActor(t)
 	coMember := newActor(t)
 
@@ -1519,27 +1529,29 @@ func TestE2E_NonLeadCannotCancel(t *testing.T) {
 	leadClient := c.withToken(authenticate(t, c, lead))
 	coClient := c.withToken(authenticate(t, c, coMember))
 
-	// 1-of-2 committee: lead + a non-lead member.
+	// 1-of-2 committee: lead + a non-lead member. M=1 → a single raise executes.
 	launchID := createLaunch(t, leadClient, lead, []map[string]any{
 		makeCommitteeMember(lead, "lead"),
 		makeCommitteeMember(coMember, "co"),
 	}, 1, 2)
 
-	// The non-lead committee member cannot cancel — lead-only authorization → 403.
+	// Direct path: the non-lead is rejected by the lead-only authorization → 403.
 	resp := coClient.do("POST", "/launch/"+launchID+"/cancel", nil)
 	if resp.StatusCode != http.StatusForbidden {
-		t.Fatalf("non-lead cancel: want 403, got %d", resp.StatusCode)
+		t.Fatalf("non-lead direct cancel: want 403, got %d", resp.StatusCode)
 	}
 	resp.Body.Close()
 
-	// The lead can cancel.
-	var cancelResp struct {
+	// Governed path: the SAME non-lead raises a CANCEL_LAUNCH proposal, which executes (1-of-2) and
+	// cancels the launch. The committee is never at the mercy of the lead.
+	raiseProposal(t, coClient, launchID, coMember, proposal.ActionCancelLaunch, proposal.CancelLaunchPayload{})
+	var launchGet struct {
 		Status string `json:"status"`
 	}
-	mustDecode(t, leadClient.do("POST", "/launch/"+launchID+"/cancel", nil), http.StatusOK, &cancelResp)
-	if cancelResp.Status != "CANCELED" {
-		t.Fatalf("lead cancel: want CANCELED, got %s", cancelResp.Status)
+	mustDecode(t, coClient.do("GET", "/launch/"+launchID, nil), http.StatusOK, &launchGet)
+	if launchGet.Status != "CANCELED" {
+		t.Fatalf("non-lead cancel via proposal: want CANCELED, got %s", launchGet.Status)
 	}
 
-	t.Logf("E2E non-lead cancel rejected (403); lead cancel succeeded for launch %s", launchID)
+	t.Logf("E2E non-lead direct cancel rejected (403); non-lead cancel via proposal succeeded for launch %s", launchID)
 }

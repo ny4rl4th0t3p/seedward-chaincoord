@@ -142,7 +142,8 @@ func (e ChainRecordPublished) WithTime(t time.Time) ChainRecordPublished {
 	return e
 }
 
-// LaunchCancelled is emitted when a committee lead cancels a launch.
+// LaunchCancelled is emitted when a launch is canceled — directly by the lead from DRAFT/PUBLISHED,
+// or via an M-of-N CANCEL_LAUNCH committee proposal once the launch is past PUBLISHED.
 type LaunchCancelled struct {
 	base
 	LaunchID uuid.UUID

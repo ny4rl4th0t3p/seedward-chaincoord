@@ -53,6 +53,10 @@ type CloseApplicationWindowPayload struct {
 // to authorize reopening the launch for a corrected genesis file upload.
 type ReviseGenesisPayload struct{}
 
+// CancelLaunchPayload carries no fields — the launch_id on the proposal is sufficient. Used for
+// the M-of-N cancel path required once a launch is past PUBLISHED (WINDOW_OPEN and later).
+type CancelLaunchPayload struct{}
+
 type PublishGenesisPayload struct {
 	GenesisHash string `json:"genesis_hash"`
 }
@@ -113,7 +117,7 @@ func ValidatePayload(actionType ActionType, payload []byte) error {
 		return validateExpandCommitteePayload(actionType, payload)
 	case ActionShrinkCommittee:
 		return validateShrinkCommitteePayload(actionType, payload)
-	case ActionCloseApplicationWindow, ActionReviseGenesis:
+	case ActionCloseApplicationWindow, ActionReviseGenesis, ActionCancelLaunch:
 		return nil // No fields required.
 	default:
 		return fmt.Errorf("unknown action type %q", actionType)

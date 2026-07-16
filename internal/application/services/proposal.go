@@ -156,6 +156,12 @@ func (s *ProposalService) Raise(ctx context.Context, launchID uuid.UUID, input R
 		return nil, err
 	}
 
+	// Cancel-governance: high-stakes cancels (past PUBLISHED) must go through this M-of-N proposal;
+	// DRAFT/PUBLISHED cancels use the direct lead-only endpoint.
+	if err := guardCancelLaunchRaise(input.ActionType, l.Status); err != nil {
+		return nil, err
+	}
+
 	sig, err := launch.NewSignature(input.Signature)
 	if err != nil {
 		return nil, fmt.Errorf("raise proposal: signature value: %w: %w", err, ports.ErrBadRequest)
@@ -362,6 +368,9 @@ func (s *ProposalService) applyProposal(ctx context.Context, l *launch.Launch, p
 	case proposal.ActionShrinkCommittee:
 		return s.applyShrinkCommittee(ctx, l, p)
 
+	case proposal.ActionCancelLaunch:
+		return s.applyCancelLaunch(ctx, l, p)
+
 	default:
 		return fmt.Errorf("apply proposal: unknown action type %q", p.ActionType)
 	}
@@ -563,6 +572,23 @@ func (s *ProposalService) applyPublishGenesis(ctx context.Context, l *launch.Lau
 //
 // The freeze is bidirectional, so the two kinds can never be pending at once. applyPublishGenesis's
 // execute-time re-check remains the hard floor against a concurrent-raise race.
+// guardCancelLaunchRaise gates the M-of-N cancel path. A CANCEL_LAUNCH proposal is valid from any
+// non-terminal state: it is the ONLY cancel path once a launch is past PUBLISHED (WINDOW_OPEN and
+// later, where external parties have committed), and it stays available in DRAFT/PUBLISHED too so a
+// committee member who is not the lead can still initiate a governed cancel — the lead's direct
+// endpoint is a convenience shortcut, not the only way. Terminal states (LAUNCHED/CANCELED) cannot be
+// canceled at all; reject the raise up front rather than let it collect signatures and fail at
+// execution. Non-cancel actions pass through untouched.
+func guardCancelLaunchRaise(action proposal.ActionType, status launch.Status) error {
+	if action != proposal.ActionCancelLaunch {
+		return nil
+	}
+	if status == launch.StatusLaunched || status == launch.StatusCancelled {
+		return fmt.Errorf("raise proposal: cannot cancel a %s launch: %w", status, ports.ErrConflict)
+	}
+	return nil
+}
+
 func (s *ProposalService) guardFinalizationRaise(ctx context.Context, l *launch.Launch, action proposal.ActionType) error {
 	// if (not switch) so we only reason about the three actions that touch consistency — the rest are
 	// unaffected (and it keeps the exhaustive linter out of an intentionally partial enum match).
@@ -801,6 +827,24 @@ func (s *ProposalService) applyReviseGenesis(ctx context.Context, l *launch.Laun
 	}
 	if err := s.readiness.InvalidateByLaunch(ctx, l.ID); err != nil {
 		return fmt.Errorf("apply revise genesis: invalidate readiness: %w", err)
+	}
+	return s.saveLaunchAndProposal(ctx, l, p)
+}
+
+// applyCancelLaunch executes an M-of-N CANCEL_LAUNCH proposal — the required cancel path once a launch
+// is past PUBLISHED. It mirrors the direct-endpoint side effects: transition to CANCELED and, when
+// canceling from GENESIS_READY, invalidate the readiness confirmations validators submitted. The
+// terminal LaunchCancelled event is emitted by emitExecutionEvents and dispatched after commit.
+// A stale execute (the launch already left a non-terminal state between raise and quorum) maps to 409.
+func (s *ProposalService) applyCancelLaunch(ctx context.Context, l *launch.Launch, p *proposal.Proposal) error {
+	prev := l.Status
+	if err := l.Cancel(); err != nil {
+		return mapLaunchDomainErr("apply cancel launch", err)
+	}
+	if prev == launch.StatusGenesisReady {
+		if err := s.readiness.InvalidateByLaunch(ctx, l.ID); err != nil {
+			return fmt.Errorf("apply cancel launch: invalidate readiness: %w", err)
+		}
 	}
 	return s.saveLaunchAndProposal(ctx, l, p)
 }

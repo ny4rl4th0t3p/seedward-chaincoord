@@ -1037,8 +1037,12 @@ func validateGenesisStructure(data []byte, expectedChainID string) error {
 	return nil
 }
 
-// CancelLaunch transitions a launch to CANCELED. Only the committee lead may call
-// this. Readiness confirmations are invalidated when canceling from GENESIS_READY.
+// CancelLaunch transitions a DRAFT or PUBLISHED launch to CANCELED. Only the committee lead may call
+// this. Once a launch is past PUBLISHED (WINDOW_OPEN and later) validators have committed gentxs, so a
+// unilateral scrap is too dangerous: cancellation then requires an M-of-N CANCEL_LAUNCH committee
+// proposal, and this direct path rejects it with 409. (Because the direct path can only cancel from
+// DRAFT/PUBLISHED, there are no readiness confirmations to invalidate here — that concern lives in the
+// proposal apply path, which can cancel from GENESIS_READY.)
 func (s *LaunchService) CancelLaunch(ctx context.Context, launchID uuid.UUID, callerAddr string) error {
 	l, err := s.launches.FindByID(ctx, launchID)
 	if err != nil {
@@ -1046,16 +1050,22 @@ func (s *LaunchService) CancelLaunch(ctx context.Context, launchID uuid.UUID, ca
 	}
 	callerID, err := launch.NewAccountID(callerAddr)
 	if err != nil || !l.Committee.LeadAddress.Equal(callerID) {
+		// Authorization first (403) so an unauthorized caller cannot probe launch state.
 		return fmt.Errorf("cancel launch: only the committee lead may cancel: %w", ports.ErrForbidden)
 	}
-	prevStatus := l.Status
+	// Launch-STATE gate (not authz) → 409 Conflict. Only DRAFT/PUBLISHED may cancel directly; the
+	// committed window (WINDOW_OPEN and later) must route through an M-of-N proposal; terminal states
+	// cannot cancel at all.
+	switch l.Status {
+	case launch.StatusDraft, launch.StatusPublished:
+		// direct cancel allowed — proceed below.
+	case launch.StatusWindowOpen, launch.StatusWindowClosed, launch.StatusGenesisReady:
+		return fmt.Errorf("cancel launch: past PUBLISHED, cancellation requires a committee proposal: %w", ports.ErrConflict)
+	case launch.StatusLaunched, launch.StatusCancelled: // terminal — cannot cancel
+		return fmt.Errorf("cancel launch: %w: %w", launch.ErrInvalidStatusTransition, ports.ErrConflict)
+	}
 	if err := l.Cancel(); err != nil {
 		return fmt.Errorf("%w: %w", err, ports.ErrConflict)
-	}
-	if prevStatus == launch.StatusGenesisReady {
-		if err := s.readiness.InvalidateByLaunch(ctx, l.ID); err != nil {
-			return fmt.Errorf("cancel launch: invalidate readiness: %w", err)
-		}
 	}
 	if err := s.launches.Save(ctx, l); err != nil {
 		return fmt.Errorf("cancel launch: save: %w", err)

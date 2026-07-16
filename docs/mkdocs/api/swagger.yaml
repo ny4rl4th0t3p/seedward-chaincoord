@@ -713,6 +713,7 @@ definitions:
     - REVISE_GENESIS
     - EXPAND_COMMITTEE
     - SHRINK_COMMITTEE
+    - CANCEL_LAUNCH
     type: string
     x-enum-varnames:
     - ActionApproveValidator
@@ -727,6 +728,7 @@ definitions:
     - ActionReviseGenesis
     - ActionExpandCommittee
     - ActionShrinkCommittee
+    - ActionCancelLaunch
   proposal.Decision:
     enum:
     - SIGN
@@ -1638,8 +1640,10 @@ paths:
   /launch/{id}/cancel:
     post:
       description: |-
-        Transitions a launch to CANCELED. Only the committee lead may call this.
-        No quorum required — cancellation is a single-actor emergency action.
+        Transitions a DRAFT or PUBLISHED launch to CANCELED. Only the committee lead may call
+        this — no quorum required while no validators have committed. Once a launch is past
+        PUBLISHED (WINDOW_OPEN and later), this endpoint returns 409 and cancellation must go
+        through an M-of-N `CANCEL_LAUNCH` committee proposal instead.
       parameters:
       - description: Launch UUID
         in: path
@@ -1666,12 +1670,12 @@ paths:
           schema:
             $ref: '#/definitions/api.errorEnvelope'
         "409":
-          description: Launch is already in a terminal status
+          description: Past PUBLISHED (use a CANCEL_LAUNCH proposal), or already terminal
           schema:
             $ref: '#/definitions/api.errorEnvelope'
       security:
       - BearerAuth: []
-      summary: Cancel a launch
+      summary: Cancel a launch (direct, DRAFT/PUBLISHED only)
       tags:
       - launches
   /launch/{id}/chain-hint:

@@ -214,6 +214,11 @@ func TestValidatePayload_ReplaceCommitteeMember_Valid(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestValidatePayload_CancelLaunch_Valid(t *testing.T) {
+	err := proposal.ValidatePayload(proposal.ActionCancelLaunch, mustPayload(proposal.CancelLaunchPayload{}))
+	require.NoError(t, err)
+}
+
 func TestValidatePayload_CloseApplicationWindow_Valid(t *testing.T) {
 	err := proposal.ValidatePayload(proposal.ActionCloseApplicationWindow, mustPayload(proposal.CloseApplicationWindowPayload{}))
 	assert.NoError(t, err)
@@ -451,8 +456,9 @@ func TestProposal_ExecutionEvent_ForEveryActionType(t *testing.T) {
 		{proposal.ActionReplaceCommitteeMember, proposal.ReplaceCommitteeMemberPayload{OldAddress: testAddr1, NewAddress: testAddr2, NewMoniker: "n", NewPubKey: "AAAA"}, ""},
 		{proposal.ActionExpandCommittee, validExpandPayload(), ""},
 		{proposal.ActionShrinkCommittee, proposal.ShrinkCommitteePayload{RemoveAddress: testAddr1}, ""},
+		{proposal.ActionCancelLaunch, proposal.CancelLaunchPayload{}, "LaunchCancelled"},
 	}
-	require.Len(t, cases, 12, "every proposal ActionType must be covered — add a case (and bump) when adding an action")
+	require.Len(t, cases, 13, "every proposal ActionType must be covered — add a case (and bump) when adding an action")
 
 	for _, tc := range cases {
 		t.Run(string(tc.action), func(t *testing.T) {

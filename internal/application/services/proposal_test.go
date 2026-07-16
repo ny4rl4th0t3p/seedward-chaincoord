@@ -1213,6 +1213,104 @@ func TestProposalService_ReplaceCommitteeMember_Audited(t *testing.T) {
 	assert.Len(t, pl["NewMembers"], 3, "replacement keeps the committee size")
 }
 
+// --- CancelLaunch (proposal path) ---
+
+// A committee member who is NOT the lead can still cancel an early-stage launch — through the M-of-N
+// proposal path. The lead's direct endpoint is only a shortcut, so the committee stays in control even
+// in DRAFT/PUBLISHED if the lead is absent or adversarial.
+func TestProposalService_CancelLaunch_NonLeadEarlyStage_Executes(t *testing.T) {
+	l := test1of3Launch() // members testAddr1/2/3, lead testAddr1, M=1 → a single raise executes
+	require.Equal(t, launch.StatusDraft, l.Status)
+	lRepo := newFakeLaunchRepo(l)
+	audit := &fakeAuditLogWriter{}
+	svc := NewProposalService(lRepo, newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(),
+		newFakeNonceStore(), &fakeVerifier{}, &fakeEventPublisher{}, audit, &fakeTransactor{})
+
+	// testAddr2 is a committee member but NOT the lead.
+	raw, _ := json.Marshal(proposal.CancelLaunchPayload{})
+	p, err := svc.Raise(context.Background(), l.ID, RaiseInput{
+		ActionType:      proposal.ActionCancelLaunch,
+		Payload:         raw,
+		CoordinatorAddr: testAddr2,
+		Nonce:           uuid.New().String(),
+		Timestamp:       nowTS(),
+		Signature:       testSig,
+		PubKeyB64:       testSig,
+	})
+	require.NoError(t, err, "a non-lead committee member may raise CANCEL_LAUNCH in an early stage")
+	require.Equal(t, proposal.StatusExecuted, p.Status)
+
+	stored, _ := lRepo.FindByID(context.Background(), l.ID)
+	assert.Equal(t, launch.StatusCancelled, stored.Status)
+	assert.True(t, hasAuditEvent(audit.events, "LaunchCancelled"), "the cancel must be audited")
+}
+
+// The high-stakes path: canceling a GENESIS_READY launch requires M-of-N and, on execution,
+// invalidates the readiness confirmations validators already submitted.
+func TestProposalService_CancelLaunch_FromGenesisReady_MultiSig_InvalidatesReadiness(t *testing.T) {
+	l := mustNewLaunch(t, testCommittee(2, 3)) // 2-of-3
+	l.Status = launch.StatusGenesisReady
+	rc := &launch.ReadinessConfirmation{
+		ID:              uuid.New(),
+		LaunchID:        l.ID,
+		OperatorAddress: mustAddr(testAddr3),
+		ConfirmedAt:     time.Now().UTC(),
+	}
+	lRepo := newFakeLaunchRepo(l)
+	readinessRepo := newFakeReadinessRepo(rc)
+	svc := newProposalSvc(lRepo, newFakeJoinRequestRepo(), newFakeProposalRepo(), readinessRepo, newFakeNonceStore(), &fakeVerifier{})
+
+	// The lead raises (1 signature) → still short of the 2-of-3 threshold.
+	p, err := raiseWith(t, svc, l.ID, proposal.ActionCancelLaunch, proposal.CancelLaunchPayload{})
+	require.NoError(t, err)
+	require.Equal(t, proposal.StatusPendingSignatures, p.Status, "one signature is below threshold")
+	stored, _ := lRepo.FindByID(context.Background(), l.ID)
+	assert.Equal(t, launch.StatusGenesisReady, stored.Status, "not canceled until quorum")
+	assert.True(t, readinessRepo.data[rc.ID].IsValid(), "readiness intact until the cancel executes")
+
+	// A second member signs → quorum → executes.
+	p2, err := svc.Sign(context.Background(), l.ID, p.ID, SignInput{
+		CoordinatorAddr: testAddr2,
+		Decision:        proposal.DecisionSign,
+		Nonce:           uuid.New().String(),
+		Timestamp:       nowTS(),
+		Signature:       testSig,
+		PubKeyB64:       testSig,
+	})
+	require.NoError(t, err)
+	require.Equal(t, proposal.StatusExecuted, p2.Status)
+
+	stored, _ = lRepo.FindByID(context.Background(), l.ID)
+	assert.Equal(t, launch.StatusCancelled, stored.Status)
+	assert.False(t, readinessRepo.data[rc.ID].IsValid(), "canceling from GENESIS_READY invalidates readiness")
+}
+
+func TestProposalService_CancelLaunch_TerminalRejected(t *testing.T) {
+	l := test1of3Launch()
+	l.Status = launch.StatusCancelled
+	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
+
+	_, err := raiseWith(t, svc, l.ID, proposal.ActionCancelLaunch, proposal.CancelLaunchPayload{})
+	require.ErrorIs(t, err, ports.ErrConflict, "cannot raise CANCEL_LAUNCH on a terminal launch")
+}
+
+func TestProposalService_CancelLaunch_NonMemberRejected(t *testing.T) {
+	l := test1of1Launch() // only testAddr1 is a committee member
+	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
+
+	raw, _ := json.Marshal(proposal.CancelLaunchPayload{})
+	_, err := svc.Raise(context.Background(), l.ID, RaiseInput{
+		ActionType:      proposal.ActionCancelLaunch,
+		Payload:         raw,
+		CoordinatorAddr: testAddr2, // not a committee member
+		Nonce:           uuid.New().String(),
+		Timestamp:       nowTS(),
+		Signature:       testSig,
+		PubKeyB64:       testSig,
+	})
+	require.ErrorIs(t, err, ports.ErrForbidden, "a non-member cannot raise a cancel proposal")
+}
+
 func TestProposalService_DispatchEvents_PublishesAndAudits(t *testing.T) {
 	// dispatchEvents is the single sink for proposal events: every event it pops must be BOTH
 	// published (SSE) and written to the audit log. The dispatch loop treats all events uniformly,

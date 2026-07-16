@@ -50,6 +50,7 @@ const (
 	ActionReviseGenesis           ActionType = "REVISE_GENESIS"
 	ActionExpandCommittee         ActionType = "EXPAND_COMMITTEE"
 	ActionShrinkCommittee         ActionType = "SHRINK_COMMITTEE"
+	ActionCancelLaunch            ActionType = "CANCEL_LAUNCH"
 )
 
 // Decision is a coordinator's vote on a proposal.
@@ -298,6 +299,11 @@ func (p *Proposal) emitExecutionEvents() {
 			LaunchID:       p.LaunchID,
 			AllocationType: allocType,
 			SHA256:         hash,
+		}.WithTime(now))
+
+	case ActionCancelLaunch:
+		p.events = append(p.events, domain.LaunchCancelled{
+			LaunchID: p.LaunchID,
 		}.WithTime(now))
 
 	case ActionReplaceCommitteeMember, ActionExpandCommittee, ActionShrinkCommittee:
