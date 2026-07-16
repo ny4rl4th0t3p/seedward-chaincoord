@@ -49,12 +49,12 @@ func committeeToJSON(c launch.Committee) committeeJSON {
 }
 
 // POST /launch/{id}/committee
-// Replaces the committee on a DRAFT launch.  Only the lead coordinator may call this.
+// Replaces the committee on a DRAFT launch.  Only the committee lead may call this.
 // Body: { members, threshold_m, total_n, lead_address }
 // Response: 200 committee JSON
 //
 // @Summary      Set committee
-// @Description  Replaces the committee on a DRAFT launch. Lead coordinator only.
+// @Description  Replaces the committee on a DRAFT launch. Committee lead only.
 // @Tags         committee
 // @Security     BearerAuth
 // @Accept       json

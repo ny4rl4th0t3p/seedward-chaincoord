@@ -950,7 +950,7 @@ func TestLaunchService_IsCommitteeMember_True(t *testing.T) {
 
 	ok, err := svc.IsCommitteeMember(context.Background(), l.ID, testAddr1)
 	require.NoError(t, err)
-	assert.True(t, ok, "testAddr1 should be a coordinator")
+	assert.True(t, ok, "testAddr1 should be a committee member")
 }
 
 func TestLaunchService_IsCommitteeMember_False(t *testing.T) {
@@ -960,7 +960,7 @@ func TestLaunchService_IsCommitteeMember_False(t *testing.T) {
 
 	ok, err := svc.IsCommitteeMember(context.Background(), l.ID, testAddr2)
 	require.NoError(t, err)
-	assert.False(t, ok, "testAddr2 should not be a coordinator in a 1-member committee")
+	assert.False(t, ok, "testAddr2 should not be a committee member in a 1-member committee")
 }
 
 func TestLaunchService_IsCommitteeMember_NotFound(t *testing.T) {

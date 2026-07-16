@@ -51,13 +51,13 @@ func hasAuditEvent(evs []ports.AuditEvent, name string) bool {
 func validRaiseInput(_ *launch.Launch) RaiseInput {
 	payload, _ := json.Marshal(proposal.CloseApplicationWindowPayload{})
 	return RaiseInput{
-		ActionType:      proposal.ActionCloseApplicationWindow,
-		Payload:         payload,
-		CoordinatorAddr: testAddr1,
-		Nonce:           uuid.New().String(),
-		Timestamp:       nowTS(),
-		Signature:       testSig,
-		PubKeyB64:       testSig,
+		ActionType: proposal.ActionCloseApplicationWindow,
+		Payload:    payload,
+		MemberAddr: testAddr1,
+		Nonce:      uuid.New().String(),
+		Timestamp:  nowTS(),
+		Signature:  testSig,
+		PubKeyB64:  testSig,
 	}
 }
 
@@ -88,13 +88,13 @@ func TestProposalService_Raise_LaunchNotFound(t *testing.T) {
 
 	payload, _ := json.Marshal(proposal.CloseApplicationWindowPayload{})
 	_, err := svc.Raise(context.Background(), uuid.New(), RaiseInput{
-		ActionType:      proposal.ActionCloseApplicationWindow,
-		Payload:         payload,
-		CoordinatorAddr: testAddr1,
-		Nonce:           uuid.New().String(),
-		Timestamp:       nowTS(),
-		Signature:       testSig,
-		PubKeyB64:       testSig,
+		ActionType: proposal.ActionCloseApplicationWindow,
+		Payload:    payload,
+		MemberAddr: testAddr1,
+		Nonce:      uuid.New().String(),
+		Timestamp:  nowTS(),
+		Signature:  testSig,
+		PubKeyB64:  testSig,
 	})
 	require.ErrorIs(t, err, ports.ErrNotFound)
 }
@@ -107,13 +107,13 @@ func TestProposalService_Raise_NotCommitteeMember(t *testing.T) {
 
 	payload, _ := json.Marshal(proposal.CloseApplicationWindowPayload{})
 	_, err := svc.Raise(context.Background(), l.ID, RaiseInput{
-		ActionType:      proposal.ActionCloseApplicationWindow,
-		Payload:         payload,
-		CoordinatorAddr: testAddr2, // not in committee
-		Nonce:           uuid.New().String(),
-		Timestamp:       nowTS(),
-		Signature:       testSig,
-		PubKeyB64:       testSig,
+		ActionType: proposal.ActionCloseApplicationWindow,
+		Payload:    payload,
+		MemberAddr: testAddr2, // not in committee
+		Nonce:      uuid.New().String(),
+		Timestamp:  nowTS(),
+		Signature:  testSig,
+		PubKeyB64:  testSig,
 	})
 	require.ErrorIs(t, err, ports.ErrForbidden)
 }
@@ -154,14 +154,14 @@ func TestProposalService_Raise_ForwardsRequestPubkey(t *testing.T) {
 	require.Equal(t, "request-envelope-pubkey", verifier.gotPubKeyB64, "verifier must receive the request pubkey, not a stored one")
 }
 
-func TestProposalService_Raise_BadCoordinatorAddress(t *testing.T) {
+func TestProposalService_Raise_BadMemberAddress(t *testing.T) {
 	l := testLaunch()
 	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
 
 	input := validRaiseInput(l)
-	input.CoordinatorAddr = "not-a-bech32-address"
+	input.MemberAddr = "not-a-bech32-address"
 	_, err := svc.Raise(context.Background(), l.ID, input)
-	require.ErrorIs(t, err, ports.ErrBadRequest, "an unparseable coordinator address is a 400")
+	require.ErrorIs(t, err, ports.ErrBadRequest, "an unparseable committee member address is a 400")
 }
 
 func TestProposalService_Raise_InvalidAction(t *testing.T) {
@@ -201,13 +201,13 @@ func TestProposalService_Raise_1of1ExecutesImmediately(t *testing.T) {
 
 	payload, _ := json.Marshal(proposal.CloseApplicationWindowPayload{})
 	p, err := svc.Raise(context.Background(), l.ID, RaiseInput{
-		ActionType:      proposal.ActionCloseApplicationWindow,
-		Payload:         payload,
-		CoordinatorAddr: testAddr1,
-		Nonce:           uuid.New().String(),
-		Timestamp:       nowTS(),
-		Signature:       testSig,
-		PubKeyB64:       testSig,
+		ActionType: proposal.ActionCloseApplicationWindow,
+		Payload:    payload,
+		MemberAddr: testAddr1,
+		Nonce:      uuid.New().String(),
+		Timestamp:  nowTS(),
+		Signature:  testSig,
+		PubKeyB64:  testSig,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, proposal.StatusExecuted, p.Status, "want EXECUTED for 1-of-1 committee")
@@ -223,12 +223,12 @@ func TestProposalService_Sign_NonceConflict(t *testing.T) {
 	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(p), newFakeReadinessRepo(), nonces, &fakeVerifier{})
 
 	_, err := svc.Sign(context.Background(), l.ID, p.ID, SignInput{
-		CoordinatorAddr: testAddr1,
-		Decision:        proposal.DecisionSign,
-		Nonce:           uuid.New().String(),
-		Timestamp:       nowTS(),
-		Signature:       testSig,
-		PubKeyB64:       testSig,
+		MemberAddr: testAddr1,
+		Decision:   proposal.DecisionSign,
+		Nonce:      uuid.New().String(),
+		Timestamp:  nowTS(),
+		Signature:  testSig,
+		PubKeyB64:  testSig,
 	})
 	require.ErrorIs(t, err, ports.ErrConflict, "a rejected nonce must surface as a conflict")
 }
@@ -241,12 +241,12 @@ func TestProposalService_Sign_SigFails(t *testing.T) {
 	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(p), newFakeReadinessRepo(), newFakeNonceStore(), verifier)
 
 	_, err := svc.Sign(context.Background(), l.ID, p.ID, SignInput{
-		CoordinatorAddr: testAddr1,
-		Decision:        proposal.DecisionSign,
-		Nonce:           uuid.New().String(),
-		Timestamp:       nowTS(),
-		Signature:       testSig,
-		PubKeyB64:       testSig,
+		MemberAddr: testAddr1,
+		Decision:   proposal.DecisionSign,
+		Nonce:      uuid.New().String(),
+		Timestamp:  nowTS(),
+		Signature:  testSig,
+		PubKeyB64:  testSig,
 	})
 	require.ErrorIs(t, err, ports.ErrUnauthorized, "a failed signature must map to 401")
 }
@@ -257,11 +257,11 @@ func TestProposalService_Sign_EmptyPubkey(t *testing.T) {
 	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(p), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
 
 	_, err := svc.Sign(context.Background(), l.ID, p.ID, SignInput{
-		CoordinatorAddr: testAddr1,
-		Decision:        proposal.DecisionSign,
-		Nonce:           uuid.New().String(),
-		Timestamp:       nowTS(),
-		Signature:       testSig,
+		MemberAddr: testAddr1,
+		Decision:   proposal.DecisionSign,
+		Nonce:      uuid.New().String(),
+		Timestamp:  nowTS(),
+		Signature:  testSig,
 		// PubKeyB64 omitted → empty
 	})
 	require.ErrorIs(t, err, ports.ErrBadRequest, "a missing pubkey_b64 is a bad request")
@@ -274,12 +274,12 @@ func TestProposalService_Sign_NotCommitteeMember(t *testing.T) {
 	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(p), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
 
 	_, err := svc.Sign(context.Background(), l.ID, p.ID, SignInput{
-		CoordinatorAddr: testAddr2, // not in committee
-		Decision:        proposal.DecisionSign,
-		Nonce:           uuid.New().String(),
-		Timestamp:       nowTS(),
-		Signature:       testSig,
-		PubKeyB64:       testSig,
+		MemberAddr: testAddr2, // not in committee
+		Decision:   proposal.DecisionSign,
+		Nonce:      uuid.New().String(),
+		Timestamp:  nowTS(),
+		Signature:  testSig,
+		PubKeyB64:  testSig,
 	})
 	require.ErrorIs(t, err, ports.ErrForbidden)
 }
@@ -291,12 +291,12 @@ func TestProposalService_Sign_WrongLaunch(t *testing.T) {
 	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(p), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
 
 	_, err := svc.Sign(context.Background(), l.ID, p.ID, SignInput{
-		CoordinatorAddr: testAddr1,
-		Decision:        proposal.DecisionSign,
-		Nonce:           uuid.New().String(),
-		Timestamp:       nowTS(),
-		Signature:       testSig,
-		PubKeyB64:       testSig,
+		MemberAddr: testAddr1,
+		Decision:   proposal.DecisionSign,
+		Nonce:      uuid.New().String(),
+		Timestamp:  nowTS(),
+		Signature:  testSig,
+		PubKeyB64:  testSig,
 	})
 	require.ErrorIs(t, err, ports.ErrNotFound)
 }
@@ -330,15 +330,15 @@ func TestProposalService_Sign_AlreadySigned(t *testing.T) {
 	require.Equal(t, proposal.StatusPendingSignatures, p.Status)
 
 	_, err = svc.Sign(context.Background(), l.ID, p.ID, SignInput{
-		CoordinatorAddr: testAddr1, // already signed as proposer
-		Decision:        proposal.DecisionSign,
-		Nonce:           uuid.New().String(),
-		Timestamp:       nowTS(),
-		Signature:       testSig,
-		PubKeyB64:       testSig,
+		MemberAddr: testAddr1, // already signed as proposer
+		Decision:   proposal.DecisionSign,
+		Nonce:      uuid.New().String(),
+		Timestamp:  nowTS(),
+		Signature:  testSig,
+		PubKeyB64:  testSig,
 	})
 	require.ErrorIs(t, err, ports.ErrConflict, "a double-sign must map to 409")
-	assert.ErrorIs(t, err, proposal.ErrCoordinatorAlreadySigned, "and preserves the domain sentinel")
+	assert.ErrorIs(t, err, proposal.ErrMemberAlreadySigned, "and preserves the domain sentinel")
 }
 
 func TestProposalService_Sign_TTLExpired(t *testing.T) {
@@ -351,12 +351,12 @@ func TestProposalService_Sign_TTLExpired(t *testing.T) {
 	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), propRepo, newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
 
 	_, err := svc.Sign(context.Background(), l.ID, p.ID, SignInput{
-		CoordinatorAddr: testAddr2, // a member who has not yet signed
-		Decision:        proposal.DecisionSign,
-		Nonce:           uuid.New().String(),
-		Timestamp:       nowTS(),
-		Signature:       testSig,
-		PubKeyB64:       testSig,
+		MemberAddr: testAddr2, // a member who has not yet signed
+		Decision:   proposal.DecisionSign,
+		Nonce:      uuid.New().String(),
+		Timestamp:  nowTS(),
+		Signature:  testSig,
+		PubKeyB64:  testSig,
 	})
 	require.ErrorIs(t, err, ports.ErrConflict, "signing a TTL-elapsed proposal must map to 409")
 	assert.ErrorIs(t, err, proposal.ErrProposalTTLExpired, "and preserves the domain sentinel")
@@ -372,25 +372,25 @@ func TestProposalService_Sign_AddsSignature(t *testing.T) {
 	// Raise as testAddr1.
 	payload, _ := json.Marshal(proposal.CloseApplicationWindowPayload{})
 	p, err := svc.Raise(context.Background(), l.ID, RaiseInput{
-		ActionType:      proposal.ActionCloseApplicationWindow,
-		Payload:         payload,
-		CoordinatorAddr: testAddr1,
-		Nonce:           uuid.New().String(),
-		Timestamp:       nowTS(),
-		Signature:       testSig,
-		PubKeyB64:       testSig,
+		ActionType: proposal.ActionCloseApplicationWindow,
+		Payload:    payload,
+		MemberAddr: testAddr1,
+		Nonce:      uuid.New().String(),
+		Timestamp:  nowTS(),
+		Signature:  testSig,
+		PubKeyB64:  testSig,
 	})
 	require.NoError(t, err)
 	require.Equal(t, proposal.StatusPendingSignatures, p.Status, "want PENDING after raise")
 
 	// Sign as testAddr2.
 	p2, err := svc.Sign(context.Background(), l.ID, p.ID, SignInput{
-		CoordinatorAddr: testAddr2,
-		Decision:        proposal.DecisionSign,
-		Nonce:           uuid.New().String(),
-		Timestamp:       nowTS(),
-		Signature:       testSig,
-		PubKeyB64:       testSig,
+		MemberAddr: testAddr2,
+		Decision:   proposal.DecisionSign,
+		Nonce:      uuid.New().String(),
+		Timestamp:  nowTS(),
+		Signature:  testSig,
+		PubKeyB64:  testSig,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, proposal.StatusPendingSignatures, p2.Status, "want still PENDING after second of three")
@@ -489,13 +489,13 @@ func raiseWith(t *testing.T, svc *ProposalService, launchID uuid.UUID, action pr
 	t.Helper()
 	raw, _ := json.Marshal(payload)
 	return svc.Raise(context.Background(), launchID, RaiseInput{
-		ActionType:      action,
-		Payload:         raw,
-		CoordinatorAddr: testAddr1,
-		Nonce:           uuid.New().String(),
-		Timestamp:       nowTS(),
-		Signature:       testSig,
-		PubKeyB64:       testSig,
+		ActionType: action,
+		Payload:    raw,
+		MemberAddr: testAddr1,
+		Nonce:      uuid.New().String(),
+		Timestamp:  nowTS(),
+		Signature:  testSig,
+		PubKeyB64:  testSig,
 	})
 }
 
@@ -995,12 +995,12 @@ func TestProposalService_applyAllocationVeto_RejectsFile(t *testing.T) {
 	require.Equal(t, proposal.StatusPendingSignatures, p.Status)
 
 	p2, err := svc.Sign(context.Background(), l.ID, p.ID, SignInput{
-		CoordinatorAddr: testAddr2,
-		Decision:        proposal.DecisionVeto,
-		Nonce:           uuid.New().String(),
-		Timestamp:       nowTS(),
-		Signature:       testSig,
-		PubKeyB64:       testSig,
+		MemberAddr: testAddr2,
+		Decision:   proposal.DecisionVeto,
+		Nonce:      uuid.New().String(),
+		Timestamp:  nowTS(),
+		Signature:  testSig,
+		PubKeyB64:  testSig,
 	})
 	require.NoError(t, err)
 	require.Equal(t, proposal.StatusVetoed, p2.Status)
@@ -1030,12 +1030,12 @@ func TestProposalService_applyAllocationVeto_StaleNoop(t *testing.T) {
 	require.NoError(t, l.UploadAllocationFile(launch.AllocationClaims, allocHashB))
 
 	_, err = svc.Sign(context.Background(), l.ID, p.ID, SignInput{
-		CoordinatorAddr: testAddr2,
-		Decision:        proposal.DecisionVeto,
-		Nonce:           uuid.New().String(),
-		Timestamp:       nowTS(),
-		Signature:       testSig,
-		PubKeyB64:       testSig,
+		MemberAddr: testAddr2,
+		Decision:   proposal.DecisionVeto,
+		Nonce:      uuid.New().String(),
+		Timestamp:  nowTS(),
+		Signature:  testSig,
+		PubKeyB64:  testSig,
 	})
 	require.NoError(t, err)
 
@@ -1229,13 +1229,13 @@ func TestProposalService_CancelLaunch_NonLeadEarlyStage_Executes(t *testing.T) {
 	// testAddr2 is a committee member but NOT the lead.
 	raw, _ := json.Marshal(proposal.CancelLaunchPayload{})
 	p, err := svc.Raise(context.Background(), l.ID, RaiseInput{
-		ActionType:      proposal.ActionCancelLaunch,
-		Payload:         raw,
-		CoordinatorAddr: testAddr2,
-		Nonce:           uuid.New().String(),
-		Timestamp:       nowTS(),
-		Signature:       testSig,
-		PubKeyB64:       testSig,
+		ActionType: proposal.ActionCancelLaunch,
+		Payload:    raw,
+		MemberAddr: testAddr2,
+		Nonce:      uuid.New().String(),
+		Timestamp:  nowTS(),
+		Signature:  testSig,
+		PubKeyB64:  testSig,
 	})
 	require.NoError(t, err, "a non-lead committee member may raise CANCEL_LAUNCH in an early stage")
 	require.Equal(t, proposal.StatusExecuted, p.Status)
@@ -1270,12 +1270,12 @@ func TestProposalService_CancelLaunch_FromGenesisReady_MultiSig_InvalidatesReadi
 
 	// A second member signs → quorum → executes.
 	p2, err := svc.Sign(context.Background(), l.ID, p.ID, SignInput{
-		CoordinatorAddr: testAddr2,
-		Decision:        proposal.DecisionSign,
-		Nonce:           uuid.New().String(),
-		Timestamp:       nowTS(),
-		Signature:       testSig,
-		PubKeyB64:       testSig,
+		MemberAddr: testAddr2,
+		Decision:   proposal.DecisionSign,
+		Nonce:      uuid.New().String(),
+		Timestamp:  nowTS(),
+		Signature:  testSig,
+		PubKeyB64:  testSig,
 	})
 	require.NoError(t, err)
 	require.Equal(t, proposal.StatusExecuted, p2.Status)
@@ -1300,13 +1300,13 @@ func TestProposalService_CancelLaunch_NonMemberRejected(t *testing.T) {
 
 	raw, _ := json.Marshal(proposal.CancelLaunchPayload{})
 	_, err := svc.Raise(context.Background(), l.ID, RaiseInput{
-		ActionType:      proposal.ActionCancelLaunch,
-		Payload:         raw,
-		CoordinatorAddr: testAddr2, // not a committee member
-		Nonce:           uuid.New().String(),
-		Timestamp:       nowTS(),
-		Signature:       testSig,
-		PubKeyB64:       testSig,
+		ActionType: proposal.ActionCancelLaunch,
+		Payload:    raw,
+		MemberAddr: testAddr2, // not a committee member
+		Nonce:      uuid.New().String(),
+		Timestamp:  nowTS(),
+		Signature:  testSig,
+		PubKeyB64:  testSig,
 	})
 	require.ErrorIs(t, err, ports.ErrForbidden, "a non-member cannot raise a cancel proposal")
 }

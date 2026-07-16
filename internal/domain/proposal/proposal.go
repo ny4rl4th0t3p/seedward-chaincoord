@@ -1,5 +1,5 @@
 // Package proposal contains the Proposal aggregate, which collects M-of-N
-// coordinator signatures and executes actions when quorum is reached.
+// committee member signatures and executes actions when quorum is reached.
 package proposal
 
 import (
@@ -15,13 +15,13 @@ import (
 
 // Sentinel errors for proposal construction and signing. Callers (the proposal service,
 // tests) match these with errors.Is. The signing-guard errors (ErrProposalNotPending,
-// ErrProposalTTLExpired, ErrCoordinatorAlreadySigned) map to 409 via mapProposalDomainErr;
+// ErrProposalTTLExpired, ErrMemberAlreadySigned) map to 409 via mapProposalDomainErr;
 // ErrProposalPayloadRequired guards construction in New.
 var (
-	ErrProposalPayloadRequired  = errors.New("proposal payload must not be nil")
-	ErrProposalNotPending       = errors.New("proposal is not pending signatures")
-	ErrProposalTTLExpired       = errors.New("proposal TTL has expired")
-	ErrCoordinatorAlreadySigned = errors.New("coordinator has already signed this proposal")
+	ErrProposalPayloadRequired = errors.New("proposal payload must not be nil")
+	ErrProposalNotPending      = errors.New("proposal is not pending signatures")
+	ErrProposalTTLExpired      = errors.New("proposal TTL has expired")
+	ErrMemberAlreadySigned     = errors.New("committee member has already signed this proposal")
 )
 
 // Status is the proposal lifecycle state.
@@ -53,7 +53,7 @@ const (
 	ActionCancelLaunch            ActionType = "CANCEL_LAUNCH"
 )
 
-// Decision is a coordinator's vote on a proposal.
+// Decision is a committee member's vote on a proposal.
 type Decision string
 
 const (
@@ -61,15 +61,15 @@ const (
 	DecisionVeto Decision = "VETO"
 )
 
-// SignatureEntry records one coordinator's signed decision.
+// SignatureEntry records one committee member's signed decision.
 type SignatureEntry struct {
-	CoordinatorAddress launch.AccountID
-	Decision           Decision
-	Timestamp          time.Time
-	Signature          launch.Signature // sig over canonical JSON of the signing payload
+	MemberAddress launch.AccountID
+	Decision      Decision
+	Timestamp     time.Time
+	Signature     launch.Signature // sig over canonical JSON of the signing payload
 }
 
-// Proposal is the aggregate root for a multi-sig coordinator action.
+// Proposal is the aggregate root for a multi-sig committee member action.
 type Proposal struct {
 	ID         uuid.UUID
 	LaunchID   uuid.UUID
@@ -114,21 +114,21 @@ func New(
 		Status:     StatusPendingSignatures,
 		Signatures: []SignatureEntry{
 			{
-				CoordinatorAddress: proposedBy,
-				Decision:           DecisionSign,
-				Timestamp:          now,
-				Signature:          proposerSig,
+				MemberAddress: proposedBy,
+				Decision:      DecisionSign,
+				Timestamp:     now,
+				Signature:     proposerSig,
 			},
 		},
 	}
 	return p, nil
 }
 
-// Sign adds a coordinator's SIGN or VETO decision.
+// Sign adds a committee member's SIGN or VETO decision.
 // - A VETO immediately moves the proposal to VETOED.
 // - A SIGN is accumulated; once M signatures are collected the proposal executes.
 func (p *Proposal) Sign(
-	coordinatorAddr launch.AccountID,
+	memberAddr launch.AccountID,
 	decision Decision,
 	sig launch.Signature,
 	thresholdM int,
@@ -141,16 +141,16 @@ func (p *Proposal) Sign(
 		return fmt.Errorf("proposal: TTL has expired: %w", ErrProposalTTLExpired)
 	}
 	for _, s := range p.Signatures {
-		if s.CoordinatorAddress.Equal(coordinatorAddr) {
-			return fmt.Errorf("proposal: coordinator %s has already signed: %w", coordinatorAddr, ErrCoordinatorAlreadySigned)
+		if s.MemberAddress.Equal(memberAddr) {
+			return fmt.Errorf("proposal: committee member %s has already signed: %w", memberAddr, ErrMemberAlreadySigned)
 		}
 	}
 
 	p.Signatures = append(p.Signatures, SignatureEntry{
-		CoordinatorAddress: coordinatorAddr,
-		Decision:           decision,
-		Timestamp:          now,
-		Signature:          sig,
+		MemberAddress: memberAddr,
+		Decision:      decision,
+		Timestamp:     now,
+		Signature:     sig,
 	})
 
 	if decision == DecisionVeto {

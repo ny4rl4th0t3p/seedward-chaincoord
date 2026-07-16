@@ -48,7 +48,7 @@ type Config struct {
 
 	// GenesisHostMode enables Option C (host mode): raw genesis file uploads are
 	// accepted and served directly from disk. When false (the default), only
-	// Option A (attestor mode) is accepted — coordinators register an external
+	// Option A (attestor mode) is accepted — committee members register an external
 	// URL + SHA-256 hash and clients are redirected there.
 	GenesisHostMode bool `mapstructure:"genesis_host_mode"`
 

@@ -71,7 +71,7 @@ type EventPublisher interface {
 }
 
 // SessionStore issues and validates short-lived JWT session tokens for authenticated
-// validators and coordinators.
+// operators (validators, committee members, and coordinators).
 type SessionStore interface {
 	// Issue creates a new session token for the given operator address.
 	Issue(ctx context.Context, operatorAddr string) (token string, err error)
@@ -183,10 +183,10 @@ type StoredFileRef struct {
 // GenesisStore manages genesis file storage (initial and final).
 // Two storage modes are supported:
 //
-//   - Option A (attestor): the coordinator publishes the genesis file to their
+//   - Option A (attestor): a committee member publishes the genesis file to their
 //     own infrastructure and registers the URL + hash here. Clients are
 //     redirected to the external URL. No file bytes are stored on this server.
-//   - Option C (host): the coordinator uploads the raw file; this server stores
+//   - Option C (host): a committee member uploads the raw file; this server stores
 //     it on disk and serves it directly. Must be explicitly enabled via config.
 type GenesisStore interface {
 	// Option C — store raw genesis bytes (host mode).

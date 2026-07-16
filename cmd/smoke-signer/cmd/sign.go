@@ -26,7 +26,7 @@ Works for all replay-protected payload types:
   RaiseInput (proposal create), SignInput (proposal sign).
 
 The signer address is derived from --key-index. The JSON must contain either
-an "operator_address" or "coordinator_address" field matching that address.
+an "operator_address" or "member_address" field matching that address.
 If the input JSON contains a "pubkey_b64" field it is filled with the derived
 public key; otherwise it is omitted from the output.`,
 		Example: `  echo '{"operator_address":"cosmos1...","challenge":"abc","nonce":"","timestamp":"","pubkey_b64":"","signature":""}' \

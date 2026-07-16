@@ -242,7 +242,7 @@ func (s *Server) handleJoinGrouped(w http.ResponseWriter, r *http.Request) {
 
 // GET /launch/{id}/gentxs
 // Returns the gentx JSON for every approved join request.
-// Coordinator-only; used to assemble the final genesis.
+// Committee-member-only; used to assemble the final genesis.
 //
 // @Summary      Download approved gentxs
 // @Description  Returns the gentx JSON for all approved join requests. Committee members only.
@@ -294,10 +294,10 @@ func (s *Server) handleGentxsGet(w http.ResponseWriter, r *http.Request) {
 }
 
 // GET /launch/{id}/join/{req_id}
-// Coordinator or the owning validator may fetch a single join request.
+// A committee member or the owning validator may fetch a single join request.
 //
 // @Summary      Get a join request
-// @Description  Coordinator or the owning validator may fetch a single join request.
+// @Description  A committee member or the owning validator may fetch a single join request.
 // @Tags         join-requests
 // @Security     BearerAuth
 // @Produce      json

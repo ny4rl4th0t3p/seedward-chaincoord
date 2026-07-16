@@ -21,7 +21,7 @@ var (
 
 // AllocationType identifies a curated allocation file that the committee governs
 // independently. There is at most one file of each type per launch. The set is
-// fixed; the coordinator produces chain-shaped JSON for each (the same data that
+// fixed; a committee member produces chain-shaped JSON for each (the same data that
 // would otherwise be hand-edited into genesis), and the committee approves whole
 // files rather than individual entries.
 type AllocationType string

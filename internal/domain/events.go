@@ -201,7 +201,7 @@ type InitialGenesisUploaded struct {
 func (InitialGenesisUploaded) EventName() string        { return "InitialGenesisUploaded" }
 func (e InitialGenesisUploaded) GetLaunchID() uuid.UUID { return e.LaunchID }
 
-// FinalGenesisUploaded is emitted when the coordinator-assembled final genesis file is stored.
+// FinalGenesisUploaded is emitted when the committee-assembled final genesis file is stored.
 type FinalGenesisUploaded struct {
 	base
 	LaunchID    uuid.UUID
@@ -287,7 +287,7 @@ func (e RehearsalResultRecorded) WithTime(t time.Time) RehearsalResultRecorded {
 	return e
 }
 
-// RehearsalAttemptReset is emitted when a coordinator force-releases a stuck rehearsal run lease.
+// RehearsalAttemptReset is emitted when a committee member force-releases a stuck rehearsal run lease.
 type RehearsalAttemptReset struct {
 	base
 	LaunchID  uuid.UUID
@@ -352,7 +352,7 @@ type LaunchMemberRemoved struct {
 func (LaunchMemberRemoved) EventName() string        { return "LaunchMemberRemoved" }
 func (e LaunchMemberRemoved) GetLaunchID() uuid.UUID { return e.LaunchID }
 
-// CommitteeSet is emitted when the lead coordinator replaces a DRAFT launch's committee. Carries
+// CommitteeSet is emitted when the committee lead replaces a DRAFT launch's committee. Carries
 // the new membership and threshold so the initial governance set is reconstructable from the log.
 type CommitteeSet struct {
 	base

@@ -44,7 +44,7 @@ func (s *LaunchService) PreviewRehearsalInput(ctx context.Context, launchID uuid
 // (get-or-create) the attempt for its input_set_hash, and acquires the run lease for runnerID —
 // returning the input + attempt_id. If a different runner already holds an unexpired lease on the
 // same input set, it returns *RehearsalLeasedError (409). The lease auto-expires after the TTL, so a
-// crashed runner self-heals; a coordinator can also ResetRehearsalAttempt for an immediate override.
+// crashed runner self-heals; a committee member can also ResetRehearsalAttempt for an immediate override.
 func (s *LaunchService) ClaimRehearsalRun(ctx context.Context, launchID uuid.UUID, runnerID string) (*RehearsalInput, error) {
 	const op = "claim rehearsal run"
 	l, err := s.launches.FindByID(ctx, launchID)

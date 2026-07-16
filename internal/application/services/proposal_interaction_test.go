@@ -29,12 +29,12 @@ func windowClosed2of2(t *testing.T) *launch.Launch {
 func signAs(t *testing.T, svc *ProposalService, launchID, propID uuid.UUID, d proposal.Decision) (*proposal.Proposal, error) {
 	t.Helper()
 	return svc.Sign(context.Background(), launchID, propID, SignInput{
-		CoordinatorAddr: testAddr2,
-		Decision:        d,
-		Nonce:           uuid.New().String(),
-		Timestamp:       nowTS(),
-		Signature:       testSig,
-		PubKeyB64:       testSig,
+		MemberAddr: testAddr2,
+		Decision:   d,
+		Nonce:      uuid.New().String(),
+		Timestamp:  nowTS(),
+		Signature:  testSig,
+		PubKeyB64:  testSig,
 	})
 }
 

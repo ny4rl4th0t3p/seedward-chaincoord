@@ -88,7 +88,7 @@ propose_and_sign() {
 
   local raise_template resp prop_id prop_status
   raise_template=$(printf \
-    '{"coordinator_address":"%s","action_type":"%s","payload":%s,"nonce":"","timestamp":"","pubkey_b64":"","signature":""}' \
+    '{"member_address":"%s","action_type":"%s","payload":%s,"nonce":"","timestamp":"","pubkey_b64":"","signature":""}' \
     "${coord_addr}" "${action_type}" "${payload_json}")
   local signed_raise
   signed_raise=$(echo "${raise_template}" | smoke-signer sign --key-index 0)
@@ -103,7 +103,7 @@ propose_and_sign() {
   if [ "${prop_status}" = "PENDING_SIGNATURES" ]; then
     local sign_template signed_sign
     sign_template=$(printf \
-      '{"coordinator_address":"%s","decision":"SIGN","nonce":"","timestamp":"","pubkey_b64":"","signature":""}' \
+      '{"member_address":"%s","decision":"SIGN","nonce":"","timestamp":"","pubkey_b64":"","signature":""}' \
       "${coord_addr}")
     signed_sign=$(echo "${sign_template}" | smoke-signer sign --key-index 0)
     curl_check -X POST "${SERVER}/launch/${launch_id}/proposal/${prop_id}/sign" \

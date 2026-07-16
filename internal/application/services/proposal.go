@@ -25,7 +25,7 @@ const (
 	pendingJRLimit     = 1000 // max pending join requests to expire in a single close-window call
 )
 
-// ProposalService orchestrates the lifecycle of coordinator proposals.
+// ProposalService orchestrates the lifecycle of committee member proposals.
 // It is the central dispatcher: when a proposal executes, this service applies
 // the side effects to the affected aggregates and dispatches domain events.
 type ProposalService struct {
@@ -90,26 +90,26 @@ func NewProposalService(
 
 // RaiseInput is the payload for creating a new proposal.
 type RaiseInput struct {
-	ActionType      proposal.ActionType `json:"action_type"`
-	Payload         json.RawMessage     `json:"payload" swaggertype:"object"`
-	CoordinatorAddr string              `json:"coordinator_address"`
-	Nonce           string              `json:"nonce"`
-	Timestamp       string              `json:"timestamp"`
-	Signature       string              `json:"signature"`
+	ActionType proposal.ActionType `json:"action_type"`
+	Payload    json.RawMessage     `json:"payload" swaggertype:"object"`
+	MemberAddr string              `json:"member_address"`
+	Nonce      string              `json:"nonce"`
+	Timestamp  string              `json:"timestamp"`
+	Signature  string              `json:"signature"`
 	// PubKeyB64 is the signer's compressed secp256k1 pubkey from the ADR-036 StdSignature envelope.
-	// The verifier asserts it derives to CoordinatorAddr, so it cannot be spoofed.
+	// The verifier asserts it derives to MemberAddr, so it cannot be spoofed.
 	PubKeyB64 string `json:"pubkey_b64"`
 }
 
-// verifyCoordinatorSig authenticates a committee coordinator's ADR-036 signature over message. The
+// verifyMemberSig authenticates a committee member's ADR-036 signature over message. The
 // pubkey comes from the request's StdSignature envelope (pubkey_b64): it must be present, and the
-// verifier asserts it derives to coordAddr, so it cannot be spoofed. Returns a ports-wrapped error —
+// verifier asserts it derives to memberAddr, so it cannot be spoofed. Returns a ports-wrapped error —
 // ErrBadRequest for a missing pubkey, ErrUnauthorized for a signature/pubkey that does not verify.
-func (s *ProposalService) verifyCoordinatorSig(coordAddr, pubKeyB64 string, message, sigBytes []byte) error {
+func (s *ProposalService) verifyMemberSig(memberAddr, pubKeyB64 string, message, sigBytes []byte) error {
 	if pubKeyB64 == "" {
 		return fmt.Errorf("pubkey_b64 is required: %w", ports.ErrBadRequest)
 	}
-	if err := s.verifier.Verify(coordAddr, pubKeyB64, message, sigBytes); err != nil {
+	if err := s.verifier.Verify(memberAddr, pubKeyB64, message, sigBytes); err != nil {
 		return fmt.Errorf("signature invalid: %w: %w", err, ports.ErrUnauthorized)
 	}
 	return nil
@@ -117,7 +117,7 @@ func (s *ProposalService) verifyCoordinatorSig(coordAddr, pubKeyB64 string, mess
 
 // Raise creates a new proposal. The proposer's signature is attached immediately.
 func (s *ProposalService) Raise(ctx context.Context, launchID uuid.UUID, input RaiseInput) (*proposal.Proposal, error) {
-	if err := s.nonces.Consume(ctx, input.CoordinatorAddr, input.Nonce); err != nil {
+	if err := s.nonces.Consume(ctx, input.MemberAddr, input.Nonce); err != nil {
 		return nil, fmt.Errorf("raise proposal: nonce rejected: %w", err)
 	}
 	if err := validateTimestamp(input.Timestamp); err != nil {
@@ -138,15 +138,15 @@ func (s *ProposalService) Raise(ctx context.Context, launchID uuid.UUID, input R
 		return nil, fmt.Errorf("raise proposal: launch: %w", err)
 	}
 
-	coordAddr, err := launch.NewAccountID(input.CoordinatorAddr)
+	memberAddr, err := launch.NewAccountID(input.MemberAddr)
 	if err != nil {
-		return nil, fmt.Errorf("raise proposal: coordinator address: %w: %w", err, ports.ErrBadRequest)
+		return nil, fmt.Errorf("raise proposal: member address: %w: %w", err, ports.ErrBadRequest)
 	}
-	if !l.Committee.HasMember(coordAddr) {
-		return nil, fmt.Errorf("raise proposal: %s is not a committee member: %w", input.CoordinatorAddr, ports.ErrForbidden)
+	if !l.Committee.HasMember(memberAddr) {
+		return nil, fmt.Errorf("raise proposal: %s is not a committee member: %w", input.MemberAddr, ports.ErrForbidden)
 	}
 
-	if err := s.verifyCoordinatorSig(input.CoordinatorAddr, input.PubKeyB64, message, sigBytes); err != nil {
+	if err := s.verifyMemberSig(input.MemberAddr, input.PubKeyB64, message, sigBytes); err != nil {
 		return nil, fmt.Errorf("raise proposal: %w", err)
 	}
 
@@ -173,7 +173,7 @@ func (s *ProposalService) Raise(ctx context.Context, launchID uuid.UUID, input R
 		launchID,
 		input.ActionType,
 		input.Payload,
-		coordAddr,
+		memberAddr,
 		sig,
 		defaultProposalTTL,
 		now,
@@ -198,21 +198,21 @@ func (s *ProposalService) Raise(ctx context.Context, launchID uuid.UUID, input R
 	return p, nil
 }
 
-// SignInput is the payload for a coordinator's SIGN or VETO decision.
+// SignInput is the payload for a committee member's SIGN or VETO decision.
 type SignInput struct {
-	CoordinatorAddr string            `json:"coordinator_address"`
-	Decision        proposal.Decision `json:"decision"`
-	Nonce           string            `json:"nonce"`
-	Timestamp       string            `json:"timestamp"`
-	Signature       string            `json:"signature"`
+	MemberAddr string            `json:"member_address"`
+	Decision   proposal.Decision `json:"decision"`
+	Nonce      string            `json:"nonce"`
+	Timestamp  string            `json:"timestamp"`
+	Signature  string            `json:"signature"`
 	// PubKeyB64 is the signer's compressed secp256k1 pubkey from the ADR-036 StdSignature envelope.
-	// The verifier asserts it derives to CoordinatorAddr, so it cannot be spoofed.
+	// The verifier asserts it derives to MemberAddr, so it cannot be spoofed.
 	PubKeyB64 string `json:"pubkey_b64"`
 }
 
-// Sign adds a coordinator's decision to a pending proposal.
+// Sign adds a committee member's decision to a pending proposal.
 func (s *ProposalService) Sign(ctx context.Context, launchID, proposalID uuid.UUID, input SignInput) (*proposal.Proposal, error) {
-	if err := s.nonces.Consume(ctx, input.CoordinatorAddr, input.Nonce); err != nil {
+	if err := s.nonces.Consume(ctx, input.MemberAddr, input.Nonce); err != nil {
 		return nil, fmt.Errorf("sign proposal: nonce rejected: %w", err)
 	}
 	if err := validateTimestamp(input.Timestamp); err != nil {
@@ -233,15 +233,15 @@ func (s *ProposalService) Sign(ctx context.Context, launchID, proposalID uuid.UU
 		return nil, fmt.Errorf("sign proposal: launch: %w", err)
 	}
 
-	coordAddr, err := launch.NewAccountID(input.CoordinatorAddr)
+	memberAddr, err := launch.NewAccountID(input.MemberAddr)
 	if err != nil {
-		return nil, fmt.Errorf("sign proposal: coordinator address: %w: %w", err, ports.ErrBadRequest)
+		return nil, fmt.Errorf("sign proposal: member address: %w: %w", err, ports.ErrBadRequest)
 	}
-	if !l.Committee.HasMember(coordAddr) {
+	if !l.Committee.HasMember(memberAddr) {
 		return nil, fmt.Errorf("sign proposal: %w", ports.ErrForbidden)
 	}
 
-	if err := s.verifyCoordinatorSig(input.CoordinatorAddr, input.PubKeyB64, message, sigBytes); err != nil {
+	if err := s.verifyMemberSig(input.MemberAddr, input.PubKeyB64, message, sigBytes); err != nil {
 		return nil, fmt.Errorf("sign proposal: %w", err)
 	}
 
@@ -261,7 +261,7 @@ func (s *ProposalService) Sign(ctx context.Context, launchID, proposalID uuid.UU
 		return nil, fmt.Errorf("sign proposal: signature value: %w: %w", err, ports.ErrBadRequest)
 	}
 
-	if err := p.Sign(coordAddr, input.Decision, sig, l.Committee.ThresholdM, time.Now()); err != nil {
+	if err := p.Sign(memberAddr, input.Decision, sig, l.Committee.ThresholdM, time.Now()); err != nil {
 		return nil, mapProposalDomainErr("sign proposal", err)
 	}
 
@@ -394,7 +394,7 @@ func mapProposalDomainErr(op string, err error) error {
 	switch {
 	case errors.Is(err, proposal.ErrProposalNotPending),
 		errors.Is(err, proposal.ErrProposalTTLExpired),
-		errors.Is(err, proposal.ErrCoordinatorAlreadySigned):
+		errors.Is(err, proposal.ErrMemberAlreadySigned):
 		return fmt.Errorf("%s: %w: %w", op, err, ports.ErrConflict)
 	default:
 		return fmt.Errorf("%s: %w", op, err)

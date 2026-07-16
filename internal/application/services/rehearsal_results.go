@@ -250,7 +250,7 @@ func (s *LaunchService) ListRehearsalResults(
 	return s.results.FindByLaunch(ctx, launchID)
 }
 
-// ResetRehearsalAttempt force-releases a stuck run lease back to OPEN — a coordinator override for
+// ResetRehearsalAttempt force-releases a stuck run lease back to OPEN — a committee override for
 // when a runner crashed mid-run (before the lease TTL expires). Committee-gated (governance plane).
 func (s *LaunchService) ResetRehearsalAttempt(ctx context.Context, launchID, attemptID uuid.UUID, callerAddr string) error {
 	const op = "reset rehearsal attempt"

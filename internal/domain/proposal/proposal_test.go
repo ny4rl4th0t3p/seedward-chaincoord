@@ -81,7 +81,7 @@ func TestProposal_CannotSignTwice(t *testing.T) {
 	p := newProposal(proposal.ActionApproveValidator, validApprovePayload())
 	// proposer already signed on creation
 	err := p.Sign(newAddr(testAddr1), proposal.DecisionSign, newSig(), thresholdM, time.Now())
-	assert.ErrorIs(t, err, proposal.ErrCoordinatorAlreadySigned, "duplicate signature from same coordinator")
+	assert.ErrorIs(t, err, proposal.ErrMemberAlreadySigned, "duplicate signature from same committee member")
 }
 
 func TestProposal_CannotSignExecuted(t *testing.T) {

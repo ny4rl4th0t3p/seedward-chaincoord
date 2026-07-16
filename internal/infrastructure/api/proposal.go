@@ -27,18 +27,18 @@ type proposalJSON struct {
 }
 
 type signatureEntryJSON struct {
-	CoordinatorAddress string    `json:"coordinator_address"`
-	Decision           string    `json:"decision"`
-	Timestamp          time.Time `json:"timestamp"`
+	MemberAddress string    `json:"member_address"`
+	Decision      string    `json:"decision"`
+	Timestamp     time.Time `json:"timestamp"`
 }
 
 func proposalToJSON(p *proposal.Proposal) proposalJSON {
 	sigs := make([]signatureEntryJSON, len(p.Signatures))
 	for i, s := range p.Signatures {
 		sigs[i] = signatureEntryJSON{
-			CoordinatorAddress: s.CoordinatorAddress.String(),
-			Decision:           string(s.Decision),
-			Timestamp:          s.Timestamp,
+			MemberAddress: s.MemberAddress.String(),
+			Decision:      string(s.Decision),
+			Timestamp:     s.Timestamp,
 		}
 	}
 	return proposalJSON{
@@ -56,10 +56,10 @@ func proposalToJSON(p *proposal.Proposal) proposalJSON {
 }
 
 // POST /launch/{id}/proposal
-// Coordinator raises a new action proposal.
+// Committee member raises a new action proposal.
 //
 // @Summary      Raise a proposal
-// @Description  Coordinator raises a new action proposal. Rate-limited to 60 req/IP/min.
+// @Description  Committee member raises a new action proposal. Rate-limited to 60 req/IP/min.
 // @Tags         proposals
 // @Security     BearerAuth
 // @Accept       json
@@ -85,8 +85,8 @@ func (s *Server) handleProposalRaise(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Ensure the caller is only acting as themselves.
-	if input.CoordinatorAddr != operatorFromContext(r.Context()) {
-		writeError(w, http.StatusForbidden, "forbidden", "coordinator_address must match the authenticated session")
+	if input.MemberAddr != operatorFromContext(r.Context()) {
+		writeError(w, http.StatusForbidden, "forbidden", "member_address must match the authenticated session")
 		return
 	}
 
@@ -179,10 +179,10 @@ func (s *Server) handleProposalGet(w http.ResponseWriter, r *http.Request) {
 }
 
 // POST /launch/{id}/proposal/{prop_id}/sign
-// Coordinator signs or vetoes a pending proposal.
+// Committee member signs or vetoes a pending proposal.
 //
 // @Summary      Sign or veto a proposal
-// @Description  Coordinator adds their SIGN or VETO decision to a pending proposal. Rate-limited to 60 req/IP/min.
+// @Description  Committee member adds their SIGN or VETO decision to a pending proposal. Rate-limited to 60 req/IP/min.
 // @Tags         proposals
 // @Security     BearerAuth
 // @Accept       json
@@ -214,8 +214,8 @@ func (s *Server) handleProposalSign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if input.CoordinatorAddr != operatorFromContext(r.Context()) {
-		writeError(w, http.StatusForbidden, "forbidden", "coordinator_address must match the authenticated session")
+	if input.MemberAddr != operatorFromContext(r.Context()) {
+		writeError(w, http.StatusForbidden, "forbidden", "member_address must match the authenticated session")
 		return
 	}
 

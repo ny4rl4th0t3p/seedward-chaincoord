@@ -81,14 +81,14 @@ var (
 	ErrCommitteeSizeMismatch   = errors.New("committee member count does not match TotalN")
 )
 
-// CommitteeMember is an individual coordinator in the M-of-N committee.
+// CommitteeMember is one member of the M-of-N committee.
 type CommitteeMember struct {
 	Address   AccountID
 	Moniker   string
 	PubKeyB64 string // base64-encoded secp256k1 compressed public key (33 bytes)
 }
 
-// Committee is the M-of-N coordinator group that governs a launch.
+// Committee is the M-of-N group of committee members that governs a launch.
 // It is owned by the Launch aggregate and does not have an independent lifecycle.
 type Committee struct {
 	ID          uuid.UUID
@@ -156,12 +156,12 @@ type Launch struct {
 	AllocationFiles []AllocationFile
 
 	// MonitorRPCURL is the CometBFT RPC endpoint polled by the block monitoring job.
-	// Set by the coordinator via PATCH /launch/:id; empty disables monitoring.
+	// Set by a committee member via PATCH /launch/:id; empty disables monitoring.
 	MonitorRPCURL string
 
 	// RehearsalServicePubKey is the base64 Ed25519 public key coordd trusts for this launch's
 	// rehearsal result facts. RehearsalEndpoint is the advertised URL of
-	// the rehearsal service for this launch. Both are operational config, set by the coordinator
+	// the rehearsal service for this launch. Both are operational config, set by a committee member
 	// via PATCH /launch/:id at any status (like MonitorRPCURL); empty when the bridge is unused.
 	RehearsalServicePubKey string
 	RehearsalEndpoint      string
@@ -291,7 +291,7 @@ func (l *Launch) Cancel() error {
 }
 
 // ReopenForRevision transitions a GENESIS_READY launch back to WINDOW_CLOSED and clears
-// FinalGenesisSHA256 so the coordinator can re-upload a corrected genesis file.
+// FinalGenesisSHA256 so a committee member can re-upload a corrected genesis file.
 // Returns an error if the current status is not GENESIS_READY.
 func (l *Launch) ReopenForRevision() error {
 	if l.Status != StatusGenesisReady {

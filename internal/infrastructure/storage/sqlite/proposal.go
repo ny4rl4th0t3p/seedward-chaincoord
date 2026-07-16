@@ -44,9 +44,9 @@ func (r *ProposalRepository) Save(ctx context.Context, p *proposal.Proposal) err
 	// Upsert each signature entry.
 	for _, s := range p.Signatures {
 		if _, err := q.ExecContext(ctx, `
-			INSERT OR IGNORE INTO proposal_signatures (proposal_id, coordinator_address, decision, signed_at, signature)
+			INSERT OR IGNORE INTO proposal_signatures (proposal_id, member_address, decision, signed_at, signature)
 			VALUES (?,?,?,?,?)`,
-			uuidToStr(p.ID), s.CoordinatorAddress.String(),
+			uuidToStr(p.ID), s.MemberAddress.String(),
 			string(s.Decision), timeToStr(s.Timestamp), s.Signature.String(),
 		); err != nil {
 			return fmt.Errorf("proposal save signature: %w", err)
@@ -116,7 +116,7 @@ func (r *ProposalRepository) ExpireAllPending(ctx context.Context, launchID uuid
 func (r *ProposalRepository) loadSignatures(ctx context.Context, p *proposal.Proposal) (*proposal.Proposal, error) {
 	q := conn(ctx, r.db)
 	rows, err := q.QueryContext(ctx,
-		`SELECT coordinator_address, decision, signed_at, signature FROM proposal_signatures WHERE proposal_id=? ORDER BY signed_at`,
+		`SELECT member_address, decision, signed_at, signature FROM proposal_signatures WHERE proposal_id=? ORDER BY signed_at`,
 		uuidToStr(p.ID))
 	if err != nil {
 		return nil, fmt.Errorf("load signatures: %w", err)
@@ -141,10 +141,10 @@ func (r *ProposalRepository) loadSignatures(ctx context.Context, p *proposal.Pro
 			return nil, fmt.Errorf("signature value: %w", err)
 		}
 		p.Signatures = append(p.Signatures, proposal.SignatureEntry{
-			CoordinatorAddress: addr,
-			Decision:           proposal.Decision(decision),
-			Timestamp:          t,
-			Signature:          sig,
+			MemberAddress: addr,
+			Decision:      proposal.Decision(decision),
+			Timestamp:     t,
+			Signature:     sig,
 		})
 	}
 	return p, rows.Err()

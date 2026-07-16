@@ -69,7 +69,7 @@ func (a *RehearsalAttempt) Release() {
 	a.LeaseExpiresAt = nil
 }
 
-// Reset returns the attempt to OPEN, clearing a stuck lease (coordinator override).
+// Reset returns the attempt to OPEN, clearing a stuck lease (committee override).
 func (a *RehearsalAttempt) Reset() {
 	a.Status = AttemptOpen
 	a.ClaimedAt = nil

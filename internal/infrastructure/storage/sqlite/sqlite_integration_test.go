@@ -75,7 +75,7 @@ func TestIntegration_ForeignKeyEnforced(t *testing.T) {
 		},
 		{
 			name: "proposal_signature with missing proposal is rejected",
-			stmt: `INSERT INTO proposal_signatures (proposal_id, coordinator_address, decision, signed_at, signature)
+			stmt: `INSERT INTO proposal_signatures (proposal_id, member_address, decision, signed_at, signature)
 				VALUES (?,?,?,?,?)`,
 			args: []any{
 				uuid.New().String(), "addr", "SIGN", "2026-01-01T00:00:00Z", "sig",

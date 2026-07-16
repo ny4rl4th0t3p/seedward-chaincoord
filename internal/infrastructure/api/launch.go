@@ -251,10 +251,10 @@ type patchLaunchRequest struct {
 }
 
 // PATCH /launch/{id}
-// Coordinator only — updates mutable fields on a DRAFT launch.
+// Committee member only — updates mutable fields on a DRAFT launch.
 //
 // @Summary      Update a launch
-// @Description  Partially updates mutable fields on a launch (coordinator only). Most fields require
+// @Description  Partially updates mutable fields on a launch (committee member only). Most fields require
 // @Description  DRAFT status; monitor_rpc_url and the rehearsal bridge fields are settable at any status.
 // @Tags         launches
 // @Security     BearerAuth
@@ -376,7 +376,7 @@ func parsePatchInput(raw map[string]json.RawMessage) (services.PatchLaunchInput,
 }
 
 // @Summary      Open the application window
-// @Description  Transitions a launch from DRAFT to OPEN. Coordinator only.
+// @Description  Transitions a launch from DRAFT to OPEN. Committee member only.
 // @Tags         launches
 // @Security     BearerAuth
 // @Produce      json

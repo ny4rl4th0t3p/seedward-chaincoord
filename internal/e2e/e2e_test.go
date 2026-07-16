@@ -298,11 +298,11 @@ func raiseProposal(t *testing.T, c *testClient, launchID string, coord actor, ac
 
 	payloadBytes, _ := json.Marshal(payload)
 	input := services.RaiseInput{
-		ActionType:      actionType,
-		Payload:         json.RawMessage(payloadBytes),
-		CoordinatorAddr: coord.addr,
-		Nonce:           newNonce(),
-		Timestamp:       nowTS(),
+		ActionType: actionType,
+		Payload:    json.RawMessage(payloadBytes),
+		MemberAddr: coord.addr,
+		Nonce:      newNonce(),
+		Timestamp:  nowTS(),
 	}
 	input.Signature = coord.sign(input)
 	input.PubKeyB64 = coord.pubB64
@@ -447,7 +447,7 @@ func TestE2E_HappyPath(t *testing.T) {
 			"members": []map[string]any{
 				{
 					"address":     coord.addr,
-					"moniker":     "coordinator",
+					"moniker":     "lead",
 					"pub_key_b64": coord.pubB64,
 				},
 			},
@@ -494,7 +494,7 @@ func TestE2E_HappyPath(t *testing.T) {
 		t.Fatalf("want PUBLISHED after publish-chain-record proposal, got %s", launchGet.Status)
 	}
 
-	// Open the application window (direct coordinator action — no proposal required).
+	// Open the application window (direct committee-member action — no proposal required).
 	mustDecode(t, coordClient.do("POST", "/launch/"+launchID+"/open-window", nil), http.StatusOK, &launchGet)
 	if launchGet.Status != "WINDOW_OPEN" {
 		t.Fatalf("want WINDOW_OPEN after open-window, got %s", launchGet.Status)
@@ -592,14 +592,14 @@ func TestE2E_HappyPath(t *testing.T) {
 	mustDecode(t, val4Client.do("POST", "/launch/"+launchID+"/join", joinInput4), http.StatusCreated, &joinResp4)
 	jr4ID := joinResp4.ID
 
-	// 8. Coordinator approves validator 1 (1-of-1 → auto-executes).
+	// 8. Committee member approves validator 1 (1-of-1 → auto-executes).
 	raiseProposal(t, coordClient, launchID, coord, proposal.ActionApproveValidator,
 		proposal.ApproveValidatorPayload{
 			JoinRequestID:   uuid.MustParse(jr1ID),
 			OperatorAddress: val1.addr,
 		})
 
-	// 9. Coordinator approves validators 2, 3, 4.
+	// 9. Committee member approves validators 2, 3, 4.
 	raiseProposal(t, coordClient, launchID, coord, proposal.ActionApproveValidator,
 		proposal.ApproveValidatorPayload{
 			JoinRequestID:   uuid.MustParse(jr2ID),
@@ -616,7 +616,7 @@ func TestE2E_HappyPath(t *testing.T) {
 			OperatorAddress: val4.addr,
 		})
 
-	// 10. Coordinator closes the application window (4 approved → min_validator_count=4 ✓, each holds 25% < 1/3 ✓).
+	// 10. Committee member closes the application window (4 approved → min_validator_count=4 ✓, each holds 25% < 1/3 ✓).
 	raiseProposal(t, coordClient, launchID, coord, proposal.ActionCloseApplicationWindow,
 		proposal.CloseApplicationWindowPayload{})
 
@@ -671,7 +671,7 @@ func TestE2E_HappyPath(t *testing.T) {
 		t.Fatalf("genesis SHA256 mismatch: got %s, want %s", genesisUploadResp.SHA256, finalGenesisHash)
 	}
 
-	// 12. Coordinator raises PUBLISH_GENESIS → GENESIS_READY.
+	// 12. Committee member raises PUBLISH_GENESIS → GENESIS_READY.
 	raiseProposal(t, coordClient, launchID, coord, proposal.ActionPublishGenesis,
 		proposal.PublishGenesisPayload{GenesisHash: finalGenesisHash})
 
@@ -754,11 +754,11 @@ func raiseProposalExpect(t *testing.T, c *testClient, launchID string, coord act
 	t.Helper()
 	payloadBytes, _ := json.Marshal(payload)
 	input := services.RaiseInput{
-		ActionType:      actionType,
-		Payload:         json.RawMessage(payloadBytes),
-		CoordinatorAddr: coord.addr,
-		Nonce:           newNonce(),
-		Timestamp:       nowTS(),
+		ActionType: actionType,
+		Payload:    json.RawMessage(payloadBytes),
+		MemberAddr: coord.addr,
+		Nonce:      newNonce(),
+		Timestamp:  nowTS(),
 	}
 	input.Signature = coord.sign(input)
 	input.PubKeyB64 = coord.pubB64
@@ -779,10 +779,10 @@ func raiseProposalExpect(t *testing.T, c *testClient, launchID string, coord act
 func signProposal(t *testing.T, c *testClient, launchID, propID string, coord actor, decision proposal.Decision) string {
 	t.Helper()
 	input := services.SignInput{
-		CoordinatorAddr: coord.addr,
-		Decision:        decision,
-		Nonce:           newNonce(),
-		Timestamp:       nowTS(),
+		MemberAddr: coord.addr,
+		Decision:   decision,
+		Nonce:      newNonce(),
+		Timestamp:  nowTS(),
 	}
 	input.Signature = coord.sign(input)
 	input.PubKeyB64 = coord.pubB64
@@ -873,7 +873,7 @@ type signerPair struct {
 // publishLaunch uploads an initial genesis and raises PUBLISH_CHAIN_RECORD so
 // the launch transitions DRAFT → PUBLISHED, then calls open-window → WINDOW_OPEN.
 // lead is the proposer; extras are additional signers needed to reach quorum
-// (e.g. pass a second coordinator for a 2-of-3 committee).
+// (e.g. pass a second committee member for a 2-of-3 committee).
 func publishLaunch(t *testing.T, launchID string, lead signerPair, extras ...signerPair) {
 	t.Helper()
 	initialGenesis := []byte(`{"chain_id":"testchain-1"}`)
@@ -885,11 +885,11 @@ func publishLaunch(t *testing.T, launchID string, lead signerPair, extras ...sig
 
 	payloadBytes, _ := json.Marshal(proposal.PublishChainRecordPayload{InitialGenesisHash: initialGenesisHash})
 	input := services.RaiseInput{
-		ActionType:      proposal.ActionPublishChainRecord,
-		Payload:         json.RawMessage(payloadBytes),
-		CoordinatorAddr: lead.a.addr,
-		Nonce:           newNonce(),
-		Timestamp:       nowTS(),
+		ActionType: proposal.ActionPublishChainRecord,
+		Payload:    json.RawMessage(payloadBytes),
+		MemberAddr: lead.a.addr,
+		Nonce:      newNonce(),
+		Timestamp:  nowTS(),
 	}
 	input.Signature = lead.a.sign(input)
 	input.PubKeyB64 = lead.a.pubB64
@@ -900,7 +900,7 @@ func publishLaunch(t *testing.T, launchID string, lead signerPair, extras ...sig
 	}
 	mustDecode(t, lead.c.do("POST", "/launch/"+launchID+"/proposal", input), http.StatusCreated, &propResp)
 
-	// Sign with extra coordinators until quorum is reached.
+	// Sign with extra committee members until quorum is reached.
 	for _, s := range extras {
 		if propResp.Status == "EXECUTED" {
 			break
@@ -938,11 +938,11 @@ func TestE2E_ProposalPubkey(t *testing.T) {
 	// is valid every time (canonicaljson strips signature + pubkey_b64), so only the pubkey varies.
 	raise := func(pubKeyB64 string) int {
 		in := services.RaiseInput{
-			ActionType:      proposal.ActionCloseApplicationWindow,
-			Payload:         json.RawMessage("{}"),
-			CoordinatorAddr: coord.addr,
-			Nonce:           newNonce(),
-			Timestamp:       nowTS(),
+			ActionType: proposal.ActionCloseApplicationWindow,
+			Payload:    json.RawMessage("{}"),
+			MemberAddr: coord.addr,
+			Nonce:      newNonce(),
+			Timestamp:  nowTS(),
 		}
 		in.Signature = coord.sign(in)
 		in.PubKeyB64 = pubKeyB64
@@ -1217,7 +1217,7 @@ func TestE2E_ValidatorNegativePaths(t *testing.T) {
 		t.Fatalf("after approval: want 1 approved, got %d", dash.TotalApproved)
 	}
 
-	// Coordinator removes val2 via REMOVE_APPROVED_VALIDATOR.
+	// Committee member removes val2 via REMOVE_APPROVED_VALIDATOR.
 	raiseProposal(t, coordClient, launchID, coord, proposal.ActionRemoveApprovedValidator,
 		proposal.RemoveApprovedValidatorPayload{
 			JoinRequestID:   uuid.MustParse(jr2ID),
@@ -1298,7 +1298,7 @@ func TestE2E_PrivateLaunch(t *testing.T) {
 	}
 	resp.Body.Close()
 
-	// Coordinator adds invited to the allowlist via PATCH.
+	// Committee member adds invited to the allowlist via PATCH.
 	mustDecode(t, coordClient.do("PATCH", "/launch/"+launchID, map[string]any{
 		"allowlist": []string{invited.addr},
 	}), http.StatusOK, nil)

@@ -100,7 +100,7 @@ func (s *Server) handleRehearsalResultsList(w http.ResponseWriter, r *http.Reque
 // Force-release a stuck rehearsal run lease. Committee-gated (governance plane, not /bridge).
 //
 // @Summary      Reset a rehearsal run lease
-// @Description  Coordinator override that returns a stuck (crashed-runner) rehearsal attempt to OPEN so
+// @Description  Committee-member override that returns a stuck (crashed-runner) rehearsal attempt to OPEN so
 // @Description  the run can be re-claimed before the lease TTL expires. Committee members only.
 // @Tags         rehearsal
 // @Param        id          path  string  true  "Launch UUID"

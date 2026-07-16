@@ -166,9 +166,9 @@ func (s *LaunchService) UploadInitialGenesis(
 	return hash, nil
 }
 
-// UploadFinalGenesis stores the coordinator-assembled final genesis file and
+// UploadFinalGenesis stores the committee-assembled final genesis file and
 // validates its structure. The PUBLISH_GENESIS proposal is raised separately by
-// the coordinator; this endpoint just accepts and validates the file.
+// a committee member; this endpoint just accepts and validates the file.
 func (s *LaunchService) UploadFinalGenesis(
 	ctx context.Context,
 	launchID uuid.UUID,
@@ -477,7 +477,7 @@ func isValidSHA256Hex(s string) bool {
 	return true
 }
 
-// validateFinalGenesis performs structural checks on the coordinator-assembled genesis
+// validateFinalGenesis performs structural checks on the committee-assembled genesis
 // file beyond what validateGenesisStructure already covers. Specifically:
 //  1. genesis_time is set and is in the future.
 //  2. Every approved validator's consensus pubkey appears exactly once in gen_txs.
@@ -830,7 +830,7 @@ func (s *LaunchService) ListMembers(ctx context.Context, launchID uuid.UUID, cal
 }
 
 // SetCommittee replaces the committee on a DRAFT launch.
-// Only the current lead coordinator may call this.
+// Only the current committee lead may call this.
 func (s *LaunchService) SetCommittee(ctx context.Context, launchID uuid.UUID, committee launch.Committee, callerAddr string) error {
 	l, err := s.launches.FindByID(ctx, launchID)
 	if err != nil {
@@ -839,7 +839,7 @@ func (s *LaunchService) SetCommittee(ctx context.Context, launchID uuid.UUID, co
 	callerID, err := launch.NewAccountID(callerAddr)
 	if err != nil || !l.Committee.LeadAddress.Equal(callerID) {
 		// Authorization first (403) so an unauthorized caller cannot probe launch state.
-		return fmt.Errorf("set committee: only the lead coordinator may replace the committee: %w", ports.ErrForbidden)
+		return fmt.Errorf("set committee: only the committee lead may replace the committee: %w", ports.ErrForbidden)
 	}
 	if l.Status != launch.StatusDraft {
 		// Launch-STATE gate (not authz) → 409 Conflict.
@@ -872,8 +872,8 @@ func (s *LaunchService) SetCommittee(ctx context.Context, launchID uuid.UUID, co
 }
 
 // IsCommitteeMember reports whether callerAddr is a committee member of the given launch. (At the
-// launch level, "committee member" is what earlier prose called a per-launch "coordinator"; the
-// global coordinator allowlist — who may create launches — is a separate concept, see admin.go.)
+// launch level, a "committee member" is one of the M-of-N who govern the launch via proposals; the
+// global "coordinator" allowlist — who may create launches — is a separate concept, see admin.go.)
 func (s *LaunchService) IsCommitteeMember(ctx context.Context, launchID uuid.UUID, callerAddr string) (bool, error) {
 	l, err := s.launches.FindByID(ctx, launchID)
 	if err != nil {
@@ -948,7 +948,7 @@ func (s *LaunchService) ListLaunches(ctx context.Context, callerAddr string, pag
 
 // OpenWindow transitions a launch to WINDOW_OPEN.
 // Accepts PUBLISHED status directly. If the launch is still in DRAFT and the initial
-// genesis hash has already been uploaded, it auto-publishes first (single-coordinator
+// genesis hash has already been uploaded, it auto-publishes first (single-step
 // shortcut — equivalent to raising and immediately executing a PUBLISH_CHAIN_RECORD
 // proposal). Any other status returns ErrBadRequest.
 // Only a committee member may call this.

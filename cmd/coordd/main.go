@@ -1,6 +1,7 @@
 // @title           ChainCoord API
 // @version         1.0
-// @description     Chain launch coordination server. Coordinators and validators authenticate via secp256k1 challenge-response (ADR-036)
+// @description     Chain launch coordination server. Coordinators, committee members, and
+// @description     validators authenticate via secp256k1 challenge-response (ADR-036)
 // @host            localhost:8080
 // @BasePath        /
 // @schemes         http https

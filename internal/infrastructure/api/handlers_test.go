@@ -864,7 +864,7 @@ func TestHandleJoinList_BadUUID(t *testing.T) {
 	assertStatusCode(t, w, http.StatusBadRequest)
 }
 
-func TestHandleJoinList_NotCoordinator(t *testing.T) {
+func TestHandleJoinList_NotCommitteeMember(t *testing.T) {
 	h := newHarness(t)
 	// Solo committee: only testAddr1. testAddr2 is not a committee member.
 	l := soloCommitteeLaunch()
@@ -964,7 +964,7 @@ func TestHandleProposalRaise_BadJSON(t *testing.T) {
 }
 
 func TestHandleProposalRaise_AddrMismatch(t *testing.T) {
-	// Handler checks coordinator_address matches the authenticated session before
+	// Handler checks member_address matches the authenticated session before
 	// calling the service — a mismatch returns 403 immediately.
 	h := newHarness(t)
 	l := testLaunch()
@@ -973,7 +973,7 @@ func TestHandleProposalRaise_AddrMismatch(t *testing.T) {
 	body := []byte(`{
 		"action_type":"CLOSE_APPLICATION_WINDOW",
 		"payload":{},
-		"coordinator_address":"` + testAddr2 + `",
+		"member_address":"` + testAddr2 + `",
 		"nonce":"nonce-pr1","timestamp":"` + nowTS() + `","signature":"` + testSig + `"
 	}`)
 	w := h.doAuthJSON("POST", "/launch/"+l.ID.String()+"/proposal", body, tok)
@@ -988,7 +988,7 @@ func TestHandleProposalRaise_Success(t *testing.T) {
 	body := []byte(`{
 		"action_type":"CLOSE_APPLICATION_WINDOW",
 		"payload":{},
-		"coordinator_address":"` + testAddr1 + `",
+		"member_address":"` + testAddr1 + `",
 		"nonce":"nonce-pr2","timestamp":"` + nowTS() + `","signature":"` + testSig + `","pubkey_b64":"` + testSig + `"
 	}`)
 	w := h.doAuthJSON("POST", "/launch/"+l.ID.String()+"/proposal", body, tok)
@@ -1084,13 +1084,13 @@ func TestHandleProposalSign_NoAuth(t *testing.T) {
 	h.launches.data[l.ID] = l
 	p := testProposalObj(l.ID)
 	h.proposals.data[p.ID] = p
-	body := jsonBody(`{"coordinator_address":"` + testAddr1 + `","decision":"SIGN"}`)
+	body := jsonBody(`{"member_address":"` + testAddr1 + `","decision":"SIGN"}`)
 	w := h.doJSON("POST", "/launch/"+l.ID.String()+"/proposal/"+p.ID.String()+"/sign", body)
 	assertStatusCode(t, w, http.StatusUnauthorized)
 }
 
 func TestHandleProposalSign_AddrMismatch(t *testing.T) {
-	// coordinator_address in body must match the authenticated session address.
+	// member_address in body must match the authenticated session address.
 	h := newHarness(t)
 	l := testLaunch()
 	h.launches.data[l.ID] = l
@@ -1098,7 +1098,7 @@ func TestHandleProposalSign_AddrMismatch(t *testing.T) {
 	h.proposals.data[p.ID] = p
 	tok := h.seedSession(testAddr1)
 	body := []byte(`{
-		"coordinator_address":"` + testAddr2 + `",
+		"member_address":"` + testAddr2 + `",
 		"decision":"SIGN",
 		"nonce":"nonce-ps0","timestamp":"` + nowTS() + `","signature":"` + testSig + `"
 	}`)
@@ -1114,7 +1114,7 @@ func TestHandleProposalSign_Success(t *testing.T) {
 	h.proposals.data[p.ID] = p
 	tok := h.seedSession(testAddr1)
 	body := []byte(`{
-		"coordinator_address":"` + testAddr1 + `",
+		"member_address":"` + testAddr1 + `",
 		"decision":"SIGN",
 		"nonce":"nonce-ps1","timestamp":"` + nowTS() + `","signature":"` + testSig + `","pubkey_b64":"` + testSig + `"
 	}`)

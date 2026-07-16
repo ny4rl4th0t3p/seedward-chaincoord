@@ -125,8 +125,8 @@ func (s *ReadinessService) Confirm(ctx context.Context, launchID uuid.UUID, inpu
 			input.GenesisHashConfirmed, l.FinalGenesisSHA256, ports.ErrBadRequest)
 	}
 
-	// The binary hash must match the chain record, but only when the coordinator
-	// published a reference hash. If BinarySHA256 is empty the check is skipped.
+	// The binary hash must match the chain record, but only when the chain record
+	// declares a reference hash. If BinarySHA256 is empty the check is skipped.
 	if l.Record.BinarySHA256 != "" && input.BinaryHashConfirmed != l.Record.BinarySHA256 {
 		return nil, fmt.Errorf("confirm readiness: binary_hash_confirmed %q does not match expected binary hash %q: %w",
 			input.BinaryHashConfirmed, l.Record.BinarySHA256, ports.ErrBadRequest)
