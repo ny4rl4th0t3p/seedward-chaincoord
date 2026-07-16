@@ -898,11 +898,11 @@ func TestLaunchService_OpenWindow_NotFound(t *testing.T) {
 	require.ErrorIs(t, err, ports.ErrNotFound)
 }
 
-func TestLaunchService_OpenWindow_DraftWithoutGenesis_BadRequest(t *testing.T) {
+func TestLaunchService_OpenWindow_DraftWithoutGenesis_Conflict(t *testing.T) {
 	l := testLaunch() // DRAFT, no genesis uploaded
 	svc := newLaunchSvc(newFakeLaunchRepo(l), newFakeGenesisStore())
 	err := svc.OpenWindow(context.Background(), l.ID, testAddr1)
-	require.ErrorIs(t, err, ports.ErrBadRequest)
+	require.ErrorIs(t, err, ports.ErrConflict, "an unmet precondition is a state conflict (409), like the other gates")
 }
 
 func TestLaunchService_OpenWindow_WrongStatus(t *testing.T) {
@@ -910,7 +910,7 @@ func TestLaunchService_OpenWindow_WrongStatus(t *testing.T) {
 	l.Status = launch.StatusWindowOpen // already open — invalid transition
 	svc := newLaunchSvc(newFakeLaunchRepo(l), newFakeGenesisStore())
 	err := svc.OpenWindow(context.Background(), l.ID, testAddr1)
-	require.ErrorIs(t, err, ports.ErrBadRequest)
+	require.ErrorIs(t, err, ports.ErrConflict)
 }
 
 func TestLaunchService_OpenWindow_AutoPublishFromDraft(t *testing.T) {

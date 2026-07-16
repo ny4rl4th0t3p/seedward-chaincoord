@@ -386,6 +386,7 @@ func parsePatchInput(raw map[string]json.RawMessage) (services.PatchLaunchInput,
 // @Failure      401  {object}  errorEnvelope
 // @Failure      403  {object}  errorEnvelope
 // @Failure      404  {object}  errorEnvelope
+// @Failure      409  {object}  errorEnvelope
 // @Router       /launch/{id}/open-window [post]
 func (s *Server) handleOpenWindow(w http.ResponseWriter, r *http.Request) {
 	s.handleLaunchAction(w, r, s.launches.OpenWindow)

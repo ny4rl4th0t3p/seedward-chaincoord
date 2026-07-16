@@ -2313,6 +2313,10 @@ paths:
           description: Not Found
           schema:
             $ref: '#/definitions/api.errorEnvelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
       security:
       - BearerAuth: []
       summary: Open the application window

@@ -962,17 +962,19 @@ func (s *LaunchService) OpenWindow(ctx context.Context, launchID uuid.UUID, call
 		return fmt.Errorf("open window: caller is not a committee member: %w", ports.ErrForbidden)
 	}
 
+	// Launch-STATE gates (not authz) → 409 Conflict, consistent with SetCommittee/PatchLaunch/uploads:
+	// an unmet precondition or an invalid transition conflicts with the launch's current state.
 	if l.Status == launch.StatusDraft {
 		if l.InitialGenesisSHA256 == "" {
-			return fmt.Errorf("open window: initial genesis must be uploaded before opening the application window: %w", ports.ErrBadRequest)
+			return fmt.Errorf("open window: initial genesis must be uploaded before opening the application window: %w", ports.ErrConflict)
 		}
 		if err := l.Publish(l.InitialGenesisSHA256); err != nil {
-			return fmt.Errorf("open window: auto-publish: %w: %w", err, ports.ErrBadRequest)
+			return fmt.Errorf("open window: auto-publish: %w: %w", err, ports.ErrConflict)
 		}
 	}
 
 	if err := l.OpenWindow(); err != nil {
-		return fmt.Errorf("%w: %w", err, ports.ErrBadRequest)
+		return fmt.Errorf("%w: %w", err, ports.ErrConflict)
 	}
 	if err := s.launches.Save(ctx, l); err != nil {
 		return err
