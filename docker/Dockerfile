@@ -21,6 +21,11 @@ USER coordd
 
 # coordd serves on COORD_LISTEN_ADDR (default :8080).
 EXPOSE 8080
+
+# Liveness: probe the deep /healthz (DB SELECT 1 + audit-writability → 503 on failure), not just process
+# up. busybox wget is in the alpine base, so no extra package. Hits the in-container port (8080).
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --spider -q http://127.0.0.1:8080/healthz || exit 1
 # Default to `serve`; override with e.g. `docker run <image> migrate` (the e2e chains migrate+serve).
 ENTRYPOINT ["coordd"]
 CMD ["serve"]

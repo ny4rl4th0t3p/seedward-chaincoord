@@ -29,6 +29,7 @@ jobs:
           flavor: latest=auto
           tags: |
             type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
       - uses: docker/build-push-action@v6
         with:
           context: .
