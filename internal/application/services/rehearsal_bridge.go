@@ -74,7 +74,7 @@ func (s *LaunchService) ClaimRehearsalRun(ctx context.Context, launchID uuid.UUI
 		return nil, fmt.Errorf("%s: save: %w", op, err)
 	}
 	in.AttemptID = attempt.ID
-	s.writeAudit(ctx, l.ID.String(), domain.RehearsalRunClaimed{
+	s.emit(ctx, l.ID.String(), domain.RehearsalRunClaimed{
 		LaunchID:  l.ID,
 		AttemptID: attempt.ID,
 		RunnerID:  runnerID,

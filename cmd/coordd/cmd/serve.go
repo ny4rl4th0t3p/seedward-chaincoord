@@ -324,13 +324,13 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		rehearsalResultRepo,
 	)
 	launchSvc = configureLaunchService(launchSvc, cfg).WithLogger(logger)
-	joinReqSvc := services.NewJoinRequestService(launchRepo, joinReqRepo, nonceStore, verifier, gentxvalidation.New(), auditLog).
+	joinReqSvc := services.NewJoinRequestService(launchRepo, joinReqRepo, nonceStore, verifier, gentxvalidation.New(), sseBroker, auditLog).
 		WithLogger(logger)
 	proposalSvc := services.NewProposalService(
 		launchRepo, joinReqRepo, proposalRepo, readinessRepo,
 		nonceStore, verifier, sseBroker, auditLog, tx,
 	).WithRehearsalGate(cfg.RehearsalGate, rehearsalResultRepo).WithLogger(logger)
-	readinessSvc := services.NewReadinessService(launchRepo, joinReqRepo, readinessRepo, nonceStore, verifier, auditLog).
+	readinessSvc := services.NewReadinessService(launchRepo, joinReqRepo, readinessRepo, nonceStore, verifier, sseBroker, auditLog).
 		WithLogger(logger)
 
 	// --- HTTP server -----------------------------------------------------

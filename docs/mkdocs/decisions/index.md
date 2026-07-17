@@ -65,6 +65,23 @@ instead have the **application layer** record theirs via `Proposal.RecordEvent` 
 / `CommitteeExpanded` / `CommitteeShrunk`, each carrying the old→new membership + threshold snapshot the
 payload alone can't provide.
 
+### Live event feed mirrors the audit log
+
+The per-launch SSE stream (`GET /launch/{id}/events`) is the **real-time projection of the audit log**:
+every launch-scoped domain event that is audited is also broadcast. This is enforced **structurally, not by
+convention** — each service records launch events through a single `emit(ctx, scope, ev)` = `recordAudit` +
+`events.Publish`, so audit-coverage and SSE-coverage are equal by construction and can't drift as new actions
+are added. (Before this, only proposal executions, cancel, and rehearsal were broadcast; direct actions —
+`OpenWindow`, genesis uploads, patches, member changes, readiness, join requests — were audited but never
+reached the feed.) Ordering is save → audit → publish (only broadcast what is durably recorded); the publish
+is best-effort (the broker drops slow subscribers), while the audit keeps its own semantics (fatal for
+governance-completion events in `dispatchEvents`, best-effort otherwise). **Global-scope** events
+(coordinator allowlist, session revocation) have no per-launch channel and stay audit-only via `writeAudit`.
+`/events` is visibility-gated to the same audience that may read the audit log (committee ∪ members), so
+broadcasting audited events adds no exposure. An idle stream receives a `: ping` comment heartbeat (~25 s)
+so proxies don't reap the connection and a departed subscriber is detected (the failed write returns the
+handler, freeing its broker slot).
+
 ### Committee-resize safety
 
 A resize first **expires all pending proposals** for the launch (`ExpireAllPending`) — they were sized

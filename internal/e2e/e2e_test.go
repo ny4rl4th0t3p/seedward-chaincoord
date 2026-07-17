@@ -375,12 +375,12 @@ func buildTestServer(t *testing.T, admins []string) *testServer {
 	authSvc := services.NewAuthService(challengeStore, sessionStore, nonceStore, verifier, al)
 	launchSvc := services.NewLaunchService(launchRepo, joinReqRepo, readinessRepo, genesisStore, allocationStore, sseBroker, al, attemptRepo, resultRepo).
 		WithURLValidator(netutil.ValidateRPCURLFormat)
-	joinReqSvc := services.NewJoinRequestService(launchRepo, joinReqRepo, nonceStore, verifier, e2eGentxValidator{}, al)
+	joinReqSvc := services.NewJoinRequestService(launchRepo, joinReqRepo, nonceStore, verifier, e2eGentxValidator{}, sseBroker, al)
 	proposalSvc := services.NewProposalService(
 		launchRepo, joinReqRepo, proposalRepo, readinessRepo,
 		nonceStore, verifier, sseBroker, al, tx,
 	)
-	readinessSvc := services.NewReadinessService(launchRepo, joinReqRepo, readinessRepo, nonceStore, verifier, al)
+	readinessSvc := services.NewReadinessService(launchRepo, joinReqRepo, readinessRepo, nonceStore, verifier, sseBroker, al)
 
 	apiServer := api.NewServer(
 		zerolog.Nop(), "", admins,

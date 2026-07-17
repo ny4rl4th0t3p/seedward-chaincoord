@@ -300,7 +300,7 @@ func (s *ProposalService) ExpireStale(ctx context.Context) error {
 			if err := s.proposals.Save(ctx, p); err != nil {
 				return fmt.Errorf("expire stale: save proposal %s: %w", p.ID, err)
 			}
-			s.writeAudit(ctx, p.LaunchID.String(), domain.ProposalExpired{
+			s.emit(ctx, p.LaunchID.String(), domain.ProposalExpired{
 				LaunchID:   p.LaunchID,
 				ProposalID: p.ID,
 				ActionType: string(p.ActionType),
@@ -711,7 +711,7 @@ func (s *ProposalService) auditRehearsalGate(ctx context.Context, launchID uuid.
 	if s.audit == nil {
 		return
 	}
-	s.writeAudit(ctx, launchID.String(),
+	s.emit(ctx, launchID.String(),
 		domain.RehearsalGateNotSatisfied{LaunchID: launchID, Reason: reason})
 }
 
@@ -935,12 +935,13 @@ func ResolveThreshold(currentM, newN int, override *int) int {
 	return m
 }
 
-// writeAudit records a launch-scoped audit event, logging (not failing) on error — the
-// log-and-continue path for direct actions (mirrors LaunchService.writeAudit). The two-phase
-// proposal-execution events use writeAuditEvent directly, since their error handling differs (the
-// intent write aborts the proposal on failure; the completion write is fatal).
-func (s *ProposalService) writeAudit(ctx context.Context, scope string, ev domain.DomainEvent) {
+// emit records a launch-scoped domain event to the audit log AND broadcasts it to SSE subscribers
+// (mirrors LaunchService.emit — both best-effort). The two-phase proposal-execution completion events
+// use writeAuditEvent + events.Publish directly in dispatchEvents, since their error handling differs
+// (the intent write aborts the proposal on failure; the completion write is fatal).
+func (s *ProposalService) emit(ctx context.Context, scope string, ev domain.DomainEvent) {
 	recordAudit(ctx, s.audit, s.logger, scope, ev)
+	s.events.Publish(ev)
 }
 
 // applyAndSave wraps all aggregate writes for an executed proposal in a single
@@ -964,7 +965,7 @@ func (s *ProposalService) applyAndSave(ctx context.Context, l *launch.Launch, p 
 	}); err != nil {
 		// Execution rolled back after the intent was recorded — record the abort so the trail
 		// self-explains (intent + aborted = the action did not happen).
-		s.writeAudit(ctx, p.LaunchID.String(), domain.ProposalExecutionAborted{
+		s.emit(ctx, p.LaunchID.String(), domain.ProposalExecutionAborted{
 			LaunchID:   p.LaunchID,
 			ProposalID: p.ID,
 			ActionType: string(p.ActionType),

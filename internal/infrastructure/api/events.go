@@ -4,10 +4,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
+
+// sseHeartbeatInterval is how often handleEvents writes a ':' comment frame to keep idle SSE
+// connections alive (proxies reap silent streams) and to detect dead subscribers (a write to a
+// closed socket errors → the handler returns → Unsubscribe frees the slot). A package var so tests
+// can shorten it.
+var sseHeartbeatInterval = 25 * time.Second
 
 // GET /launch/{id}/events
 // Server-Sent Events stream for live launch updates.
@@ -52,10 +59,21 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	ch := s.sseBroker.Subscribe(launchID.String())
 	defer s.sseBroker.Unsubscribe(launchID.String(), ch)
 
+	// Heartbeat: without it, an idle launch sends no bytes, so proxies reap the connection and a dead
+	// subscriber goes unnoticed. A comment frame (a ':' line) is ignored by SSE clients but keeps bytes
+	// flowing and, on a closed socket, errors → we return → the deferred Unsubscribe frees the slot.
+	ticker := time.NewTicker(sseHeartbeatInterval)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-r.Context().Done():
 			return
+		case <-ticker.C:
+			if _, err := fmt.Fprint(w, ": ping\n\n"); err != nil {
+				return
+			}
+			flusher.Flush()
 		case ev, ok := <-ch:
 			if !ok {
 				return

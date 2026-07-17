@@ -21,7 +21,7 @@ func newReadinessSvc(
 	nonces *fakeNonceStore,
 	verifier *fakeVerifier,
 ) *ReadinessService {
-	return NewReadinessService(launchRepo, jrRepo, readinessRepo, nonces, verifier, &fakeAuditLogWriter{})
+	return NewReadinessService(launchRepo, jrRepo, readinessRepo, nonces, verifier, &fakeEventPublisher{}, &fakeAuditLogWriter{})
 }
 
 // genesisReadyLaunch returns a launch in GENESIS_READY status with known hashes.
@@ -128,7 +128,7 @@ func TestReadinessService_Confirm_Audited(t *testing.T) {
 	l := genesisReadyLaunch()
 	jr := approvedJoinRequest(t, l.ID, testAddr1)
 	audit := &fakeAuditLogWriter{}
-	svc := NewReadinessService(newFakeLaunchRepo(l), newFakeJoinRequestRepo(jr), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{}, audit)
+	svc := NewReadinessService(newFakeLaunchRepo(l), newFakeJoinRequestRepo(jr), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{}, &fakeEventPublisher{}, audit)
 
 	_, err := svc.Confirm(context.Background(), l.ID, validConfirmInput(l))
 	require.NoError(t, err)

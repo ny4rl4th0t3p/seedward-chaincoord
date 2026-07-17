@@ -126,8 +126,7 @@ func (s *LaunchService) RecordRehearsalResult(
 		Outcome:      fact.Outcome,
 		Stale:        stale,
 	}.WithTime(res.RecordedAt)
-	s.events.Publish(ev)
-	s.writeAudit(ctx, launchID.String(), ev)
+	s.emit(ctx, launchID.String(), ev)
 
 	return res, nil
 }
@@ -270,8 +269,7 @@ func (s *LaunchService) ResetRehearsalAttempt(ctx context.Context, launchID, att
 		return fmt.Errorf("%s: save: %w", op, err)
 	}
 	ev := domain.RehearsalAttemptReset{LaunchID: l.ID, AttemptID: attemptID, ResetBy: callerAddr}.WithTime(time.Now().UTC())
-	s.events.Publish(ev)
-	s.writeAudit(ctx, l.ID.String(), ev)
+	s.emit(ctx, l.ID.String(), ev)
 	return nil
 }
 

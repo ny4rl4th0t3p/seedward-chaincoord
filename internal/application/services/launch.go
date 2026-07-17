@@ -118,7 +118,7 @@ func (s *LaunchService) CreateLaunch(ctx context.Context, input CreateLaunchInpu
 	if err := s.launches.Save(ctx, l); err != nil {
 		return nil, fmt.Errorf("create launch: save: %w", err)
 	}
-	s.writeAudit(ctx, l.ID.String(), domain.LaunchCreated{
+	s.emit(ctx, l.ID.String(), domain.LaunchCreated{
 		LaunchID:    l.ID,
 		ChainID:     l.Record.ChainID,
 		LaunchType:  string(l.LaunchType),
@@ -162,7 +162,7 @@ func (s *LaunchService) UploadInitialGenesis(
 	if err := s.launches.Save(ctx, l); err != nil {
 		return "", fmt.Errorf("upload genesis: save launch: %w", err)
 	}
-	s.writeAudit(ctx, launchID.String(), domain.InitialGenesisUploaded{LaunchID: launchID, GenesisHash: hash})
+	s.emit(ctx, launchID.String(), domain.InitialGenesisUploaded{LaunchID: launchID, GenesisHash: hash})
 	return hash, nil
 }
 
@@ -222,7 +222,7 @@ func (s *LaunchService) UploadFinalGenesis(
 	if err := s.launches.Save(ctx, l); err != nil {
 		return "", fmt.Errorf("upload final genesis: save launch: %w", err)
 	}
-	s.writeAudit(ctx, launchID.String(), domain.FinalGenesisUploaded{LaunchID: launchID, GenesisHash: hash})
+	s.emit(ctx, launchID.String(), domain.FinalGenesisUploaded{LaunchID: launchID, GenesisHash: hash})
 	return hash, nil
 }
 
@@ -242,7 +242,7 @@ func (s *LaunchService) UploadInitialGenesisRef(ctx context.Context, launchID uu
 	); err != nil {
 		return err
 	}
-	s.writeAudit(ctx, launchID.String(), domain.InitialGenesisUploaded{LaunchID: launchID, GenesisHash: sha256Hash})
+	s.emit(ctx, launchID.String(), domain.InitialGenesisUploaded{LaunchID: launchID, GenesisHash: sha256Hash})
 	return nil
 }
 
@@ -278,7 +278,7 @@ func (s *LaunchService) UploadFinalGenesisRef(
 	); err != nil {
 		return err
 	}
-	s.writeAudit(ctx, launchID.String(), domain.FinalGenesisUploaded{LaunchID: launchID, GenesisHash: sha256Hash})
+	s.emit(ctx, launchID.String(), domain.FinalGenesisUploaded{LaunchID: launchID, GenesisHash: sha256Hash})
 	return nil
 }
 
@@ -357,7 +357,7 @@ func (s *LaunchService) UploadAllocationFileBytes(
 	if err := s.launches.Save(ctx, l); err != nil {
 		return "", fmt.Errorf("upload allocation: save launch: %w", err)
 	}
-	s.writeAudit(ctx, launchID.String(),
+	s.emit(ctx, launchID.String(),
 		domain.AllocationFileUploaded{LaunchID: launchID, AllocationType: allocType, SHA256: hash})
 	return hash, nil
 }
@@ -396,7 +396,7 @@ func (s *LaunchService) UploadAllocationFileRef(
 	if err := s.launches.Save(ctx, l); err != nil {
 		return fmt.Errorf("upload allocation ref: save launch: %w", err)
 	}
-	s.writeAudit(ctx, launchID.String(),
+	s.emit(ctx, launchID.String(),
 		domain.AllocationFileUploaded{LaunchID: launchID, AllocationType: allocType, SHA256: sha256Hash})
 	return nil
 }
@@ -653,7 +653,7 @@ func (s *LaunchService) PatchLaunch(
 	// Every patched field leaves a tamper-evident trace with old→new values, even though a PATCH
 	// is not an M-of-N proposal. Audited after a successful save; nothing changed → no event.
 	if len(changes) > 0 {
-		s.writeAudit(ctx, l.ID.String(), domain.LaunchPatched{
+		s.emit(ctx, l.ID.String(), domain.LaunchPatched{
 			LaunchID:  l.ID,
 			ChangedBy: callerAddr,
 			Changes:   changes,
@@ -782,7 +782,7 @@ func (s *LaunchService) AddMember(ctx context.Context, launchID uuid.UUID, addre
 	if err := s.launches.Save(ctx, l); err != nil {
 		return nil, fmt.Errorf("%s: save: %w", op, err)
 	}
-	s.writeAudit(ctx, l.ID.String(), domain.LaunchMemberAdded{
+	s.emit(ctx, l.ID.String(), domain.LaunchMemberAdded{
 		LaunchID: l.ID,
 		Address:  m.Address.String(),
 		Label:    m.Label,
@@ -810,7 +810,7 @@ func (s *LaunchService) RemoveMember(ctx context.Context, launchID uuid.UUID, ad
 	if err := s.launches.Save(ctx, l); err != nil {
 		return fmt.Errorf("%s: save: %w", op, err)
 	}
-	s.writeAudit(ctx, l.ID.String(), domain.LaunchMemberRemoved{
+	s.emit(ctx, l.ID.String(), domain.LaunchMemberRemoved{
 		LaunchID:  l.ID,
 		Address:   addr.String(),
 		RemovedBy: callerAddr,
@@ -860,7 +860,7 @@ func (s *LaunchService) SetCommittee(ctx context.Context, launchID uuid.UUID, co
 	if err := s.launches.Save(ctx, l); err != nil {
 		return fmt.Errorf("set committee: save: %w", err)
 	}
-	s.writeAudit(ctx, l.ID.String(), domain.CommitteeSet{
+	s.emit(ctx, l.ID.String(), domain.CommitteeSet{
 		LaunchID:    l.ID,
 		Members:     committeeMemberAddrs(committee),
 		ThresholdM:  committee.ThresholdM,
@@ -979,7 +979,7 @@ func (s *LaunchService) OpenWindow(ctx context.Context, launchID uuid.UUID, call
 	if err := s.launches.Save(ctx, l); err != nil {
 		return err
 	}
-	s.writeAudit(ctx, l.ID.String(), domain.WindowOpened{LaunchID: l.ID})
+	s.emit(ctx, l.ID.String(), domain.WindowOpened{LaunchID: l.ID})
 	return nil
 }
 
@@ -1073,15 +1073,20 @@ func (s *LaunchService) CancelLaunch(ctx context.Context, launchID uuid.UUID, ca
 		return fmt.Errorf("cancel launch: save: %w", err)
 	}
 	ev := domain.LaunchCancelled{LaunchID: l.ID}
-	s.events.Publish(ev)
-	s.writeAudit(ctx, l.ID.String(), ev)
+	s.emit(ctx, l.ID.String(), ev)
 	return nil
 }
 
 // writeAudit records a launch-scoped audit event, logging (not failing) on error — the mutation
 // has already committed. Critical proposal events use the fatal path (dispatchEvents).
-func (s *LaunchService) writeAudit(ctx context.Context, scope string, ev domain.DomainEvent) {
+// emit records ev to the audit log and broadcasts it to the launch's SSE subscribers, so the live
+// feed is the real-time projection of the audit log. Both sinks are best-effort — recordAudit logs
+// (does not fail) on write error; the broker drops slow subscribers. Use for every launch-scoped
+// domain event. (Global-scoped events — coordinator allowlist, session revocation — have no launch
+// SSE channel and keep their audit-only writeAudit.)
+func (s *LaunchService) emit(ctx context.Context, scope string, ev domain.DomainEvent) {
 	recordAudit(ctx, s.audit, s.logger, scope, ev)
+	s.events.Publish(ev)
 }
 
 func sha256Hex(data []byte) string {

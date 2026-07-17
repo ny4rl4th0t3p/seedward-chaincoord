@@ -32,6 +32,7 @@ type ReadinessService struct {
 	readiness    ports.ReadinessRepository
 	nonces       ports.NonceStore
 	verifier     ports.SignatureVerifier
+	events       ports.EventPublisher
 	audit        ports.AuditLogWriter
 	logger       zerolog.Logger
 }
@@ -42,6 +43,7 @@ func NewReadinessService(
 	readiness ports.ReadinessRepository,
 	nonces ports.NonceStore,
 	verifier ports.SignatureVerifier,
+	events ports.EventPublisher,
 	audit ports.AuditLogWriter,
 ) *ReadinessService {
 	return &ReadinessService{
@@ -50,6 +52,7 @@ func NewReadinessService(
 		readiness:    readiness,
 		nonces:       nonces,
 		verifier:     verifier,
+		events:       events,
 		audit:        audit,
 		logger:       zerolog.Nop(),
 	}
@@ -61,10 +64,11 @@ func (s *ReadinessService) WithLogger(l zerolog.Logger) *ReadinessService {
 	return s
 }
 
-// writeAudit records an audit event under the given scope, logging (not failing) on error — the
-// post-commit log-and-continue path, consistent with the other services.
-func (s *ReadinessService) writeAudit(ctx context.Context, scope string, ev domain.DomainEvent) {
+// emit records ev to the audit log and broadcasts it to the launch's SSE subscribers, so the live
+// feed mirrors the audit log (mirrors LaunchService.emit — both best-effort).
+func (s *ReadinessService) emit(ctx context.Context, scope string, ev domain.DomainEvent) {
 	recordAudit(ctx, s.audit, s.logger, scope, ev)
+	s.events.Publish(ev)
 }
 
 // ConfirmInput is the payload a validator signs to confirm readiness.
@@ -165,7 +169,7 @@ func (s *ReadinessService) Confirm(ctx context.Context, launchID uuid.UUID, inpu
 	if err := s.readiness.Save(ctx, rc); err != nil {
 		return nil, fmt.Errorf("confirm readiness: save: %w", err)
 	}
-	s.writeAudit(ctx, launchID.String(), domain.ReadinessConfirmed{
+	s.emit(ctx, launchID.String(), domain.ReadinessConfirmed{
 		LaunchID:        launchID,
 		OperatorAddress: operatorAddr.String(),
 	})

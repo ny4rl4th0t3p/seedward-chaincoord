@@ -35,6 +35,7 @@ type JoinRequestService struct {
 	nonces         ports.NonceStore
 	verifier       ports.SignatureVerifier
 	gentxValidator ports.GentxValidator
+	events         ports.EventPublisher
 	audit          ports.AuditLogWriter
 	logger         zerolog.Logger
 }
@@ -45,6 +46,7 @@ func NewJoinRequestService(
 	nonces ports.NonceStore,
 	verifier ports.SignatureVerifier,
 	gentxValidator ports.GentxValidator,
+	events ports.EventPublisher,
 	audit ports.AuditLogWriter,
 ) *JoinRequestService {
 	return &JoinRequestService{
@@ -53,6 +55,7 @@ func NewJoinRequestService(
 		nonces:         nonces,
 		verifier:       verifier,
 		gentxValidator: gentxValidator,
+		events:         events,
 		audit:          audit,
 		logger:         zerolog.Nop(),
 	}
@@ -64,10 +67,11 @@ func (s *JoinRequestService) WithLogger(l zerolog.Logger) *JoinRequestService {
 	return s
 }
 
-// writeAudit records an audit event under the given scope, logging (not failing) on error — the
-// post-commit log-and-continue path, consistent with the other services.
-func (s *JoinRequestService) writeAudit(ctx context.Context, scope string, ev domain.DomainEvent) {
+// emit records ev to the audit log and broadcasts it to the launch's SSE subscribers, so the live
+// feed mirrors the audit log (mirrors LaunchService.emit — both best-effort).
+func (s *JoinRequestService) emit(ctx context.Context, scope string, ev domain.DomainEvent) {
 	recordAudit(ctx, s.audit, s.logger, scope, ev)
+	s.events.Publish(ev)
 }
 
 // requiresSelfDelegationFloor reports whether the launch type enforces the
@@ -308,7 +312,7 @@ func (s *JoinRequestService) Submit(ctx context.Context, launchID uuid.UUID, inp
 	if err := s.joinRequests.Save(ctx, jr); err != nil {
 		return nil, fmt.Errorf("submit join request: save: %w", err)
 	}
-	s.writeAudit(ctx, launchID.String(), domain.JoinRequestSubmitted{
+	s.emit(ctx, launchID.String(), domain.JoinRequestSubmitted{
 		LaunchID:         launchID,
 		JoinRequestID:    jr.ID,
 		OperatorAddress:  jr.OperatorAddress.String(),

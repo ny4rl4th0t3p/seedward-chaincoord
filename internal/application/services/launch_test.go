@@ -996,6 +996,26 @@ func newLaunchSvcWithAudit(launchRepo *fakeLaunchRepo, genesisStore *fakeGenesis
 	return NewLaunchService(launchRepo, newFakeJoinRequestRepo(), newFakeReadinessRepo(), genesisStore, newFakeAllocationStore(), &fakeEventPublisher{}, audit, newFakeRehearsalAttemptRepo(), newFakeRehearsalResultRepo())
 }
 
+func TestLaunchService_DirectActionEmitsToAuditAndSSE(t *testing.T) {
+	// A direct action (OpenWindow) records the event to the audit log AND broadcasts it to the launch's
+	// SSE feed — the emit unification, so the live feed mirrors the audit log. Before it, direct actions
+	// like OpenWindow only audited and never reached the live feed.
+	l := testLaunch() // DRAFT, lead = testAddr1 (a committee member)
+	l.InitialGenesisSHA256 = "1111111111111111111111111111111111111111111111111111111111111111"
+	audit := &fakeAuditLogWriter{}
+	pub := &fakeEventPublisher{}
+	svc := NewLaunchService(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeReadinessRepo(),
+		newFakeGenesisStore(), newFakeAllocationStore(), pub, audit,
+		newFakeRehearsalAttemptRepo(), newFakeRehearsalResultRepo())
+
+	require.NoError(t, svc.OpenWindow(context.Background(), l.ID, testAddr1))
+
+	require.Len(t, audit.events, 1, "the action must be audited")
+	assert.Equal(t, "WindowOpened", audit.events[0].EventName)
+	require.Len(t, pub.events, 1, "the action must ALSO be broadcast to the live feed")
+	assert.Equal(t, "WindowOpened", pub.events[0].EventName())
+}
+
 func TestLaunchService_CancelLaunch_Success(t *testing.T) {
 	l := testLaunch() // DRAFT, lead = testAddr1
 	lRepo := newFakeLaunchRepo(l)
