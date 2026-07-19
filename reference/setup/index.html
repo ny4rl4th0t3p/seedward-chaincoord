@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -29,7 +29,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -986,6 +986,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#log-level" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Log level
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#security-response-headers" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1483,6 +1494,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#log-level" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Log level
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#security-response-headers" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1844,10 +1866,27 @@ the real client address rather than the proxy address.</p>
 </ul>
 <p>Failure detail is written to the server log, not the response body, so an unauthenticated caller learns only
 up/down. Point your orchestrator's liveness/readiness probe at it.</p>
+<p>Access lines are <strong>leveled by response class</strong>: a successful request (<code>&lt; 400</code>, including this frequent 200 probe)
+logs at <strong>debug</strong>, a failed one (<code>&gt;= 400</code>) at <strong>info</strong>. So at the normal <code>info</code> level the access log shows only
+failures — a healthy <code>/healthz</code> stays silent, while a failing one (<code>503</code>) is visible — and a live switch to <code>debug</code>
+(see <a href="#log-level">Log level</a>) turns on full request tracing.</p>
 <h3 id="metrics-get-metrics">Metrics — <code>GET /metrics</code><a class="headerlink" href="#metrics-get-metrics" title="Permanent link">&para;</a></h3>
 <p>Unauthenticated Prometheus endpoint exposing the default Go runtime and process metrics (goroutines, heap, GC,
 open file descriptors, CPU). <strong>Network-restrict it</strong> — it is not behind auth, so keep it off the public
 interface and scrape it from your monitoring network.</p>
+<h3 id="log-level">Log level<a class="headerlink" href="#log-level" title="Permanent link">&para;</a></h3>
+<p>The verbosity is set at startup by <a href="#log_level"><code>log_level</code></a> and can be changed <strong>live</strong>, without a restart
+(admin only):</p>
+<ul>
+<li><code>GET /admin/log-level</code> → <code>{"level":"info"}</code> — the current level.</li>
+<li><code>POST /admin/log-level</code> with <code>{"level":"debug"}</code> — set it. Accepts <code>trace</code>, <code>debug</code>, <code>info</code>, <code>warn</code>, <code>error</code>
+  (<code>fatal</code>, <code>panic</code>, and <code>disabled</code> are rejected — they would silence the log).</li>
+</ul>
+<p>The change is <strong>in-memory</strong>: it takes effect immediately and reverts to the configured <code>log_level</code> on restart. Only
+the threshold changes — the console-vs-JSON output format is fixed at startup (JSON unless the server <em>started</em> at
+<code>debug</code>). The change itself is logged at <code>warn</code>, recording the old and new level and the admin who made it. A handy pairing
+with the access-log leveling above: drop to <code>debug</code> to trace all requests (successful ones and health probes
+included) live, then back to <code>info</code> to see only failures again.</p>
 <h3 id="security-response-headers">Security response headers<a class="headerlink" href="#security-response-headers" title="Permanent link">&para;</a></h3>
 <p>Every response carries defensive headers:</p>
 <table>
@@ -2149,11 +2188,14 @@ set it was assembled from (the set can change in <code>WINDOW_CLOSED</code> via 
 invariant, not an opt-in.</p>
 </blockquote>
 <h3 id="log_level"><code>log_level</code><a class="headerlink" href="#log_level" title="Permanent link">&para;</a></h3>
-<p>Controls verbosity. Accepted values: <code>debug</code>, <code>info</code>, <code>warn</code>, <code>error</code>.</p>
+<p>Controls verbosity at startup. Accepted values: <code>debug</code>, <code>info</code>, <code>warn</code>, <code>error</code> (<code>trace</code> also works but is rarely
+needed).</p>
 <ul>
 <li><code>debug</code> — human-readable console output (stderr), verbose. Use in development only.</li>
 <li><code>info</code> and above — structured JSON to stdout. Use in production.</li>
 </ul>
+<p>Changeable at runtime without a restart via <a href="#log-level"><code>POST /admin/log-level</code></a>; a runtime change is in-memory and
+reverts to this configured value on restart.</p>
 <h3 id="audit_startup_verify"><code>audit_startup_verify</code><a class="headerlink" href="#audit_startup_verify" title="Permanent link">&para;</a></h3>
 <p>Depth of the boot-time audit-log integrity check (see
 <a href="../audit/#startup-and-live-integrity-checks">Audit Log → Startup and live integrity checks</a>):</p>
@@ -2221,7 +2263,7 @@ invariant, not an opt-in.</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.top", "search.highlight", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>
