@@ -11,6 +11,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # GoReleaser needs the full history + all tags to build the changelog from the commit
+          # range since the previous tag. The default shallow clone (fetch-depth: 1) gives it only
+          # the tagged commit, so the changelog captured just the last commit and mis-grouped it.
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5

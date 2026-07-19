@@ -25,29 +25,32 @@ Works for all replay-protected payload types:
   VerifyChallengeInput (auth), SubmitInput (join), ConfirmInput (readiness),
   RaiseInput (proposal create), SignInput (proposal sign).
 
-The signer address is derived from --key-index. The JSON must contain either
-an "operator_address" or "member_address" field matching that address.
+The signer address is derived from the selected key (--key-index or --privkey-hex). The JSON must
+contain either an "operator_address" or "member_address" field matching that address.
 If the input JSON contains a "pubkey_b64" field it is filled with the derived
 public key; otherwise it is omitted from the output.`,
 		Example: `  echo '{"operator_address":"cosmos1...","challenge":"abc","nonce":"","timestamp":"","pubkey_b64":"","signature":""}' \
-    | smoke-signer sign --key-index 1`,
+    | smoke-signer sign --key-index 1
+  echo '{"operator_address":"cosmos1...", ...}' | smoke-signer sign --privkey-hex <hex>`,
 		RunE: runSign,
 	}
-	cmd.Flags().Int("key-index", 0, "key index (0 = coordinator, 1-4 = validators)")
-	_ = cmd.MarkFlagRequired("key-index")
+	addKeySelectionFlags(cmd)
 	return cmd
 }
 
 func runSign(cmd *cobra.Command, _ []string) error {
-	index, _ := cmd.Flags().GetInt("key-index")
+	priv, err := resolvePrivKey(cmd)
+	if err != nil {
+		return err
+	}
 
 	raw, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		return fmt.Errorf("reading stdin: %w", err)
 	}
 
-	// Resolve signer address from the key index (default HRP cosmos — smoke test uses mainnet keys).
-	signerAddr, err := deriveAddress(index, "cosmos")
+	// Resolve signer address from the key (default HRP cosmos — smoke test + demo use cosmos keys).
+	signerAddr, err := deriveAddress(priv, "cosmos")
 	if err != nil {
 		return fmt.Errorf("deriving address: %w", err)
 	}
@@ -76,13 +79,13 @@ func runSign(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Sign with ADR-036.
-	sig := signADR036(index, signerAddr, signingBytes)
+	sig := signADR036(priv, signerAddr, signingBytes)
 	m["signature"], _ = json.Marshal(sig)
 
 	// Fill pubkey_b64 only if the original payload had it (e.g. auth/join/readiness).
 	// Proposal payloads (RaiseInput, SignInput) look up the pubkey from the committee server-side.
 	if hasPubKey {
-		m["pubkey_b64"], _ = json.Marshal(pubKeyB64(index))
+		m["pubkey_b64"], _ = json.Marshal(pubKeyB64(priv))
 	}
 
 	out, err := json.Marshal(m)
