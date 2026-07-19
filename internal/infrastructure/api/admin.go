@@ -3,8 +3,10 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/rs/zerolog"
 
 	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/ports"
 )
@@ -134,4 +136,82 @@ func coordinatorEntryToJSON(e *ports.CoordinatorAllowlistEntry) coordinatorAllow
 		AddedBy: e.AddedBy,
 		AddedAt: e.AddedAt,
 	}
+}
+
+// logLevelJSON is the wire representation of the process log level (GET response + POST body).
+type logLevelJSON struct {
+	Level string `json:"level"`
+}
+
+// settableLogLevels are the levels changeable at runtime — the operationally meaningful set.
+// fatal / panic / disabled are intentionally excluded: none is a sane running-server level and
+// disabled would silence the log entirely via the API.
+var settableLogLevels = map[string]bool{
+	"trace": true, "debug": true, "info": true, "warn": true, "error": true,
+}
+
+// GET /admin/log-level
+// Return the current process log level.
+//
+// @Summary      Get the log level
+// @Description  Returns the current process log level. Admin only.
+// @Tags         admin
+// @Security     BearerAuth
+// @Produce      json
+// @Success      200  {object}  logLevelJSON
+// @Failure      401  {object}  errorEnvelope
+// @Failure      403  {object}  errorEnvelope
+// @Router       /admin/log-level [get]
+func (*Server) handleLogLevelGet(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, logLevelJSON{Level: zerolog.GlobalLevel().String()})
+}
+
+// POST /admin/log-level
+// Change the process log level at runtime. Admin only.
+//
+// The change is in-memory (zerolog's global level) and resets to the configured level
+// (COORD_LOG_LEVEL / --log-level) on restart. The console-vs-JSON output format is fixed at
+// startup and is not affected — only the threshold changes.
+//
+// @Summary      Set the log level
+// @Description  Changes the process log level live (trace|debug|info|warn|error). In-memory; resets on restart. Admin only.
+// @Tags         admin
+// @Security     BearerAuth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      logLevelJSON  true  "Desired level"
+// @Success      200   {object}  logLevelJSON
+// @Failure      400   {object}  errorEnvelope
+// @Failure      401   {object}  errorEnvelope
+// @Failure      403   {object}  errorEnvelope
+// @Router       /admin/log-level [post]
+func (s *Server) handleLogLevelSet(w http.ResponseWriter, r *http.Request) {
+	var body logLevelJSON
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_body", "request body must be valid JSON")
+		return
+	}
+	level := strings.ToLower(strings.TrimSpace(body.Level))
+	if !settableLogLevels[level] {
+		writeError(w, http.StatusBadRequest, "invalid_param",
+			"level must be one of: trace, debug, info, warn, error")
+		return
+	}
+	lvl, err := zerolog.ParseLevel(level)
+	if err != nil { // unreachable given the allowlist, but fail closed
+		writeError(w, http.StatusBadRequest, "invalid_param", "unrecognized log level")
+		return
+	}
+
+	old := zerolog.GlobalLevel()
+	zerolog.SetGlobalLevel(lvl)
+	// A notable operational change — logged at warn so it surfaces at every common level (it is
+	// suppressed only at error+, which is an unusual level to run at).
+	s.log.Warn().
+		Str("old", old.String()).
+		Str("new", lvl.String()).
+		Str("by", operatorFromContext(r.Context())).
+		Msg("log level changed via admin api")
+
+	writeJSON(w, http.StatusOK, logLevelJSON{Level: lvl.String()})
 }

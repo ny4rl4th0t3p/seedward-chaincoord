@@ -129,4 +129,8 @@ in-browser validator):
   than through a buffering reverse proxy.
 - `GET /healthz` — deep liveness probe: `200 {"status":"ok"}` when the database and audit log are both healthy,
   `503 {"status":"unavailable"}` if a dependency is down (see [Setup → Observability](setup.md#observability)).
-  Used by Docker health checks and load-balancer probes.
+  Used by Docker health checks and load-balancer probes. Access lines are leveled by response class — a healthy 200
+  logs at `debug` (quiet at info), a failing 503 at `info` — so frequent probes don't flood the log while failures
+  stay visible.
+- `GET`/`POST /admin/log-level` — read or change the process log level at runtime, no restart (admin only). See
+  [Setup → Log level](setup.md#log-level); the request/response shape is in the OpenAPI spec.

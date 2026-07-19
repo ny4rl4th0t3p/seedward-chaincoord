@@ -76,17 +76,19 @@ func isLoopback(addr string) bool {
 
 // buildLogger creates a zerolog.Logger wired to the given level string.
 // Debug level uses a human-readable ConsoleWriter on stderr; all other levels
-// emit structured JSON to stdout.
+// emit structured JSON to stdout. The threshold is applied via zerolog's process-global level
+// (not a per-logger level) so it can be changed at runtime through POST /admin/log-level; the
+// console-vs-JSON writer choice, by contrast, is fixed here at startup.
 func buildLogger(level string) zerolog.Logger {
 	lvl, err := zerolog.ParseLevel(strings.ToLower(level))
 	if err != nil {
 		lvl = zerolog.InfoLevel
 	}
+	zerolog.SetGlobalLevel(lvl)
 	if lvl == zerolog.DebugLevel {
-		return zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).
-			Level(lvl).With().Timestamp().Logger()
+		return zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).With().Timestamp().Logger()
 	}
-	return zerolog.New(os.Stdout).Level(lvl).With().Timestamp().Logger()
+	return zerolog.New(os.Stdout).With().Timestamp().Logger()
 }
 
 func loadServeConfig(cmd *cobra.Command) (*config.Config, error) {

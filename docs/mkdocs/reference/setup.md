@@ -169,11 +169,31 @@ Unauthenticated. Probes liveness dependencies and returns:
 Failure detail is written to the server log, not the response body, so an unauthenticated caller learns only
 up/down. Point your orchestrator's liveness/readiness probe at it.
 
+Access lines are **leveled by response class**: a successful request (`< 400`, including this frequent 200 probe)
+logs at **debug**, a failed one (`>= 400`) at **info**. So at the normal `info` level the access log shows only
+failures — a healthy `/healthz` stays silent, while a failing one (`503`) is visible — and a live switch to `debug`
+(see [Log level](#log-level)) turns on full request tracing.
+
 ### Metrics — `GET /metrics`
 
 Unauthenticated Prometheus endpoint exposing the default Go runtime and process metrics (goroutines, heap, GC,
 open file descriptors, CPU). **Network-restrict it** — it is not behind auth, so keep it off the public
 interface and scrape it from your monitoring network.
+
+### Log level
+
+The verbosity is set at startup by [`log_level`](#log_level) and can be changed **live**, without a restart
+(admin only):
+
+- `GET /admin/log-level` → `{"level":"info"}` — the current level.
+- `POST /admin/log-level` with `{"level":"debug"}` — set it. Accepts `trace`, `debug`, `info`, `warn`, `error`
+  (`fatal`, `panic`, and `disabled` are rejected — they would silence the log).
+
+The change is **in-memory**: it takes effect immediately and reverts to the configured `log_level` on restart. Only
+the threshold changes — the console-vs-JSON output format is fixed at startup (JSON unless the server *started* at
+`debug`). The change itself is logged at `warn`, recording the old and new level and the admin who made it. A handy pairing
+with the access-log leveling above: drop to `debug` to trace all requests (successful ones and health probes
+included) live, then back to `info` to see only failures again.
 
 ### Security response headers
 
@@ -339,10 +359,14 @@ hard dependency.**
 
 ### `log_level`
 
-Controls verbosity. Accepted values: `debug`, `info`, `warn`, `error`.
+Controls verbosity at startup. Accepted values: `debug`, `info`, `warn`, `error` (`trace` also works but is rarely
+needed).
 
 - `debug` — human-readable console output (stderr), verbose. Use in development only.
 - `info` and above — structured JSON to stdout. Use in production.
+
+Changeable at runtime without a restart via [`POST /admin/log-level`](#log-level); a runtime change is in-memory and
+reverts to this configured value on restart.
 
 ### `audit_startup_verify`
 

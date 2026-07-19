@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -148,5 +149,83 @@ func TestHandleCoordinatorList(t *testing.T) {
 		}
 		require.NoError(t, json.NewDecoder(w.Body).Decode(&pg), "decode")
 		assert.Equal(t, 2, pg.Total)
+	})
+}
+
+// ---- GET/POST /admin/log-level ----------------------------------------------
+
+func TestHandleLogLevel(t *testing.T) {
+	// The endpoint mutates zerolog's process-global level; restore it afterward so this test
+	// can't leak into others.
+	orig := zerolog.GlobalLevel()
+	t.Cleanup(func() { zerolog.SetGlobalLevel(orig) })
+
+	t.Run("GET unauthenticated → 401", func(t *testing.T) {
+		h := adminHarness(t)
+		w := h.do(http.MethodGet, "/admin/log-level", nil, nil)
+		assertStatus(t, w, http.StatusUnauthorized)
+	})
+
+	t.Run("GET non-admin → 403", func(t *testing.T) {
+		h := adminHarness(t)
+		h.seedSession(testAddr2)
+		w := h.do(http.MethodGet, "/admin/log-level", nil,
+			map[string]string{"Authorization": "Bearer " + userToken()})
+		assertStatus(t, w, http.StatusForbidden)
+	})
+
+	t.Run("GET admin → 200 with a level", func(t *testing.T) {
+		h := adminHarness(t)
+		w := h.do(http.MethodGet, "/admin/log-level", nil,
+			map[string]string{"Authorization": "Bearer " + adminToken()})
+		assertStatus(t, w, http.StatusOK)
+		assertContentTypeJSON(t, w)
+
+		var body map[string]string
+		require.NoError(t, json.NewDecoder(w.Body).Decode(&body), "decode")
+		assert.NotEmpty(t, body["level"])
+	})
+
+	t.Run("POST unauthenticated → 401", func(t *testing.T) {
+		h := adminHarness(t)
+		w := h.doJSON(http.MethodPost, "/admin/log-level", jsonBody(`{"level":"debug"}`))
+		assertStatus(t, w, http.StatusUnauthorized)
+	})
+
+	t.Run("POST non-admin → 403", func(t *testing.T) {
+		h := adminHarness(t)
+		h.seedSession(testAddr2)
+		w := h.doAuthJSON(http.MethodPost, "/admin/log-level", jsonBody(`{"level":"debug"}`), userToken())
+		assertStatus(t, w, http.StatusForbidden)
+	})
+
+	t.Run("POST invalid level → 400", func(t *testing.T) {
+		h := adminHarness(t)
+		w := h.doAuthJSON(http.MethodPost, "/admin/log-level", jsonBody(`{"level":"bogus"}`), adminToken())
+		assertStatus(t, w, http.StatusBadRequest)
+	})
+
+	t.Run("POST disabled is rejected → 400", func(t *testing.T) {
+		h := adminHarness(t)
+		w := h.doAuthJSON(http.MethodPost, "/admin/log-level", jsonBody(`{"level":"disabled"}`), adminToken())
+		assertStatus(t, w, http.StatusBadRequest)
+	})
+
+	t.Run("POST valid level → 200, applied, and GET reflects it", func(t *testing.T) {
+		h := adminHarness(t)
+		w := h.doAuthJSON(http.MethodPost, "/admin/log-level", jsonBody(`{"level":"warn"}`), adminToken())
+		assertStatus(t, w, http.StatusOK)
+
+		var body map[string]string
+		require.NoError(t, json.NewDecoder(w.Body).Decode(&body), "decode")
+		assert.Equal(t, "warn", body["level"])
+		assert.Equal(t, zerolog.WarnLevel, zerolog.GlobalLevel(), "global level applied")
+
+		g := h.do(http.MethodGet, "/admin/log-level", nil,
+			map[string]string{"Authorization": "Bearer " + adminToken()})
+		assertStatus(t, g, http.StatusOK)
+		var got map[string]string
+		require.NoError(t, json.NewDecoder(g.Body).Decode(&got), "decode")
+		assert.Equal(t, "warn", got["level"])
 	})
 }

@@ -311,6 +311,11 @@ definitions:
       updated_at:
         type: string
     type: object
+  api.logLevelJSON:
+    properties:
+      level:
+        type: string
+    type: object
   api.memberJSON:
     properties:
       added_at:
@@ -1008,6 +1013,65 @@ paths:
       security:
       - BearerAuth: []
       summary: Remove coordinator from allowlist
+      tags:
+      - admin
+  /admin/log-level:
+    get:
+      description: Returns the current process log level. Admin only.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.logLevelJSON'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Get the log level
+      tags:
+      - admin
+    post:
+      consumes:
+      - application/json
+      description: Changes the process log level live (trace|debug|info|warn|error).
+        In-memory; resets on restart. Admin only.
+      parameters:
+      - description: Desired level
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api.logLevelJSON'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.logLevelJSON'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Set the log level
       tags:
       - admin
   /admin/sessions/{address}:

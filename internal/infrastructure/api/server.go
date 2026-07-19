@@ -211,7 +211,16 @@ func (s *Server) Handler() http.Handler {
 	r.Use(hlog.NewHandler(s.log))
 	r.Use(hlog.RequestIDHandler("req_id", "X-Request-Id"))
 	r.Use(hlog.AccessHandler(func(r *http.Request, status, size int, duration time.Duration) {
-		hlog.FromRequest(r).Info().
+		// Level the access log by response class so it stays useful at the default info level:
+		// failed requests (>= 400) log at info; successful ones at debug. The info log is then just
+		// failures plus app events — no per-request success noise, and /healthz (a frequent 200
+		// probe) needs no special-casing while a failing one (503) stays visible. Flip to debug live
+		// (POST /admin/log-level) for full request tracing.
+		lvl := zerolog.DebugLevel
+		if status >= http.StatusBadRequest {
+			lvl = zerolog.InfoLevel
+		}
+		hlog.FromRequest(r).WithLevel(lvl).
 			Str("method", r.Method).
 			Str("path", r.URL.Path).
 			Int("status", status).
@@ -232,6 +241,8 @@ func (s *Server) Handler() http.Handler {
 	r.Delete("/admin/coordinators/{address}", s.requireAdmin(s.handleCoordinatorRemove))
 	r.Get("/admin/coordinators", s.requireAdmin(s.handleCoordinatorList))
 	r.Delete("/admin/sessions/{address}", s.requireAdmin(s.handleAdminRevokeAllSessions))
+	r.Get("/admin/log-level", s.requireAdmin(s.handleLogLevelGet))
+	r.Post("/admin/log-level", s.jsonAdminPOST(s.handleLogLevelSet))
 
 	// Auth endpoints — challenge is rate-limited by IP unless disabled (e.g. in tests).
 	if s.disableRateLimit {
