@@ -151,7 +151,7 @@ a separate system from the one that handles their actual transactions.
 
 **Choice:** Append-only JSONL file where the server Ed25519-signs each entry, with a CLI (`coordd audit verify`)
 that can verify the entire log offline given the server's public key. The public key is available via
-`GET /audit/pubkey` while the server is running and should be preserved alongside the log file so verification
+`GET /api/v1/audit/pubkey` while the server is running and should be preserved alongside the log file so verification
 remains possible after the server is decommissioned.
 
 **Rationale:** The audit log is the document of record for what happened during the launch. It needs to be authentic
@@ -375,7 +375,7 @@ creation, governance, and chain participation makes authority explicit.
 **Choice:** A background server job polls a committee-configured CometBFT RPC endpoint at a fixed interval for a block
 
 1. When a non-null block is returned, the server transitions the aggregate to LAUNCHED and publishes a `LaunchDetected`
-   event. The `monitor_rpc_url` is set by any committee member via `PATCH /launch/{id}` and can be updated at any time
+   event. The `monitor_rpc_url` is set by any committee member via `PATCH /api/v1/launch/{id}` and can be updated at any time
    without a server restart.
 
 **Rationale:** The moment the chain produces block 1 is the natural end of the coordination record. Recording it

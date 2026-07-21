@@ -85,8 +85,8 @@ See [Audit Log](../reference/audit.md).
 Before publishing the final genesis, the committee can **pre-flight** the approved input set: an external **rehearsal
 service** assembles a candidate genesis, boots an ephemeral chain on substitute validators, runs assertions, tears it
 down, and posts back a **signed** PASS/FAIL result. `coordd` never boots a chain — it exposes an ops-plane **bridge**
-(`/bridge/*`) that serves the approved input, mints a single-writer **claim** so two runs can't collide, and records the
-signed result (rejecting any it didn't itself serve). The committee reads results back at `GET /launch/{id}/rehearsal`.
+(`/api/v1/bridge/*`) that serves the approved input, mints a single-writer **claim** so two runs can't collide, and records the
+signed result (rejecting any it didn't itself serve). The committee reads results back at `GET /api/v1/launch/{id}/rehearsal`.
 A PASS certifies the input set assembles and a representative chain advances — it is **not** a guarantee the real
 network produces blocks. (Rehearsal defaults to off and is manually triggered; the opt-in gate can require a current
 passing rehearsal before publishing genesis — advisory records the check, required blocks — with auto-triggering a later

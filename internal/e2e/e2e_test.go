@@ -396,7 +396,9 @@ func buildTestServer(t *testing.T, admins []string) *testServer {
 	return &testServer{
 		ts:         ts,
 		launchRepo: launchRepo,
-		client:     newClient(ts.URL),
+		// The client's base includes the /api/v1 mount — e2e paths stay resource-relative,
+		// exactly like a real client configured with a base URL.
+		client: newClient(ts.URL + "/api/v1"),
 	}
 }
 

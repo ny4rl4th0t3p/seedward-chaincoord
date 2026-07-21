@@ -341,8 +341,15 @@ func newHarnessHostMode(t *testing.T, maxBytes int64) *harness {
 	}
 }
 
-// do sends a request to the test server and returns the recorded response.
+// do sends a request to the test server for an API path (relative to the /api/v1 mount — the
+// harness owns the base prefix exactly like a real client's base URL) and returns the recorded
+// response. Use doRaw for the root-mounted ops endpoints (/healthz, /metrics).
 func (h *harness) do(method, path string, body []byte, headers map[string]string) *httptest.ResponseRecorder {
+	return h.doRaw(method, "/api/v1"+path, body, headers)
+}
+
+// doRaw sends a request at an absolute server path, with no API-prefixing.
+func (h *harness) doRaw(method, path string, body []byte, headers map[string]string) *httptest.ResponseRecorder {
 	var b *bytes.Reader
 	if body != nil {
 		b = bytes.NewReader(body)

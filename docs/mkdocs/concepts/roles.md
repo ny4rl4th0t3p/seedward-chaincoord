@@ -14,7 +14,7 @@ to create a launch*; the **committee members** are the ones who actually *govern
 *Server plane — the whole coordd deployment.*
 
 Whoever operates the coordd server: the operator addresses listed in `COORD_ADMIN_ADDRESSES`. Admin holds the
-`/admin/*` endpoints; concretely, admin **manages the coordinator allowlist** (who may create launches when
+`/api/v1/admin/*` endpoints; concretely, admin **manages the coordinator allowlist** (who may create launches when
 `launch_policy=restricted`) and can revoke sessions. Admin is **not a participant in any launch** — it never
 declares a committee, signs a proposal, or submits a gentx. See [Setup](../reference/setup.md).
 
@@ -117,7 +117,7 @@ onboarding model:
    gentx; the operator address is **derived from the gentx's signer** (then checked against its self-declared
    `validator_address`). The server rejects an invalid gentx with a `gentx_invalid` error + per-invariant detail.
 5. Wait for the committee to approve or reject. The committee reviews applications **grouped by submitter**
-   (`GET /launch/{id}/join/grouped`), matching each submitted operator address and self-delegation against the off-band
+   (`GET /api/v1/launch/{id}/join/grouped`), matching each submitted operator address and self-delegation against the off-band
    expectation tied to that member's label.
 6. After `GENESIS_READY`: download the final genesis file, verify its SHA256 hash, and submit a readiness confirmation.
 
@@ -135,10 +135,10 @@ fresh address grants **nothing**.
 The **members list** is the per-launch set of **hot actor addresses**, each with a **label**. The committee manages it
 directly (no proposal needed) while the launch is in `DRAFT`/`PUBLISHED`/`WINDOW_OPEN`:
 
-- `POST /launch/{id}/members` — add an address + label (the label points to off-band verification of who that operator
+- `POST /api/v1/launch/{id}/members` — add an address + label (the label points to off-band verification of who that operator
   is; it is not proof of identity).
-- `DELETE /launch/{id}/members/{address}` — revoke.
-- `GET /launch/{id}/members` — committee-only; lists addresses, labels, and add provenance.
+- `DELETE /api/v1/launch/{id}/members/{address}` — revoke.
+- `GET /api/v1/launch/{id}/members` — committee-only; lists addresses, labels, and add provenance.
 
 For v1 the committee collects operators' hot addresses off-band and adds them directly. (Invite tokens — a labeled,
 redeemable token so the address need not be known up front — are planned for v1.x.) The label is what makes
@@ -152,9 +152,9 @@ expectation, so an unexpected operator address under a member surfaces at approv
 Every role that signs (coordinator, committee member, validator, and admin) authenticates identically: secp256k1
 challenge–response.
 
-1. `POST /auth/challenge` with `operator_address` → server returns a nonce
+1. `POST /api/v1/auth/challenge` with `operator_address` → server returns a nonce
 2. Sign a payload containing the challenge with your secp256k1 operator key
-3. `POST /auth/verify` with the signed payload → server returns a JWT
+3. `POST /api/v1/auth/verify` with the signed payload → server returns a JWT
 
 The JWT is short-lived and must be included as a `Bearer` token on all subsequent requests.
 

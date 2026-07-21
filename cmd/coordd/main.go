@@ -3,7 +3,7 @@
 // @description     Chain launch coordination server. Coordinators, committee members, and
 // @description     validators authenticate via secp256k1 challenge-response (ADR-036)
 // @host            localhost:8080
-// @BasePath        /
+// @BasePath        /api/v1
 // @schemes         http https
 //
 // @securityDefinitions.apikey  BearerAuth

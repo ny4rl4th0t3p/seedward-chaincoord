@@ -146,7 +146,7 @@ your.domain {
 }
 ```
 
-For nginx, include `proxy_set_header X-Real-IP $remote_addr;` so IP-based rate limiting on `POST /auth/challenge` sees
+For nginx, include `proxy_set_header X-Real-IP $remote_addr;` so IP-based rate limiting on `POST /api/v1/auth/challenge` sees
 the real client address rather than the proxy address.
 
 #### Local dev
@@ -185,8 +185,8 @@ interface and scrape it from your monitoring network.
 The verbosity is set at startup by [`log_level`](#log_level) and can be changed **live**, without a restart
 (admin only):
 
-- `GET /admin/log-level` → `{"level":"info"}` — the current level.
-- `POST /admin/log-level` with `{"level":"debug"}` — set it. Accepts `trace`, `debug`, `info`, `warn`, `error`
+- `GET /api/v1/admin/log-level` → `{"level":"info"}` — the current level.
+- `POST /api/v1/admin/log-level` with `{"level":"debug"}` — set it. Accepts `trace`, `debug`, `info`, `warn`, `error`
   (`fatal`, `panic`, and `disabled` are rejected — they would silence the log).
 
 The change is **in-memory**: it takes effect immediately and reverts to the configured `log_level` on restart. Only
@@ -260,7 +260,7 @@ Ed25519 seed for signing session JWTs. Must be **different** from the audit key.
 
 ### `admin_addresses`
 
-Comma-separated list of operator addresses that have admin privileges (`/admin/*` endpoints). If empty, no address has
+Comma-separated list of operator addresses that have admin privileges (`/api/v1/admin/*` endpoints). If empty, no address has
 admin access.
 
 ```bash
@@ -271,12 +271,12 @@ export COORD_ADMIN_ADDRESSES="cosmos1abc...,cosmos1def..."
 
 Controls who may create new launches:
 
-- `restricted` *(default)* — only addresses on the coordinator allowlist (`/admin/coordinators`) may create a launch
+- `restricted` *(default)* — only addresses on the coordinator allowlist (`/api/v1/admin/coordinators`) may create a launch
 - `open` — any authenticated address may create a launch
 
 ### `genesis_host_mode`
 
-When `true`, `coordd` accepts raw genesis file uploads (`POST /launch/:id/genesis`) and serves them directly from disk.
+When `true`, `coordd` accepts raw genesis file uploads (`POST /api/v1/launch/:id/genesis`) and serves them directly from disk.
 When `false` (the default), only attestor mode is available — committee members register an external URL and SHA-256
 hash.
 
@@ -308,7 +308,7 @@ interface. The Docker Compose file sets this automatically.
 
 ### `insecure_no_rate_limit`
 
-Disables all rate limiters: the HTTP per-IP middleware on `POST /auth/challenge` (10 req/IP/min) and validator write
+Disables all rate limiters: the HTTP per-IP middleware on `POST /api/v1/auth/challenge` (10 req/IP/min) and validator write
 endpoints (60 req/IP/min), and the storage-layer per-operator limit on challenge issuance (5 req/operator/5 min). **Only
 for automated test environments** — do not enable in production.
 
@@ -320,24 +320,25 @@ internal container names that would fail the SSRF check. **Do not enable in prod
 
 ### `rehearsal_ops_token` / `rehearsal_ops_token_file`
 
-Shared bearer token authenticating the **rehearsal bridge** (ops plane) endpoints under `/bridge/*` — a
+Shared bearer token authenticating the **rehearsal bridge** (ops plane) endpoints under
+`/api/v1/bridge/*` — a
 headless service-to-service credential, not a wallet. It is an arbitrary secret you generate yourself
 (any high-entropy string, e.g. `openssl rand -hex 32`), configured identically on both sides. When set,
 the rehearsal service presents it as
 `Authorization: Bearer <token>` to pull the approved input set and post signed results. **Leave unset to
-disable the bridge** (all `/bridge/*` requests are rejected, fail-closed). Deployment-wide, not per-launch;
+disable the bridge** (all bridge requests are rejected, fail-closed). Deployment-wide, not per-launch;
 prefer the `_file` variant (secret manager) over the plain env var. Rotation is "swap the secret + reload."
-Deploy the `/bridge/*` endpoints on an **internal network only** (e.g. an ingress rule restricting the
-prefix), since the ops plane must not be internet-reachable.
+Deploy the `/api/v1/bridge/*` endpoints on an **internal network only** (e.g. an ingress rule restricting
+the prefix), since the ops plane must not be internet-reachable.
 
 ### `rehearsal_lease_ttl`
 
-How long a claimed rehearsal run (`POST /bridge/launches/{id}/rehearsal-claim`) holds its single-writer
+How long a claimed rehearsal run (`POST /api/v1/bridge/launches/{id}/rehearsal-claim`) holds its single-writer
 lease before it is treated as stale and re-claimable. A crashed runner self-heals after this window without
 operator intervention; set it comfortably above your longest rehearsal. Accepts a Go duration string
 (`45m`, `1h`, `90m`). Defaults to **45m** when unset. For an immediate override of a stuck lease, a committee member can
 call
-`POST /launch/{id}/rehearsal/{attempt_id}/reset` instead of waiting for expiry.
+`POST /api/v1/launch/{id}/rehearsal/{attempt_id}/reset` instead of waiting for expiry.
 
 ### `rehearsal_gate`
 
@@ -353,7 +354,7 @@ hard dependency.**
 
 `required` needs the rehearsal bridge enabled (a `rehearsal_ops_token`) — coordd **refuses to start** with
 `rehearsal_gate=required` and no ops token. It also requires a per-launch trusted rehearsal service pubkey
-(set via `PATCH /launch/{id}`); a `required` launch with no configured service is rejected at publish time.
+(set via `PATCH /api/v1/launch/{id}`); a `required` launch with no configured service is rejected at publish time.
 
 > Independent of this gate, coordd always enforces that a published genesis matches the approved validator
 > set it was assembled from (the set can change in `WINDOW_CLOSED` via approve/remove) — a correctness
@@ -367,7 +368,7 @@ needed).
 - `debug` — human-readable console output (stderr), verbose. Use in development only.
 - `info` and above — structured JSON to stdout. Use in production.
 
-Changeable at runtime without a restart via [`POST /admin/log-level`](#log-level); a runtime change is in-memory and
+Changeable at runtime without a restart via [`POST /api/v1/admin/log-level`](#log-level); a runtime change is in-memory and
 reverts to this configured value on restart.
 
 ### `audit_startup_verify`

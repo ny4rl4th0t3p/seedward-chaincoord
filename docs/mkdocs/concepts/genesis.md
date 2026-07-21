@@ -15,7 +15,7 @@ attestation.
 
 ## Dual-mode upload
 
-Both go through `POST /launch/{id}/genesis?type=initial|final`, in one of two modes:
+Both go through `POST /api/v1/launch/{id}/genesis?type=initial|final`, in one of two modes:
 
 - **Attestor mode** (default, `application/json`) — body `{url, sha256[, genesis_time]}`. coordd stores
   the URL + hash only (SSRF-checked), keeps no bytes, and serves reads as a **302** to the external URL.
@@ -43,7 +43,7 @@ attestor-mode final upload (and must be in the future).
 
 Those checks are mechanical guardrails, and coordd never assembles the genesis itself — so the trust anchor
 is **independent reproduction by the committee**, not the proposer's uploaded file. The approved inputs are
-deterministic and pinned: the approved gentxs (`GET /launch/{id}/gentxs`), the approved allocation files, and
+deterministic and pinned: the approved gentxs (`GET /api/v1/launch/{id}/gentxs`), the approved allocation files, and
 the chain record, all fingerprinted by `FinalGenesisInputSetHash`. So any committee member can rebuild the
 genesis locally (with `gentool`, or the chain binary's `collect-gentxs`) and confirm their result's hash
 equals the proposer's `FinalGenesisSHA256`. The M-of-N `PUBLISH_GENESIS`

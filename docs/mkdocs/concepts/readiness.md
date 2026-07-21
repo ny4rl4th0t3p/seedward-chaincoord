@@ -5,7 +5,7 @@ binary — the committee's launch go/no-go signal.
 
 ## Confirming readiness
 
-An approved validator submits `POST /launch/{id}/ready` with a signed attestation:
+An approved validator submits `POST /api/v1/launch/{id}/ready` with a signed attestation:
 
 - The operator signs (secp256k1, with a nonce + timestamp for replay protection) that
   `genesis_hash_confirmed` equals the launch's `FinalGenesisSHA256`, and `binary_hash_confirmed` equals
@@ -20,7 +20,7 @@ A confirmation is invalidated (the validator must re-confirm) when what it attes
 
 ## The dashboard
 
-`GET /launch/{id}/dashboard` merges the launch state (status, genesis time, countdown, final genesis hash)
+`GET /api/v1/launch/{id}/dashboard` merges the launch state (status, genesis time, countdown, final genesis hash)
 with readiness aggregation: per-validator voting-power share, `ConfirmedReady`, `VotingPowerConfirmed`, and
 a `ThresholdStatus`:
 
@@ -30,5 +30,5 @@ a `ThresholdStatus`:
 | `AT_RISK`   | < 50 % confirmed                  |
 | `REACHABLE` | in between                        |
 
-`GET /launch/{id}/peers` returns approved validators' peer addresses (JSON, or `?format=text` for a
+`GET /api/v1/launch/{id}/peers` returns approved validators' peer addresses (JSON, or `?format=text` for a
 `persistent_peers` list).

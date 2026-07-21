@@ -30,9 +30,9 @@ The launch exists but is not visible to validators. It was created by a **coordi
 (chain ID, binary, denom, deadlines, commission limits) and the initial committee (members, threshold M, total N) at
 creation. During DRAFT the committee prepares it:
 
-- Adjust mutable chain-record fields via `PATCH /launch/:id`
+- Adjust mutable chain-record fields via `PATCH /api/v1/launch/:id`
 - Reconfigure the committee wholesale, if needed — the **lead** only, while still in DRAFT
-- Upload the initial genesis file (`POST /launch/:id/genesis?type=initial`)
+- Upload the initial genesis file (`POST /api/v1/launch/:id/genesis?type=initial`)
 
 The initial genesis is typically a bare `gaiad init` output with no accounts and no validators — just the base app state
 with the correct parameters.
@@ -59,7 +59,7 @@ Validators cannot apply yet — the application window is not open.
 
 ## WINDOW_OPEN
 
-Triggered by: Any committee member calls `POST /launch/:id/open-window` (no proposal required). If the launch is still
+Triggered by: Any committee member calls `POST /api/v1/launch/:id/open-window` (no proposal required). If the launch is still
 in `DRAFT` and the initial genesis hash has already been uploaded, this call auto-publishes first — a single-step
 shortcut equivalent to executing a `PUBLISH_CHAIN_RECORD` proposal.
 
@@ -106,7 +106,7 @@ The genesis allocations are no longer added entry-by-entry: the committee approv
 whole (see [Proposals → Allocation files](proposals.md#allocation-files)), and a committee member feeds the **approved**
 files into gentool here.
 
-Then uploads the result: `POST /launch/:id/genesis?type=final`.
+Then uploads the result: `POST /api/v1/launch/:id/genesis?type=final`.
 
 ---
 
@@ -123,9 +123,9 @@ boot an ephemeral chain, and post a signed PASS/FAIL the gate can require before
 
 With the genesis published, validators can now:
 
-1. Download the final genesis: `GET /launch/:id/genesis`
-2. Verify the hash: `GET /launch/:id/genesis/hash`
-3. Submit readiness: `POST /launch/:id/ready` (signed confirmation of genesis hash + binary hash)
+1. Download the final genesis: `GET /api/v1/launch/:id/genesis`
+2. Verify the hash: `GET /api/v1/launch/:id/genesis/hash`
+3. Submit readiness: `POST /api/v1/launch/:id/ready` (signed confirmation of genesis hash + binary hash)
 
 The server validates each confirmation: the reported genesis hash must equal the published final genesis hash, and —
 when the coordinator declared a `binary_sha256` in the chain record — the reported binary hash must match it. A mismatch
@@ -136,7 +136,7 @@ at the monitor RPC), never by readiness confirmations. Skipping it doesn't block
 the pre-launch check that catches a validator holding the wrong genesis or binary. A committee that wants a
 readiness threshold enforces it off-band.
 
-Once any committee member sets a monitor RPC URL (`PATCH /launch/:id`), `coordd` starts polling the CometBFT RPC
+Once any committee member sets a monitor RPC URL (`PATCH /api/v1/launch/:id`), `coordd` starts polling the CometBFT RPC
 endpoint once per minute for the first block.
 
 **Genesis revision:** If the genesis file needs to be corrected, the committee can raise a `REVISE_GENESIS` proposal,
@@ -159,7 +159,7 @@ Terminal state. The chain is live.
 
 Triggered by one of two paths, depending on stage:
 
-- **`DRAFT`/`PUBLISHED`** — the lead calls `POST /launch/:id/cancel` directly (a lead-only shortcut,
+- **`DRAFT`/`PUBLISHED`** — the lead calls `POST /api/v1/launch/:id/cancel` directly (a lead-only shortcut,
   harmless before any validator has committed). Any committee member may also use the proposal path below.
 - **`WINDOW_OPEN` and later** — the direct endpoint returns `409`; cancellation requires an M-of-N
   `CANCEL_LAUNCH` committee proposal. Cancelling from `GENESIS_READY` invalidates readiness confirmations.

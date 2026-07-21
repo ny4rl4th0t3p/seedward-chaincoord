@@ -109,11 +109,11 @@ Verify the structural integrity and Ed25519 signatures of a local audit log JSON
 coordd audit verify --file <path> [--pubkey <base64-key>] [--server-url <url>]
 ```
 
-| Flag           | Description                                                                                   |
-|----------------|-----------------------------------------------------------------------------------------------|
-| `--file`       | Path to local JSONL audit log file (required)                                                 |
-| `--pubkey`     | Base64-encoded Ed25519 public key for signature verification                                  |
-| `--server-url` | `coordd` base URL — fetches the audit pubkey via `GET /audit/pubkey` if `--pubkey` is omitted |
+| Flag           | Description                                                                                          |
+|----------------|------------------------------------------------------------------------------------------------------|
+| `--file`       | Path to local JSONL audit log file (required)                                                        |
+| `--pubkey`     | Base64-encoded Ed25519 public key for signature verification                                         |
+| `--server-url` | `coordd` base URL — fetches the audit pubkey via `GET /api/v1/audit/pubkey` if `--pubkey` is omitted |
 
 **What it checks:**
 

@@ -3,6 +3,11 @@
 The `coordd` HTTP API uses JSON for all request and response bodies. Authenticated endpoints take a session token as a
 `Bearer` token in the `Authorization` header.
 
+**Base path: the entire API is mounted under `/api/v1`** — a versioned namespace clients configure as their base URL
+(e.g. `https://coordd.example/api/v1`). The only exceptions are the root-mounted **ops
+endpoints**, `/healthz` and `/metrics`, which address the process rather than the API and sit outside the versioned
+surface (and outside the OpenAPI spec).
+
 The complete, machine-readable contract is the OpenAPI spec at `docs/mkdocs/api/swagger.yaml`, rendered as an
 interactive explorer below. It is **generated from the server** and is the source of truth for every endpoint, request
 body, and response shape (grouped by tag: auth, launches, join-requests, proposals, committee, readiness, genesis,
@@ -19,13 +24,13 @@ All committee members and validators authenticate the same way: a two-step secp2
 must
 be supplied explicitly — bech32 addresses are hashes, so the server cannot recover the key from them.
 
-1. `POST /auth/challenge` with your `operator_address` → the server returns a short-lived `challenge` nonce. (
+1. `POST /api/v1/auth/challenge` with your `operator_address` → the server returns a short-lived `challenge` nonce. (
    Rate-limited: 10 / IP / min and 5 / operator / 5 min.)
 2. Sign the canonical JSON of the challenge payload with your secp256k1 operator key.
-3. `POST /auth/verify` with the signed payload → the server returns a session token.
+3. `POST /api/v1/auth/verify` with the signed payload → the server returns a session token.
 
 Send the token as `Authorization: Bearer <token>` on every authenticated request. Manage sessions with
-`GET /auth/session`, `DELETE /auth/session` (current session), and `DELETE /auth/sessions/all` (every device).
+`GET /api/v1/auth/session`, `DELETE /api/v1/auth/session` (current session), and `DELETE /api/v1/auth/sessions/all` (every device).
 
 All signing is client-side; `coordd` never holds private keys. See [Roles](../concepts/roles.md) for who can do what.
 
@@ -51,8 +56,8 @@ signature.
 
 ## Pagination
 
-The paginated list endpoints — `GET /launches`, `GET /launch/{id}/join`, `GET /launch/{id}/proposals`, and
-`GET /admin/coordinators` — accept `?page=` (default `1`) and `?per_page=` (default `20`, max `100`) and return a
+The paginated list endpoints — `GET /api/v1/launches`, `GET /api/v1/launch/{id}/join`, `GET /api/v1/launch/{id}/proposals`, and
+`GET /api/v1/admin/coordinators` — accept `?page=` (default `1`) and `?per_page=` (default `20`, max `100`) and return a
 paginated envelope:
 
 ```json
@@ -123,7 +128,7 @@ in-browser validator):
 
 ## Streaming & health
 
-- `GET /launch/{id}/events` — Server-Sent Events stream; emits on every state change and proposal execution.
+- `GET /api/v1/launch/{id}/events` — Server-Sent Events stream; emits on every state change and proposal execution.
   **Visibility-gated** (optionalAuth): launches are private-always, so a caller who is not on the launch's
   committee or members list — including an anonymous one — gets `404`. Connect directly to the server rather
   than through a buffering reverse proxy.
@@ -132,5 +137,5 @@ in-browser validator):
   Used by Docker health checks and load-balancer probes. Access lines are leveled by response class — a healthy 200
   logs at `debug` (quiet at info), a failing 503 at `info` — so frequent probes don't flood the log while failures
   stay visible.
-- `GET`/`POST /admin/log-level` — read or change the process log level at runtime, no restart (admin only). See
+- `GET`/`POST /api/v1/admin/log-level` — read or change the process log level at runtime, no restart (admin only). See
   [Setup → Log level](setup.md#log-level); the request/response shape is in the OpenAPI spec.

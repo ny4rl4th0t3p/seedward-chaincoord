@@ -121,21 +121,21 @@ func (s *Server) handleCommitteeCreate(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, committeeToJSON(committee))
 }
 
-// GET /committee/{launch_id}
+// GET /launch/{id}/committee
 // Returns the committee for a launch.
 //
 // @Summary      Get committee
 // @Tags         committee
 // @Produce      json
-// @Param        launch_id  path      string  true  "Launch UUID"
+// @Param        id  path      string  true  "Launch UUID"
 // @Success      200        {object}  committeeJSON
 // @Failure      400        {object}  errorEnvelope
 // @Failure      404        {object}  errorEnvelope
-// @Router       /committee/{launch_id} [get]
+// @Router       /launch/{id}/committee [get]
 func (s *Server) handleCommitteeGet(w http.ResponseWriter, r *http.Request) {
-	launchID, err := uuid.Parse(chi.URLParam(r, "launch_id"))
+	launchID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_id", "launch_id must be a valid UUID")
+		writeError(w, http.StatusBadRequest, "invalid_id", "id must be a valid launch UUID")
 		return
 	}
 

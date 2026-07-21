@@ -230,10 +230,27 @@ func (s *Server) Handler() http.Handler {
 	}))
 	r.Use(hlog.RemoteAddrHandler("ip"))
 
-	// Health check, metrics, and server metadata — no auth required (network-restrict /metrics in a
-	// monitored deploy). /metrics exposes the default Go runtime + process metrics.
+	// Health check + metrics — ops endpoints, root-mounted outside the versioned API (probes and
+	// scrapers address the process, not the API contract). Network-restrict /metrics in a
+	// monitored deploy; it exposes the default Go runtime + process metrics.
 	r.Get("/healthz", s.handleHealthz)
 	r.Get("/metrics", promhttp.Handler().ServeHTTP)
+
+	// The entire REST surface is versioned under /api/v1 (ADR-0027): a namespace the API owns —
+	// it can never collide with a co-hosted frontend's page routes — and the seam a future v2
+	// would mount beside.
+	r.Route("/api/v1", func(r chi.Router) {
+		s.registerAPIRoutes(r)
+		s.registerBridgeRoutes(r)
+		s.registerLaunchReadRoutes(r)
+	})
+
+	return r
+}
+
+// registerAPIRoutes mounts the core versioned API (auth, admin, launches, committee, genesis,
+// allocations, validator writes). Grouped out of Handler to keep it under the statement limit.
+func (s *Server) registerAPIRoutes(r chi.Router) {
 	r.Get("/audit/pubkey", s.handleAuditPubKey)
 
 	// Admin endpoints — require authenticated admin address.
@@ -257,7 +274,7 @@ func (s *Server) Handler() http.Handler {
 
 	// Committee endpoints.
 	r.Post("/launch/{id}/committee", s.jsonPOST(s.handleCommitteeCreate))
-	r.Get("/committee/{launch_id}", s.optionalAuth(s.handleCommitteeGet))
+	r.Get("/launch/{id}/committee", s.optionalAuth(s.handleCommitteeGet))
 
 	// Launch endpoints.
 	r.Post("/launch", s.jsonPOST(s.handleLaunchCreate))
@@ -304,11 +321,6 @@ func (s *Server) Handler() http.Handler {
 		r.Post("/launch/{id}/proposal/{prop_id}/sign", s.jsonPOST(s.handleProposalSign))
 		r.Post("/launch/{id}/ready", s.jsonPOST(s.handleReadinessConfirm))
 	})
-
-	s.registerBridgeRoutes(r)
-	s.registerLaunchReadRoutes(r)
-
-	return r
 }
 
 // registerLaunchReadRoutes mounts the non-rate-limited launch read endpoints (committee-member
@@ -327,8 +339,9 @@ func (s *Server) registerLaunchReadRoutes(r chi.Router) {
 	r.Get("/launch/{id}/rehearsal", s.requireAuth(s.handleRehearsalResultsList))
 }
 
-// registerBridgeRoutes mounts the rehearsal-bridge (ops-plane) endpoints under /bridge, so a
-// devop can restrict the whole prefix to an internal VNet (cut internet access).
+// registerBridgeRoutes mounts the rehearsal-bridge (ops-plane) endpoints under /bridge (publicly
+// /api/v1/bridge), so a devop can restrict the whole prefix to an internal VNet (cut internet
+// access).
 // requireOps gates every endpoint on the shared rehearsal ops token; the bridge is disabled
 // (fail-closed) when the token is unconfigured. coordd never dials the rehearsal service.
 func (s *Server) registerBridgeRoutes(r chi.Router) {
@@ -344,12 +357,8 @@ func (s *Server) registerBridgeRoutes(r chi.Router) {
 // responds 200 {"status":"ok"}, or 503 {"status":"unavailable"} if a dependency is down. Failure
 // detail is logged, not returned, to avoid leaking internals to unauthenticated callers.
 //
-// @Summary      Health check
-// @Tags         health
-// @Produce      json
-// @Success      200  {object}  map[string]string
-// @Failure      503  {object}  map[string]string
-// @Router       /healthz [get]
+// Deliberately NOT swagger-annotated: /healthz (like /metrics) is a root-mounted ops endpoint
+// outside the versioned API, and the spec's basePath (/api/v1) would misdocument its path.
 func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
 	if s.healthCheck != nil {
 		if err := s.healthCheck(r.Context()); err != nil {

@@ -102,7 +102,10 @@ func TestHandleRehearsalInput_AllocationURL(t *testing.T) {
 	acc, ok := body.Allocations["accounts"]
 	require.True(t, ok)
 	assert.Equal(t, "accountshash", acc.SHA256)
-	assert.Equal(t, allocPath(l.ID.String(), "accounts"), acc.URL)
+	// The emitted URL is server-authored wire data: the full public path including the /api/v1
+	// mount (the daemon resolves it against its coordd base URL), unlike allocPath, which is
+	// harness-relative (h.do prefixes the mount).
+	assert.Equal(t, "/api/v1"+allocPath(l.ID.String(), "accounts"), acc.URL)
 }
 
 func allocPath(launchID, allocType string) string {

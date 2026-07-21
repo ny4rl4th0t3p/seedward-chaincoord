@@ -158,7 +158,7 @@ func validCommitteeBody() []byte {
 
 func TestHandleHealthz(t *testing.T) {
 	h := newHarness(t)
-	w := h.do("GET", "/healthz", nil, nil)
+	w := h.doRaw("GET", "/healthz", nil, nil)
 	assertStatusCode(t, w, http.StatusOK)
 	assertContentTypeJSON(t, w)
 }
@@ -533,17 +533,17 @@ func TestHandleCommitteeCreate_Success(t *testing.T) {
 	assertContentTypeJSON(t, w)
 }
 
-// ---- GET /committee/{launch_id} ---------------------------------------------
+// ---- GET /launch/{id}/committee ---------------------------------------------
 
 func TestHandleCommitteeGet_BadUUID(t *testing.T) {
 	h := newHarness(t)
-	w := h.do("GET", "/committee/not-a-uuid", nil, nil)
+	w := h.do("GET", "/launch/not-a-uuid/committee", nil, nil)
 	assertStatusCode(t, w, http.StatusBadRequest)
 }
 
 func TestHandleCommitteeGet_NotFound(t *testing.T) {
 	h := newHarness(t)
-	w := h.do("GET", "/committee/"+uuid.New().String(), nil, nil)
+	w := h.do("GET", "/launch/"+uuid.New().String()+"/committee", nil, nil)
 	assertStatusCode(t, w, http.StatusNotFound)
 }
 
@@ -551,7 +551,7 @@ func TestHandleCommitteeGet_Success(t *testing.T) {
 	h := newHarness(t)
 	l := testLaunch()
 	h.launches.data[l.ID] = l
-	w := h.getAsMember("/committee/" + l.ID.String())
+	w := h.getAsMember("/launch/" + l.ID.String() + "/committee")
 	assertStatusCode(t, w, http.StatusOK)
 	assertContentTypeJSON(t, w)
 }

@@ -13,8 +13,10 @@ import (
 )
 
 // bridgeAllocationURL is the coordd path where the daemon streams an approved allocation file.
+// Server-authored wire data: it must be the full public path including the /api/v1 mount, since
+// the daemon resolves it against its configured coordd base URL.
 func bridgeAllocationURL(launchID, allocType string) string {
-	return "/bridge/launches/" + launchID + "/allocations/" + allocType
+	return "/api/v1/bridge/launches/" + launchID + "/allocations/" + allocType
 }
 
 // rehearsalInputSchemaVersion is the wire schema version of the rehearsal-input payload.

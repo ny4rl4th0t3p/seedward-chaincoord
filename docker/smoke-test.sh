@@ -16,6 +16,8 @@
 set -euo pipefail
 
 SERVER="${COORD_SERVER:-http://coordd:8080}"
+# The REST API is mounted under /api/v1 (ADR-0027); ops endpoints (/healthz /metrics) stay at the root.
+API="${SERVER}/api/v1"
 CHAIN_ID="${CHAIN_ID:-gaia-smoke-1}"
 GAIA_SHARED="${GAIA_SHARED:-/gaia}"
 STAKE_DENOM="uatom"
@@ -61,7 +63,7 @@ auth_and_get_token() {
   addr=$(smoke-signer address --key-index "${idx}")
 
   local challenge_resp challenge
-  challenge_resp=$(curl_check -X POST "${SERVER}/auth/challenge" \
+  challenge_resp=$(curl_check -X POST "${API}/auth/challenge" \
     -H "Content-Type: application/json" \
     -d "{\"operator_address\":\"${addr}\"}")
   challenge=$(echo "${challenge_resp}" | jq -r '.challenge')
@@ -71,7 +73,7 @@ auth_and_get_token() {
     "{\"operator_address\":\"${addr}\",\"challenge\":\"${challenge}\",\"nonce\":\"\",\"timestamp\":\"\",\"pubkey_b64\":\"\",\"signature\":\"\"}" \
     | smoke-signer sign --key-index "${idx}")
 
-  token=$(curl_check -X POST "${SERVER}/auth/verify" \
+  token=$(curl_check -X POST "${API}/auth/verify" \
     -H "Content-Type: application/json" \
     -d "${signed_payload}" | jq -r '.token')
   echo "${token}"
@@ -93,7 +95,7 @@ propose_and_sign() {
   local signed_raise
   signed_raise=$(echo "${raise_template}" | smoke-signer sign --key-index 0)
 
-  resp=$(curl_check -X POST "${SERVER}/launch/${launch_id}/proposal" \
+  resp=$(curl_check -X POST "${API}/launch/${launch_id}/proposal" \
     -H "Authorization: Bearer ${token}" \
     -H "Content-Type: application/json" \
     -d "${signed_raise}")
@@ -106,7 +108,7 @@ propose_and_sign() {
       '{"member_address":"%s","decision":"SIGN","nonce":"","timestamp":"","pubkey_b64":"","signature":""}' \
       "${coord_addr}")
     signed_sign=$(echo "${sign_template}" | smoke-signer sign --key-index 0)
-    curl_check -X POST "${SERVER}/launch/${launch_id}/proposal/${prop_id}/sign" \
+    curl_check -X POST "${API}/launch/${launch_id}/proposal/${prop_id}/sign" \
       -H "Authorization: Bearer ${token}" \
       -H "Content-Type: application/json" \
       -d "${signed_sign}" > /dev/null
@@ -216,7 +218,7 @@ LAUNCH_BODY=$(jq -n \
     }
   }')
 
-LAUNCH_ID=$(curl_check -X POST "${SERVER}/launch" \
+LAUNCH_ID=$(curl_check -X POST "${API}/launch" \
   -H "Authorization: Bearer ${COORD_TOKEN}" \
   -H "Content-Type: application/json" \
   -d "${LAUNCH_BODY}" | jq -r '.id')
@@ -228,7 +230,7 @@ echo "    launch ID: ${LAUNCH_ID}"
 echo "==> [6/20] uploading initial genesis..."
 INITIAL_GENESIS_FILE="${GAIA_SHARED}/coord/config/genesis.json"
 INITIAL_GENESIS_HASH=$(sha256sum "${INITIAL_GENESIS_FILE}" | awk '{print $1}')
-curl_check -X POST "${SERVER}/launch/${LAUNCH_ID}/genesis?type=initial" \
+curl_check -X POST "${API}/launch/${LAUNCH_ID}/genesis?type=initial" \
   -H "Authorization: Bearer ${COORD_TOKEN}" \
   -H "Content-Type: application/octet-stream" \
   --data-binary @"${INITIAL_GENESIS_FILE}" > /dev/null
@@ -247,7 +249,7 @@ echo "    published via proposal ${PROP_ID}"
 # Step 8 — Open application window (requires PUBLISHED status)
 # ---------------------------------------------------------------------------
 echo "==> [8/20] opening application window..."
-curl_check -X POST "${SERVER}/launch/${LAUNCH_ID}/open-window" \
+curl_check -X POST "${API}/launch/${LAUNCH_ID}/open-window" \
   -H "Authorization: Bearer ${COORD_TOKEN}" > /dev/null
 
 # ---------------------------------------------------------------------------
@@ -295,7 +297,7 @@ for i in 1 2 3 4; do
     "${OP_ADDR}" "${CHAIN_ID}" "${GENTX_JSON}" "${PEER_ADDR}" "${RPC_ENDPOINT}")
   SIGNED_JOIN=$(echo "${JOIN_TEMPLATE}" | smoke-signer sign --key-index "${i}")
 
-  JR_ID=$(curl_check -X POST "${SERVER}/launch/${LAUNCH_ID}/join" \
+  JR_ID=$(curl_check -X POST "${API}/launch/${LAUNCH_ID}/join" \
     -H "Authorization: Bearer ${VAL_TOKEN}" \
     -H "Content-Type: application/json" \
     -d "${SIGNED_JOIN}" | jq -r '.id')
@@ -342,7 +344,7 @@ for i in 1 2 3 4; do
 done
 
 mkdir -p "${GAIA_SHARED}/coord/config/gentx"
-curl_check "${SERVER}/launch/${LAUNCH_ID}/gentxs" \
+curl_check "${API}/launch/${LAUNCH_ID}/gentxs" \
   -H "Authorization: Bearer ${COORD_TOKEN}" \
   | jq -c '.gentxs[]' \
   | while IFS= read -r entry; do
@@ -368,7 +370,7 @@ gaiad_coord genesis validate
 echo "==> [13/20] uploading final genesis..."
 FINAL_GENESIS_FILE="${GAIA_SHARED}/coord/config/genesis.json"
 FINAL_GENESIS_HASH=$(sha256sum "${FINAL_GENESIS_FILE}" | awk '{print $1}')
-curl_check -X POST "${SERVER}/launch/${LAUNCH_ID}/genesis?type=final" \
+curl_check -X POST "${API}/launch/${LAUNCH_ID}/genesis?type=final" \
   -H "Authorization: Bearer ${COORD_TOKEN}" \
   -H "Content-Type: application/octet-stream" \
   --data-binary @"${FINAL_GENESIS_FILE}" > /dev/null
@@ -386,7 +388,7 @@ echo "    genesis published via proposal ${PROP_ID}"
 # Step 15 — Download final genesis, distribute, and verify hash inline
 # ---------------------------------------------------------------------------
 echo "==> [15/20] distributing and verifying final genesis..."
-curl_check -L "${SERVER}/launch/${LAUNCH_ID}/genesis" \
+curl_check -L "${API}/launch/${LAUNCH_ID}/genesis" \
   -H "Authorization: Bearer ${COORD_TOKEN}" > /tmp/final_genesis.json
 
 for i in 1 2 3 4; do
@@ -394,7 +396,7 @@ for i in 1 2 3 4; do
 done
 
 LOCAL_HASH=$(sha256sum /tmp/final_genesis.json | awk '{print $1}')
-SERVER_HASH=$(curl_check "${SERVER}/launch/${LAUNCH_ID}/genesis/hash" \
+SERVER_HASH=$(curl_check "${API}/launch/${LAUNCH_ID}/genesis/hash" \
   -H "Authorization: Bearer ${COORD_TOKEN}" | jq -r '.final_sha256')
 if [ "${LOCAL_HASH}" != "${SERVER_HASH}" ]; then
   echo "HASH MISMATCH: local=${LOCAL_HASH} server=${SERVER_HASH}"
@@ -407,7 +409,7 @@ echo "    genesis SHA256: ${GENESIS_HASH} (verified)"
 # Step 16 — Configure persistent_peers in each validator's config.toml
 # ---------------------------------------------------------------------------
 echo "==> [16/20] configuring persistent_peers..."
-PEERS=$(curl_check "${SERVER}/launch/${LAUNCH_ID}/peers?format=text" \
+PEERS=$(curl_check "${API}/launch/${LAUNCH_ID}/peers?format=text" \
   -H "Authorization: Bearer ${COORD_TOKEN}")
 for i in 1 2 3 4; do
   cfg="${GAIA_SHARED}/val${i}/config/config.toml"
@@ -431,7 +433,7 @@ for i in 1 2 3 4; do
     "${OP_ADDR}" "${GENESIS_HASH}" "${BINARY_HASH}")
   SIGNED_READY=$(echo "${READY_TEMPLATE}" | smoke-signer sign --key-index "${i}")
 
-  curl_check -X POST "${SERVER}/launch/${LAUNCH_ID}/ready" \
+  curl_check -X POST "${API}/launch/${LAUNCH_ID}/ready" \
     -H "Authorization: Bearer ${VAL_TOKEN}" \
     -H "Content-Type: application/json" \
     -d "${SIGNED_READY}" > /dev/null
@@ -450,7 +452,7 @@ done
 # Step 19 — Set monitor RPC URL
 # ---------------------------------------------------------------------------
 echo "==> [19/20] setting monitor RPC URL..."
-curl_check -X PATCH "${SERVER}/launch/${LAUNCH_ID}" \
+curl_check -X PATCH "${API}/launch/${LAUNCH_ID}" \
   -H "Authorization: Bearer ${COORD_TOKEN}" \
   -H "Content-Type: application/json" \
   -d '{"monitor_rpc_url":"http://val1:26657"}' > /dev/null
@@ -460,7 +462,7 @@ curl_check -X PATCH "${SERVER}/launch/${LAUNCH_ID}" \
 # ---------------------------------------------------------------------------
 echo "==> [20/20] waiting for LAUNCHED status (180s timeout)..."
 for i in $(seq 1 60); do
-  STATUS=$(curl_check "${SERVER}/launch/${LAUNCH_ID}" \
+  STATUS=$(curl_check "${API}/launch/${LAUNCH_ID}" \
     -H "Authorization: Bearer ${COORD_TOKEN}" | jq -r '.status')
   if [ "${STATUS}" = "LAUNCHED" ]; then
     echo "SUCCESS: chain launched"

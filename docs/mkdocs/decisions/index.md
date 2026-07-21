@@ -38,7 +38,7 @@ Thirteen proposal action types (constants in `internal/domain/proposal/proposal.
 `OpenWindow` is a **direct** API call, not a proposal — it auto-publishes from `DRAFT` when the initial
 genesis hash is already present (a single-step convenience).
 
-**Cancel is hybrid.** The direct `POST /launch/{id}/cancel` endpoint is **lead-only** and valid only in
+**Cancel is hybrid.** The direct `POST /api/v1/launch/{id}/cancel` endpoint is **lead-only** and valid only in
 `DRAFT`/`PUBLISHED`, where no validators have committed — a harmless unilateral scrap. Once a launch is
 past `PUBLISHED` (`WINDOW_OPEN` and later) external parties have committed gentxs, so the direct path
 returns `409` and cancellation must go through an **M-of-N `CANCEL_LAUNCH` proposal** instead. That
@@ -67,7 +67,7 @@ payload alone can't provide.
 
 ### Live event feed mirrors the audit log
 
-The per-launch SSE stream (`GET /launch/{id}/events`) is the **real-time projection of the audit log**:
+The per-launch SSE stream (`GET /api/v1/launch/{id}/events`) is the **real-time projection of the audit log**:
 every launch-scoped domain event that is audited is also broadcast. This is enforced **structurally, not by
 convention** — each service records launch events through a single `emit(ctx, scope, ev)` = `recordAudit` +
 `events.Publish`, so audit-coverage and SSE-coverage are equal by construction and can't drift as new actions
@@ -117,7 +117,7 @@ one identity. Authorization compares on the account
 protection), the `operator_revocations` fence, the admin set, and the coordinator allowlist. Launch-scoped
 addresses (members, committee, join-request submitter + operator) are stored **under the launch's bech32
 prefix**; global identities (coordinator allowlist, revocation fence) as the **account hex** — a startup
-backfill canonicalizes existing rows. `GET /launch/{id}/chain-hint` is gated behind the visibility check
+backfill canonicalizes existing rows. `GET /api/v1/launch/{id}/chain-hint` is gated behind the visibility check
 (404 for non-members): a validator authenticates first, then reads the launch prefix for their gentx.
 
 ### Challenge / nonce / sessions
@@ -129,9 +129,9 @@ backfill canonicalizes existing rows. `GET /launch/{id}/chain-hint` is gated beh
   consumed before the challenge check.
 - **Challenge rate limits:** 10/IP/min (chi `httprate`) + 5/operator/5-min.
 - **Sessions** are stateless Ed25519 JWTs, **1 h** TTL. No per-token revocation; bulk revocation uses an
-  `operator_revocations` fence table (`RevokeAllForOperator`), exposed as `DELETE /auth/sessions/all`
-  (self) and `DELETE /admin/sessions/{address}` (admin).
-- `POST /auth/verify` returns a **uniform 401** for every failure (anti-enumeration), bypassing the normal
+  `operator_revocations` fence table (`RevokeAllForOperator`), exposed as `DELETE /api/v1/auth/sessions/all`
+  (self) and `DELETE /api/v1/admin/sessions/{address}` (admin).
+- `POST /api/v1/auth/verify` returns a **uniform 401** for every failure (anti-enumeration), bypassing the normal
   error responder.
 
 ### Members API & storage
@@ -152,7 +152,7 @@ backfill canonicalizes existing rows. `GET /launch/{id}/chain-hint` is gated beh
 ### Global coordinator allowlist (display only)
 
 - An admin-managed `coordinator_allowlist` exists but only feeds the `is_coordinator` display flag on
-  `GET /auth/session`. Stored and compared as the **account hex**, so a coordinator is recognized under any
+  `GET /api/v1/auth/session`. Stored and compared as the **account hex**, so a coordinator is recognized under any
   prefix. Per-launch governance authz is `Committee.HasMember`, unrelated to it.
 
 ### Invite-token onboarding (v1.x)
@@ -240,7 +240,7 @@ verify`) and refuses on tamper/corruption while only warning on a backward times
 large-log escape hatch. Coverage is guarded by a reflection test — every exported `LaunchService` /
 `ProposalService` method must be classified audited-or-not, and there are currently no mutation exemptions
 (`ClaimRehearsalRun` → `RehearsalRunClaimed`, `ExpireStale` → `ProposalExpired`; only queries and builders
-are unaudited). A `PATCH /launch/{id}` emits one `LaunchPatched` event carrying a per-field old→new diff — the trusted
+are unaudited). A `PATCH /api/v1/launch/{id}` emits one `LaunchPatched` event carrying a per-field old→new diff — the trusted
 rehearsal key folded in, no longer a special-cased event.
 
 Audit-write error policy is split by criticality: a direct action **logs and continues** on a failed audit
@@ -275,7 +275,7 @@ attestation are suite ADRs; the mechanics below are chaincoord-internal.
 consensus-pubkey presence + dedup, future `genesis_time`) and syncs the file's `genesis_time` into
 `Record.GenesisTime`; an attestor-mode final upload takes `genesis_time` as a required RFC3339 request
 field. Host mode is gated by `COORD_GENESIS_HOST_MODE` + `genesis_max_bytes` (shared with allocation
-uploads). `GET /launch/{id}/genesis/hash` returns both `initial_sha256` and `final_sha256`.
+uploads). `GET /api/v1/launch/{id}/genesis/hash` returns both `initial_sha256` and `final_sha256`.
 
 ### Readiness dashboard aggregation
 
@@ -286,7 +286,7 @@ valid (non-invalidated) confirmations count.
 ### Block monitor
 
 `RunLaunchMonitor` (started in `serve.go`, 1-minute cadence) polls each `GENESIS_READY` launch with a
-non-empty `MonitorRPCURL` — a single URL set by a committee member via `PATCH /launch/{id}`, re-read each
+non-empty `MonitorRPCURL` — a single URL set by a committee member via `PATCH /api/v1/launch/{id}`, re-read each
 tick so a `PATCH` takes effect without restart: `GET <rpc>/block?height=1` (5 s timeout, SSRF-guarded), and
 on a `200` whose `result.block` is non-null **and** whose header `chain_id` matches the launch at height `1`,
 calls `MarkLaunched` and emits `LaunchDetected{LaunchID, SourceRPC}`. The `chain_id`/height check stops a
@@ -300,19 +300,20 @@ chaincoord-internal.
 
 ### Auth-tier route taxonomy
 
-Routes are grouped into five tiers on the Chi router (`server.go`):
+Routes are grouped into five tiers on the Chi router (`server.go`); everything except the root ops
+endpoints is mounted under `/api/v1` (ADR-0027 — paths below inside the mount):
 
-- **public** — `GET /healthz`, `GET /metrics` (unauthenticated — network-restrict it in deploy), `GET
-  /audit/pubkey`, `POST /auth/challenge` (rate-limited), `POST /auth/verify`, and `GET`/`DELETE
-  /auth/session`.
+- **public** — root: `GET /healthz`, `GET /metrics` (unauthenticated — network-restrict it in deploy);
+  in the mount: `GET /api/v1/audit/pubkey`, `POST /api/v1/auth/challenge` (rate-limited),
+  `POST /api/v1/auth/verify`, and `GET`/`DELETE /api/v1/auth/session`.
 - **optionalAuth** — resolves the caller if a token is present, else anonymous → visibility gating (the
-  reads: `GET /launches`, `/launch/{id}`, `/committee/{id}`, `/launch/{id}/chain-hint`, genesis, allocations,
-  dashboard, peers, audit, events).
+  reads: `GET /api/v1/launches`, `/api/v1/launch/{id}`, `/api/v1/launch/{id}/committee`,
+  `/api/v1/launch/{id}/chain-hint`, genesis, allocations, dashboard, peers, audit, events).
 - **requireAuth** — the authenticated actions + reads (create/patch, committee create, members, uploads,
-  join/proposal/ready writes, the launch read GETs, `DELETE /auth/sessions/all`).
-- **requireOps** — the four `/bridge/*` endpoints (shared `rehearsal_ops_token`, **fail-closed** when
+  join/proposal/ready writes, the launch read GETs, `DELETE /api/v1/auth/sessions/all`).
+- **requireOps** — the four `/api/v1/bridge/*` endpoints (shared `rehearsal_ops_token`, **fail-closed** when
   unset).
-- **requireAdmin** — `/admin/*` (coordinators + `DELETE /admin/sessions/{address}`).
+- **requireAdmin** — `/api/v1/admin/*` (coordinators + `DELETE /api/v1/admin/sessions/{address}`).
 
 ### Single-binary coordd
 

@@ -7,10 +7,10 @@ action that executes automatically when M committee members sign it.
 
 ## How proposals work
 
-1. Any committee member raises a proposal (`POST /launch/:id/proposal`). The proposer's signature is recorded
+1. Any committee member raises a proposal (`POST /api/v1/launch/:id/proposal`). The proposer's signature is recorded
    implicitly — raising a proposal counts as a SIGN.
 2. Other committee members review the proposal and submit a SIGN or VETO decision (
-   `POST /launch/:id/proposal/:pid/sign`).
+   `POST /api/v1/launch/:id/proposal/:pid/sign`).
 3. The proposal resolves when one of three things happens:
     - **Quorum reached:** M SIGN decisions collected → proposal executes immediately
     - **Vetoed:** any member submits VETO → proposal moves to `VETOED`, no execution
@@ -80,7 +80,7 @@ published (`GENESIS_READY`, `LAUNCHED`, or `CANCELED`) — an approval could no 
 #### Allocation files
 
 Genesis allocations (`accounts`, `claims`, `grants`, `authz`, `feegrant`) are governed as **whole files**, not
-per-entry. A committee member uploads the curated file for a type (`POST /launch/{id}/allocations/{type}`, dual-mode
+per-entry. A committee member uploads the curated file for a type (`POST /api/v1/launch/{id}/allocations/{type}`, dual-mode
 like genesis: attestor URL+hash or host bytes); it lands in `PENDING`. The content is **opaque** to coordd — gentool
 emits CSV/TSV, not JSON — so the server stores and hashes the bytes but does not parse them.
 

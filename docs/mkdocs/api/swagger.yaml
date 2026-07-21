@@ -1,4 +1,4 @@
-basePath: /
+basePath: /api/v1
 definitions:
   api.addCoordinatorRequest:
     properties:
@@ -1396,52 +1396,6 @@ paths:
       summary: Rehearsal result write-back (bridge)
       tags:
       - bridge
-  /committee/{launch_id}:
-    get:
-      parameters:
-      - description: Launch UUID
-        in: path
-        name: launch_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/api.committeeJSON'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.errorEnvelope'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.errorEnvelope'
-      summary: Get committee
-      tags:
-      - committee
-  /healthz:
-    get:
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "503":
-          description: Service Unavailable
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Health check
-      tags:
-      - health
   /launch:
     post:
       consumes:
@@ -1773,6 +1727,31 @@ paths:
       tags:
       - launches
   /launch/{id}/committee:
+    get:
+      parameters:
+      - description: Launch UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.committeeJSON'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+      summary: Get committee
+      tags:
+      - committee
     post:
       consumes:
       - application/json

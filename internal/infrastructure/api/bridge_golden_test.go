@@ -47,7 +47,7 @@ const bridgeWireGolden = `{
     {"operator_address": "cosmosvaloper1bbb", "consensus_pubkey": "pk2", "moniker": "val-b", "self_delegation": "3000000", "gentx": {"b": 2}}
   ],
   "allocations": {
-    "accounts": {"sha256": "accountshash", "approved_by_proposal": "22222222-2222-2222-2222-222222222222", "url": "/bridge/launches/11111111-1111-1111-1111-111111111111/allocations/accounts"}
+    "accounts": {"sha256": "accountshash", "approved_by_proposal": "22222222-2222-2222-2222-222222222222", "url": "/api/v1/bridge/launches/11111111-1111-1111-1111-111111111111/allocations/accounts"}
   },
   "input_set_hash": "deadbeefdeadbeef"
 }`

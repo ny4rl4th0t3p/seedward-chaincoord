@@ -49,7 +49,7 @@ docker run -d --name coordd -p 8080:8080 -v coordd-data:/data --env-file coordd.
 
 Check it: `curl http://localhost:8080/healthz` → `{"status":"ok"}`.
 
-`COORD_ADMIN_ADDRESSES` is the wallet address that manages the `/admin` endpoints (the coordinator
+`COORD_ADMIN_ADDRESSES` is the wallet address that manages the `/api/v1/admin` endpoints (the coordinator
 allowlist); set it to the address you'll sign in with. `COORD_INSECURE_NO_TLS=true` only suppresses the
 plaintext-bind warning — use it when TLS is terminated upstream (reverse proxy / load balancer). See
 [Setup & Configuration](../reference/setup.md) for TLS, CORS, the full env-var reference, and production
