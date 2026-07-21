@@ -248,6 +248,69 @@ func TestLaunchService_UploadFinalGenesis_ValidWithApprovedValidator(t *testing.
 	assert.Equal(t, sha256Hex(data), hash, "returned hash must be the SHA-256 of the uploaded bytes")
 }
 
+// --- UploadFinalGenesis structural validation: baked-validator form (e.g. gentool) ---
+
+// bakedGenesisJSON builds a final genesis with empty gen_txs and the given consensus pubkeys baked
+// into app_state.staking.validators — the shape a gentool-assembled genesis has.
+func bakedGenesisJSON(chainID string, stakingPubKeys ...string) []byte {
+	vals := make([]string, len(stakingPubKeys))
+	for i, k := range stakingPubKeys {
+		vals[i] = `{"consensus_pubkey":{"key":"` + k + `"}}`
+	}
+	return []byte(`{"chain_id":"` + chainID + `","genesis_time":"2030-01-01T00:00:00Z",` +
+		`"app_state":{"genutil":{"gen_txs":[]},"staking":{"validators":[` + strings.Join(vals, ",") + `]}}}`)
+}
+
+func TestLaunchService_UploadFinalGenesis_BakedValidators_Valid(t *testing.T) {
+	l := testLaunch()
+	l.Status = launch.StatusWindowClosed
+
+	const pubKey = "AAEC"
+	// testAddr3: the operator address plays no part in the baked match — only the consensus pubkey.
+	jr := makeApprovedJoinRequest(t, l.ID, testAddr3, pubKey)
+	svc := newLaunchSvcWithJR(newFakeLaunchRepo(l), newFakeJoinRequestRepo(jr), newFakeGenesisStore())
+
+	data := bakedGenesisJSON(l.Record.ChainID, pubKey)
+	hash, err := svc.UploadFinalGenesis(context.Background(), l.ID, data, testAddr1)
+	require.NoError(t, err)
+	assert.Equal(t, sha256Hex(data), hash, "returned hash must be the SHA-256 of the uploaded bytes")
+}
+
+func TestLaunchService_UploadFinalGenesis_BakedValidators_MissingApproved(t *testing.T) {
+	l := testLaunch()
+	l.Status = launch.StatusWindowClosed
+
+	jr := makeApprovedJoinRequest(t, l.ID, testAddr2, "AAEC")
+	svc := newLaunchSvcWithJR(newFakeLaunchRepo(l), newFakeJoinRequestRepo(jr), newFakeGenesisStore())
+
+	// A staking validator is present but it is not the approved one.
+	_, err := svc.UploadFinalGenesis(context.Background(), l.ID, bakedGenesisJSON(l.Record.ChainID, "BBEC"), testAddr1)
+	require.ErrorIs(t, err, ports.ErrBadRequest, "approved validator missing from staking validators is a 400")
+}
+
+func TestLaunchService_UploadFinalGenesis_BakedValidators_UnapprovedExtra(t *testing.T) {
+	l := testLaunch()
+	l.Status = launch.StatusWindowClosed
+
+	jr := makeApprovedJoinRequest(t, l.ID, testAddr2, "AAEC")
+	svc := newLaunchSvcWithJR(newFakeLaunchRepo(l), newFakeJoinRequestRepo(jr), newFakeGenesisStore())
+
+	// The approved validator plus an extra baked-in one → count mismatch → 400.
+	_, err := svc.UploadFinalGenesis(context.Background(), l.ID, bakedGenesisJSON(l.Record.ChainID, "AAEC", "BBEC"), testAddr1)
+	require.ErrorIs(t, err, ports.ErrBadRequest, "unapproved staking validator in genesis is a 400")
+}
+
+func TestLaunchService_UploadFinalGenesis_BakedValidators_DuplicatePubKey(t *testing.T) {
+	l := testLaunch()
+	l.Status = launch.StatusWindowClosed
+
+	jr := makeApprovedJoinRequest(t, l.ID, testAddr2, "AAEC")
+	svc := newLaunchSvcWithJR(newFakeLaunchRepo(l), newFakeJoinRequestRepo(jr), newFakeGenesisStore())
+
+	_, err := svc.UploadFinalGenesis(context.Background(), l.ID, bakedGenesisJSON(l.Record.ChainID, "AAEC", "AAEC"), testAddr1)
+	require.ErrorIs(t, err, ports.ErrBadRequest, "duplicate staking consensus pubkey is a 400")
+}
+
 // --- UploadInitialGenesisRef ---
 
 const validSHA256 = "a3f9b72c1d4e8f05a6b2c3d4e5f67890a1b2c3d4e5f6789012345678901234ab"

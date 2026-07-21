@@ -27,26 +27,29 @@ checksum:
 
 changelog:
   sort: asc
+  # Regexps are matched against the whole `<abbrev-hash> <subject>` changelog entry, so each must
+  # skip the leading hash with `^.*?` before the conventional-commit type. Anchoring at `^feat`
+  # never matches (the line starts with the hash) and everything falls through to "Other".
   filters:
     exclude:
-      - '^chore'
-      - '^ci'
-      - '^Merge (pull request|branch)'
+      - '^.*?chore(\(.+?\))?!?:'
+      - '^.*?ci(\(.+?\))?!?:'
+      - '^.*?Merge (pull request|branch)'
   groups:
     - title: Features
-      regexp: '^feat'
+      regexp: '^.*?feat(\(.+?\))?!?:'
       order: 0
     - title: Bug Fixes
-      regexp: '^fix'
+      regexp: '^.*?fix(\(.+?\))?!?:'
       order: 1
     - title: Performance
-      regexp: '^perf'
+      regexp: '^.*?perf(\(.+?\))?!?:'
       order: 2
     - title: Refactors
-      regexp: '^refactor'
+      regexp: '^.*?refactor(\(.+?\))?!?:'
       order: 3
     - title: Documentation
-      regexp: '^docs'
+      regexp: '^.*?docs(\(.+?\))?!?:'
       order: 4
     - title: Other
       order: 999

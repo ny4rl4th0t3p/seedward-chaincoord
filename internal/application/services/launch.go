@@ -480,8 +480,12 @@ func isValidSHA256Hex(s string) bool {
 // validateFinalGenesis performs structural checks on the committee-assembled genesis
 // file beyond what validateGenesisStructure already covers. Specifically:
 //  1. genesis_time is set and is in the future.
-//  2. Every approved validator's consensus pubkey appears exactly once in gen_txs.
-//  3. No unapproved gentxs are present (len(gen_txs) == len(approved)).
+//  2. The genesis contains exactly the approved validator set — no unapproved entries, none
+//     missing. Two assembly conventions are recognized:
+//     - gentx form (`collect-gentxs`): every approved consensus pubkey appears exactly once in
+//     genutil.gen_txs, and len(gen_txs) == len(approved);
+//     - baked form (e.g. gentool): gen_txs is empty and the approved pubkeys appear exactly once
+//     each in app_state.staking.validators, with no extras.
 //
 // Returns the validated genesis_time so the caller can sync it into the launch record.
 func validateFinalGenesis(data []byte, approved []*joinrequest.JoinRequest) (time.Time, error) {
@@ -491,6 +495,13 @@ func validateFinalGenesis(data []byte, approved []*joinrequest.JoinRequest) (tim
 			Genutil struct {
 				GenTxs []json.RawMessage `json:"gen_txs"`
 			} `json:"genutil"`
+			Staking struct {
+				Validators []struct {
+					ConsensusPubKey struct {
+						Key string `json:"key"`
+					} `json:"consensus_pubkey"`
+				} `json:"validators"`
+			} `json:"staking"`
 		} `json:"app_state"`
 	}
 	if err := json.Unmarshal(data, &g); err != nil {
@@ -503,6 +514,33 @@ func validateFinalGenesis(data []byte, approved []*joinrequest.JoinRequest) (tim
 	}
 	if !g.GenesisTime.After(time.Now().UTC()) {
 		return time.Time{}, fmt.Errorf("genesis_time %s is not in the future", g.GenesisTime.Format(time.RFC3339))
+	}
+
+	// Baked form: an assembler like gentool clears gen_txs and writes the validators directly
+	// into staking state, so the approved set is matched there instead.
+	if len(g.AppState.Genutil.GenTxs) == 0 && len(approved) > 0 {
+		stakingKeys := make(map[string]struct{}, len(g.AppState.Staking.Validators))
+		for i, v := range g.AppState.Staking.Validators {
+			if v.ConsensusPubKey.Key == "" {
+				return time.Time{}, fmt.Errorf("staking.validators[%d]: no consensus_pubkey.key field", i)
+			}
+			if _, dup := stakingKeys[v.ConsensusPubKey.Key]; dup {
+				return time.Time{}, fmt.Errorf("staking.validators[%d]: duplicate consensus pubkey %q",
+					i, v.ConsensusPubKey.Key)
+			}
+			stakingKeys[v.ConsensusPubKey.Key] = struct{}{}
+		}
+		if len(stakingKeys) != len(approved) {
+			return time.Time{}, fmt.Errorf("genesis has no gen_txs and %d staking validators but %d validators are approved",
+				len(stakingKeys), len(approved))
+		}
+		for _, jr := range approved {
+			if _, ok := stakingKeys[jr.ConsensusPubKey]; !ok {
+				return time.Time{}, fmt.Errorf("approved validator %s (pubkey %q) is missing from staking validators",
+					jr.OperatorAddress, jr.ConsensusPubKey)
+			}
+		}
+		return g.GenesisTime, nil
 	}
 
 	if len(g.AppState.Genutil.GenTxs) != len(approved) {

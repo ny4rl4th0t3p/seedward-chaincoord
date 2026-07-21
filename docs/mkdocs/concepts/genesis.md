@@ -7,7 +7,8 @@ A launch carries two genesis hashes, uploaded at different phases:
   `WINDOW_CLOSED`.
 
 coordd **never assembles genesis** — a committee member builds it locally (gentool folds the approved
-allocation files into a base genesis; the chain binary's `collect-gentxs` adds the gentxs) and uploads it.
+allocation files *and* the gentxs into a base genesis; or the chain binary's `collect-gentxs` adds the
+gentxs) and uploads it.
 coordd only runs light well-formedness checks and anchors the hash; **the committee is what validates the
 genesis it publishes** — by review (optionally backed by a rehearsal) plus the M-of-N `PUBLISH_GENESIS`
 attestation.
@@ -26,9 +27,11 @@ Both go through `POST /launch/{id}/genesis?type=initial|final`, in one of two mo
 ## Final-genesis checks
 
 coordd runs a few **mechanical guardrail** checks on a final upload (no chain binary invoked): the bytes
-are well-formed JSON, `chain_id` matches the record, `genesis_time` is set and in the future,
-`len(gen_txs) == len(approved)`, and each approved validator's consensus pubkey appears exactly once (no
-duplicates). It then binds `FinalGenesisInputSetHash` (the approved-set fingerprint, re-checked at
+are well-formed JSON, `chain_id` matches the record, `genesis_time` is set and in the future, and the
+genesis contains **exactly the approved validator set** — in either assembly convention: the *gentx form*
+(`collect-gentxs`: `len(gen_txs) == len(approved)`, each approved consensus pubkey exactly once, no
+duplicates) or the *baked form* (gentool: `gen_txs` is empty and the approved pubkeys appear exactly once
+each in `staking.validators`, no extras). It then binds `FinalGenesisInputSetHash` (the approved-set fingerprint, re-checked at
 `PUBLISH_GENESIS` so a genesis that no longer matches the set can't be finalized). These are guardrails,
 **not genesis validation**: the genesis schema, balances, supply, and bonded pool are the committee's to
 vet (with gentool / rehearsal) — the file is opaque to coordd.
@@ -42,8 +45,8 @@ Those checks are mechanical guardrails, and coordd never assembles the genesis i
 is **independent reproduction by the committee**, not the proposer's uploaded file. The approved inputs are
 deterministic and pinned: the approved gentxs (`GET /launch/{id}/gentxs`), the approved allocation files, and
 the chain record, all fingerprinted by `FinalGenesisInputSetHash`. So any committee member can rebuild the
-genesis locally (`gentool` folds the allocation files; the chain binary's `collect-gentxs` adds the gentxs)
-and confirm their result's hash equals the proposer's `FinalGenesisSHA256`. The M-of-N `PUBLISH_GENESIS`
+genesis locally (with `gentool`, or the chain binary's `collect-gentxs`) and confirm their result's hash
+equals the proposer's `FinalGenesisSHA256`. The M-of-N `PUBLISH_GENESIS`
 signatures are that **reproduction-backed attestation** — each signer vouches for a hash they can regenerate
 from the approved set, not one they merely downloaded.
 
