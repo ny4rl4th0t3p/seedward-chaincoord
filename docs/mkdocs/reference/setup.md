@@ -321,7 +321,9 @@ internal container names that would fail the SSRF check. **Do not enable in prod
 ### `rehearsal_ops_token` / `rehearsal_ops_token_file`
 
 Shared bearer token authenticating the **rehearsal bridge** (ops plane) endpoints under `/bridge/*` — a
-headless service-to-service credential, not a wallet. When set, the rehearsal service presents it as
+headless service-to-service credential, not a wallet. It is an arbitrary secret you generate yourself
+(any high-entropy string, e.g. `openssl rand -hex 32`), configured identically on both sides. When set,
+the rehearsal service presents it as
 `Authorization: Bearer <token>` to pull the approved input set and post signed results. **Leave unset to
 disable the bridge** (all `/bridge/*` requests are rejected, fail-closed). Deployment-wide, not per-launch;
 prefer the `_file` variant (secret manager) over the plain env var. Rotation is "swap the secret + reload."
