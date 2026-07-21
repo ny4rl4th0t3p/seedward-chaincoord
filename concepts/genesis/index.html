@@ -1087,7 +1087,8 @@
   <code>WINDOW_CLOSED</code>.</li>
 </ul>
 <p>coordd <strong>never assembles genesis</strong> — a committee member builds it locally (gentool folds the approved
-allocation files into a base genesis; the chain binary's <code>collect-gentxs</code> adds the gentxs) and uploads it.
+allocation files <em>and</em> the gentxs into a base genesis; or the chain binary's <code>collect-gentxs</code> adds the
+gentxs) and uploads it.
 coordd only runs light well-formedness checks and anchors the hash; <strong>the committee is what validates the
 genesis it publishes</strong> — by review (optionally backed by a rehearsal) plus the M-of-N <code>PUBLISH_GENESIS</code>
 attestation.</p>
@@ -1102,9 +1103,11 @@ attestation.</p>
 <p>(This is the same by-reference model allocation files use.)</p>
 <h2 id="final-genesis-checks">Final-genesis checks<a class="headerlink" href="#final-genesis-checks" title="Permanent link">&para;</a></h2>
 <p>coordd runs a few <strong>mechanical guardrail</strong> checks on a final upload (no chain binary invoked): the bytes
-are well-formed JSON, <code>chain_id</code> matches the record, <code>genesis_time</code> is set and in the future,
-<code>len(gen_txs) == len(approved)</code>, and each approved validator's consensus pubkey appears exactly once (no
-duplicates). It then binds <code>FinalGenesisInputSetHash</code> (the approved-set fingerprint, re-checked at
+are well-formed JSON, <code>chain_id</code> matches the record, <code>genesis_time</code> is set and in the future, and the
+genesis contains <strong>exactly the approved validator set</strong> — in either assembly convention: the <em>gentx form</em>
+(<code>collect-gentxs</code>: <code>len(gen_txs) == len(approved)</code>, each approved consensus pubkey exactly once, no
+duplicates) or the <em>baked form</em> (gentool: <code>gen_txs</code> is empty and the approved pubkeys appear exactly once
+each in <code>staking.validators</code>, no extras). It then binds <code>FinalGenesisInputSetHash</code> (the approved-set fingerprint, re-checked at
 <code>PUBLISH_GENESIS</code> so a genesis that no longer matches the set can't be finalized). These are guardrails,
 <strong>not genesis validation</strong>: the genesis schema, balances, supply, and bonded pool are the committee's to
 vet (with gentool / rehearsal) — the file is opaque to coordd.</p>
@@ -1115,8 +1118,8 @@ attestor-mode final upload (and must be in the future).</p>
 is <strong>independent reproduction by the committee</strong>, not the proposer's uploaded file. The approved inputs are
 deterministic and pinned: the approved gentxs (<code>GET /launch/{id}/gentxs</code>), the approved allocation files, and
 the chain record, all fingerprinted by <code>FinalGenesisInputSetHash</code>. So any committee member can rebuild the
-genesis locally (<code>gentool</code> folds the allocation files; the chain binary's <code>collect-gentxs</code> adds the gentxs)
-and confirm their result's hash equals the proposer's <code>FinalGenesisSHA256</code>. The M-of-N <code>PUBLISH_GENESIS</code>
+genesis locally (with <code>gentool</code>, or the chain binary's <code>collect-gentxs</code>) and confirm their result's hash
+equals the proposer's <code>FinalGenesisSHA256</code>. The M-of-N <code>PUBLISH_GENESIS</code>
 signatures are that <strong>reproduction-backed attestation</strong> — each signer vouches for a hash they can regenerate
 from the approved set, not one they merely downloaded.</p>
 <p>The optional <strong>rehearsal</strong> service is the automated, enforceable form of this: <code>rehearsald</code> pulls the same
