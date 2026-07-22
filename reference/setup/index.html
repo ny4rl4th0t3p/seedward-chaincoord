@@ -1850,7 +1850,7 @@ warning — this makes the intent self-documenting in your deploy config:</p>
 <a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>  reverse_proxy localhost:8080
 <a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>}
 </code></pre></div>
-<p>For nginx, include <code>proxy_set_header X-Real-IP $remote_addr;</code> so IP-based rate limiting on <code>POST /auth/challenge</code> sees
+<p>For nginx, include <code>proxy_set_header X-Real-IP $remote_addr;</code> so IP-based rate limiting on <code>POST /api/v1/auth/challenge</code> sees
 the real client address rather than the proxy address.</p>
 <h4 id="local-dev">Local dev<a class="headerlink" href="#local-dev" title="Permanent link">&para;</a></h4>
 <p>Plain HTTP on loopback (<code>127.0.0.1</code> or <code>::1</code>) suppresses the warning automatically — no flag needed.</p>
@@ -1878,8 +1878,8 @@ interface and scrape it from your monitoring network.</p>
 <p>The verbosity is set at startup by <a href="#log_level"><code>log_level</code></a> and can be changed <strong>live</strong>, without a restart
 (admin only):</p>
 <ul>
-<li><code>GET /admin/log-level</code> → <code>{"level":"info"}</code> — the current level.</li>
-<li><code>POST /admin/log-level</code> with <code>{"level":"debug"}</code> — set it. Accepts <code>trace</code>, <code>debug</code>, <code>info</code>, <code>warn</code>, <code>error</code>
+<li><code>GET /api/v1/admin/log-level</code> → <code>{"level":"info"}</code> — the current level.</li>
+<li><code>POST /api/v1/admin/log-level</code> with <code>{"level":"debug"}</code> — set it. Accepts <code>trace</code>, <code>debug</code>, <code>info</code>, <code>warn</code>, <code>error</code>
   (<code>fatal</code>, <code>panic</code>, and <code>disabled</code> are rejected — they would silence the log).</li>
 </ul>
 <p>The change is <strong>in-memory</strong>: it takes effect immediately and reverts to the configured <code>log_level</code> on restart. Only
@@ -2112,18 +2112,18 @@ never appears in environment variable listings or container inspection output:</
 <h3 id="jwt_private_key-jwt_private_key_file"><code>jwt_private_key</code> / <code>jwt_private_key_file</code><a class="headerlink" href="#jwt_private_key-jwt_private_key_file" title="Permanent link">&para;</a></h3>
 <p>Ed25519 seed for signing session JWTs. Must be <strong>different</strong> from the audit key. Same file-based pattern applies.</p>
 <h3 id="admin_addresses"><code>admin_addresses</code><a class="headerlink" href="#admin_addresses" title="Permanent link">&para;</a></h3>
-<p>Comma-separated list of operator addresses that have admin privileges (<code>/admin/*</code> endpoints). If empty, no address has
+<p>Comma-separated list of operator addresses that have admin privileges (<code>/api/v1/admin/*</code> endpoints). If empty, no address has
 admin access.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">COORD_ADMIN_ADDRESSES</span><span class="o">=</span><span class="s2">&quot;cosmos1abc...,cosmos1def...&quot;</span>
 </code></pre></div>
 <h3 id="launch_policy"><code>launch_policy</code><a class="headerlink" href="#launch_policy" title="Permanent link">&para;</a></h3>
 <p>Controls who may create new launches:</p>
 <ul>
-<li><code>restricted</code> <em>(default)</em> — only addresses on the coordinator allowlist (<code>/admin/coordinators</code>) may create a launch</li>
+<li><code>restricted</code> <em>(default)</em> — only addresses on the coordinator allowlist (<code>/api/v1/admin/coordinators</code>) may create a launch</li>
 <li><code>open</code> — any authenticated address may create a launch</li>
 </ul>
 <h3 id="genesis_host_mode"><code>genesis_host_mode</code><a class="headerlink" href="#genesis_host_mode" title="Permanent link">&para;</a></h3>
-<p>When <code>true</code>, <code>coordd</code> accepts raw genesis file uploads (<code>POST /launch/:id/genesis</code>) and serves them directly from disk.
+<p>When <code>true</code>, <code>coordd</code> accepts raw genesis file uploads (<code>POST /api/v1/launch/:id/genesis</code>) and serves them directly from disk.
 When <code>false</code> (the default), only attestor mode is available — committee members register an external URL and SHA-256
 hash.</p>
 <h3 id="genesis_max_bytes"><code>genesis_max_bytes</code><a class="headerlink" href="#genesis_max_bytes" title="Permanent link">&para;</a></h3>
@@ -2146,7 +2146,7 @@ above for all deployment modes.</p>
 terminated upstream (load balancer, ingress, reverse proxy) and <code>coordd</code> binds plain HTTP on a private network
 interface. The Docker Compose file sets this automatically.</p>
 <h3 id="insecure_no_rate_limit"><code>insecure_no_rate_limit</code><a class="headerlink" href="#insecure_no_rate_limit" title="Permanent link">&para;</a></h3>
-<p>Disables all rate limiters: the HTTP per-IP middleware on <code>POST /auth/challenge</code> (10 req/IP/min) and validator write
+<p>Disables all rate limiters: the HTTP per-IP middleware on <code>POST /api/v1/auth/challenge</code> (10 req/IP/min) and validator write
 endpoints (60 req/IP/min), and the storage-layer per-operator limit on challenge issuance (5 req/operator/5 min). <strong>Only
 for automated test environments</strong> — do not enable in production.</p>
 <h3 id="insecure_no_ssrf_check"><code>insecure_no_ssrf_check</code><a class="headerlink" href="#insecure_no_ssrf_check" title="Permanent link">&para;</a></h3>
@@ -2154,20 +2154,23 @@ for automated test environments</strong> — do not enable in production.</p>
 URLs. Only enable this in trusted environments — for example, the smoke-test Docker network, where RPC hostnames are
 internal container names that would fail the SSRF check. <strong>Do not enable in production.</strong></p>
 <h3 id="rehearsal_ops_token-rehearsal_ops_token_file"><code>rehearsal_ops_token</code> / <code>rehearsal_ops_token_file</code><a class="headerlink" href="#rehearsal_ops_token-rehearsal_ops_token_file" title="Permanent link">&para;</a></h3>
-<p>Shared bearer token authenticating the <strong>rehearsal bridge</strong> (ops plane) endpoints under <code>/bridge/*</code> — a
-headless service-to-service credential, not a wallet. When set, the rehearsal service presents it as
+<p>Shared bearer token authenticating the <strong>rehearsal bridge</strong> (ops plane) endpoints under
+<code>/api/v1/bridge/*</code> — a
+headless service-to-service credential, not a wallet. It is an arbitrary secret you generate yourself
+(any high-entropy string, e.g. <code>openssl rand -hex 32</code>), configured identically on both sides. When set,
+the rehearsal service presents it as
 <code>Authorization: Bearer &lt;token&gt;</code> to pull the approved input set and post signed results. <strong>Leave unset to
-disable the bridge</strong> (all <code>/bridge/*</code> requests are rejected, fail-closed). Deployment-wide, not per-launch;
+disable the bridge</strong> (all bridge requests are rejected, fail-closed). Deployment-wide, not per-launch;
 prefer the <code>_file</code> variant (secret manager) over the plain env var. Rotation is "swap the secret + reload."
-Deploy the <code>/bridge/*</code> endpoints on an <strong>internal network only</strong> (e.g. an ingress rule restricting the
-prefix), since the ops plane must not be internet-reachable.</p>
+Deploy the <code>/api/v1/bridge/*</code> endpoints on an <strong>internal network only</strong> (e.g. an ingress rule restricting
+the prefix), since the ops plane must not be internet-reachable.</p>
 <h3 id="rehearsal_lease_ttl"><code>rehearsal_lease_ttl</code><a class="headerlink" href="#rehearsal_lease_ttl" title="Permanent link">&para;</a></h3>
-<p>How long a claimed rehearsal run (<code>POST /bridge/launches/{id}/rehearsal-claim</code>) holds its single-writer
+<p>How long a claimed rehearsal run (<code>POST /api/v1/bridge/launches/{id}/rehearsal-claim</code>) holds its single-writer
 lease before it is treated as stale and re-claimable. A crashed runner self-heals after this window without
 operator intervention; set it comfortably above your longest rehearsal. Accepts a Go duration string
 (<code>45m</code>, <code>1h</code>, <code>90m</code>). Defaults to <strong>45m</strong> when unset. For an immediate override of a stuck lease, a committee member can
 call
-<code>POST /launch/{id}/rehearsal/{attempt_id}/reset</code> instead of waiting for expiry.</p>
+<code>POST /api/v1/launch/{id}/rehearsal/{attempt_id}/reset</code> instead of waiting for expiry.</p>
 <h3 id="rehearsal_gate"><code>rehearsal_gate</code><a class="headerlink" href="#rehearsal_gate" title="Permanent link">&para;</a></h3>
 <p>Opt-in policy for whether a launch may finalize genesis (<code>WINDOW_CLOSED → GENESIS_READY</code>) only after a
 passing rehearsal. <strong>Default <code>off</code> — coordd runs fully standalone; rehearsal is an optional bolt-on, never a
@@ -2181,7 +2184,7 @@ hard dependency.</strong></p>
 </ul>
 <p><code>required</code> needs the rehearsal bridge enabled (a <code>rehearsal_ops_token</code>) — coordd <strong>refuses to start</strong> with
 <code>rehearsal_gate=required</code> and no ops token. It also requires a per-launch trusted rehearsal service pubkey
-(set via <code>PATCH /launch/{id}</code>); a <code>required</code> launch with no configured service is rejected at publish time.</p>
+(set via <code>PATCH /api/v1/launch/{id}</code>); a <code>required</code> launch with no configured service is rejected at publish time.</p>
 <blockquote>
 <p>Independent of this gate, coordd always enforces that a published genesis matches the approved validator
 set it was assembled from (the set can change in <code>WINDOW_CLOSED</code> via approve/remove) — a correctness
@@ -2194,7 +2197,7 @@ needed).</p>
 <li><code>debug</code> — human-readable console output (stderr), verbose. Use in development only.</li>
 <li><code>info</code> and above — structured JSON to stdout. Use in production.</li>
 </ul>
-<p>Changeable at runtime without a restart via <a href="#log-level"><code>POST /admin/log-level</code></a>; a runtime change is in-memory and
+<p>Changeable at runtime without a restart via <a href="#log-level"><code>POST /api/v1/admin/log-level</code></a>; a runtime change is in-memory and
 reverts to this configured value on restart.</p>
 <h3 id="audit_startup_verify"><code>audit_startup_verify</code><a class="headerlink" href="#audit_startup_verify" title="Permanent link">&para;</a></h3>
 <p>Depth of the boot-time audit-log integrity check (see

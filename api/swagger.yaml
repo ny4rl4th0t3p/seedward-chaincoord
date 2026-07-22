@@ -1,4 +1,4 @@
-basePath: /
+basePath: /api/v1
 definitions:
   api.addCoordinatorRequest:
     properties:
@@ -1396,52 +1396,6 @@ paths:
       summary: Rehearsal result write-back (bridge)
       tags:
       - bridge
-  /committee/{launch_id}:
-    get:
-      parameters:
-      - description: Launch UUID
-        in: path
-        name: launch_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/api.committeeJSON'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.errorEnvelope'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.errorEnvelope'
-      summary: Get committee
-      tags:
-      - committee
-  /healthz:
-    get:
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "503":
-          description: Service Unavailable
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Health check
-      tags:
-      - health
   /launch:
     post:
       consumes:
@@ -1773,6 +1727,31 @@ paths:
       tags:
       - launches
   /launch/{id}/committee:
+    get:
+      parameters:
+      - description: Launch UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.committeeJSON'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+      summary: Get committee
+      tags:
+      - committee
     post:
       consumes:
       - application/json
@@ -1878,13 +1857,24 @@ paths:
       - events
   /launch/{id}/genesis:
     get:
-      description: Returns 302 redirect (attestor mode) or streams raw genesis JSON
-        (host mode).
+      description: |-
+        Returns 302 redirect (attestor mode) or streams raw genesis JSON (host mode).
+        ?type=initial|final selects which stored genesis to serve. The initial stays
+        downloadable after the final is published, so committee members can still
+        reproduce the final from its inputs. Omit type for the current genesis
+        (final once published, else initial).
       parameters:
       - description: Launch UUID
         in: path
         name: id
         required: true
+        type: string
+      - description: Genesis type
+        enum:
+        - initial
+        - final
+        in: query
+        name: type
         type: string
       produces:
       - application/json
@@ -2347,7 +2337,10 @@ paths:
       - members
   /launch/{id}/open-window:
     post:
-      description: Transitions a launch from DRAFT to OPEN. Committee member only.
+      description: |-
+        Transitions a launch to WINDOW_OPEN (opens the application window): from PUBLISHED,
+        or from DRAFT with the initial genesis already uploaded (auto-publishes first).
+        Committee member only.
       parameters:
       - description: Launch UUID
         in: path
@@ -2425,8 +2418,11 @@ paths:
     post:
       consumes:
       - application/json
-      description: Committee member raises a new action proposal. Rate-limited to
-        60 req/IP/min.
+      description: |-
+        Committee member raises a new action proposal. Rate-limited to 60 req/IP/min.
+        409 if a conflicting proposal is already pending for the launch: an identical one
+        (same action + payload), or a contradictory validator decision (approve/reject/remove
+        targeting the same join request).
       parameters:
       - description: Launch UUID
         in: path
@@ -2456,6 +2452,10 @@ paths:
             $ref: '#/definitions/api.errorEnvelope'
         "403":
           description: Forbidden
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "409":
+          description: Conflict
           schema:
             $ref: '#/definitions/api.errorEnvelope'
       security:

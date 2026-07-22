@@ -561,6 +561,10 @@
 <h1 id="api-reference">API Reference<a class="headerlink" href="#api-reference" title="Permanent link">¶</a></h1>
 <p>The <code>coordd</code> HTTP API uses JSON for all request and response bodies. Authenticated endpoints take a session token as a
 <code>Bearer</code> token in the <code>Authorization</code> header.</p>
+<p><strong>Base path: the entire API is mounted under <code>/api/v1</code></strong> — a versioned namespace clients configure as their base URL
+(e.g. <code>https://coordd.example/api/v1</code>). The only exceptions are the root-mounted <strong>ops
+endpoints</strong>, <code>/healthz</code> and <code>/metrics</code>, which address the process rather than the API and sit outside the versioned
+surface (and outside the OpenAPI spec).</p>
 <p>The complete, machine-readable contract is the OpenAPI spec at <code>docs/mkdocs/api/swagger.yaml</code>, rendered as an
 interactive explorer below. It is <strong>generated from the server</strong> and is the source of truth for every endpoint, request
 body, and response shape (grouped by tag: auth, launches, join-requests, proposals, committee, readiness, genesis,
@@ -573,13 +577,13 @@ own.</p>
 must
 be supplied explicitly — bech32 addresses are hashes, so the server cannot recover the key from them.</p>
 <ol>
-<li><code>POST /auth/challenge</code> with your <code>operator_address</code> → the server returns a short-lived <code>challenge</code> nonce. (
+<li><code>POST /api/v1/auth/challenge</code> with your <code>operator_address</code> → the server returns a short-lived <code>challenge</code> nonce. (
    Rate-limited: 10 / IP / min and 5 / operator / 5 min.)</li>
 <li>Sign the canonical JSON of the challenge payload with your secp256k1 operator key.</li>
-<li><code>POST /auth/verify</code> with the signed payload → the server returns a session token.</li>
+<li><code>POST /api/v1/auth/verify</code> with the signed payload → the server returns a session token.</li>
 </ol>
 <p>Send the token as <code>Authorization: Bearer &lt;token&gt;</code> on every authenticated request. Manage sessions with
-<code>GET /auth/session</code>, <code>DELETE /auth/session</code> (current session), and <code>DELETE /auth/sessions/all</code> (every device).</p>
+<code>GET /api/v1/auth/session</code>, <code>DELETE /api/v1/auth/session</code> (current session), and <code>DELETE /api/v1/auth/sessions/all</code> (every device).</p>
 <p>All signing is client-side; <code>coordd</code> never holds private keys. See <a href="../../concepts/roles/">Roles</a> for who can do what.</p>
 <hr/>
 <h2 id="request-signing">Request signing<a class="headerlink" href="#request-signing" title="Permanent link">¶</a></h2>
@@ -598,8 +602,8 @@ join request. The only key in the request is the secp256k1 <strong>operator</str
 signature.</p>
 <hr/>
 <h2 id="pagination">Pagination<a class="headerlink" href="#pagination" title="Permanent link">¶</a></h2>
-<p>The paginated list endpoints — <code>GET /launches</code>, <code>GET /launch/{id}/join</code>, <code>GET /launch/{id}/proposals</code>, and
-<code>GET /admin/coordinators</code> — accept <code>?page=</code> (default <code>1</code>) and <code>?per_page=</code> (default <code>20</code>, max <code>100</code>) and return a
+<p>The paginated list endpoints — <code>GET /api/v1/launches</code>, <code>GET /api/v1/launch/{id}/join</code>, <code>GET /api/v1/launch/{id}/proposals</code>, and
+<code>GET /api/v1/admin/coordinators</code> — accept <code>?page=</code> (default <code>1</code>) and <code>?per_page=</code> (default <code>20</code>, max <code>100</code>) and return a
 paginated envelope:</p>
 <div class="highlight"><pre><span></span><code><a href="#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a><span class="p">{</span>
 <a href="#__codelineno-0-2" id="__codelineno-0-2" name="__codelineno-0-2"></a><span class="w">  </span><span class="nt">"items"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
@@ -655,7 +659,7 @@ in-browser validator):</p>
 <hr/>
 <h2 id="streaming-health">Streaming &amp; health<a class="headerlink" href="#streaming-health" title="Permanent link">¶</a></h2>
 <ul>
-<li><code>GET /launch/{id}/events</code> — Server-Sent Events stream; emits on every state change and proposal execution.
+<li><code>GET /api/v1/launch/{id}/events</code> — Server-Sent Events stream; emits on every state change and proposal execution.
   <strong>Visibility-gated</strong> (optionalAuth): launches are private-always, so a caller who is not on the launch's
   committee or members list — including an anonymous one — gets <code>404</code>. Connect directly to the server rather
   than through a buffering reverse proxy.</li>
@@ -664,7 +668,7 @@ in-browser validator):</p>
   Used by Docker health checks and load-balancer probes. Access lines are leveled by response class — a healthy 200
   logs at <code>debug</code> (quiet at info), a failing 503 at <code>info</code> — so frequent probes don't flood the log while failures
   stay visible.</li>
-<li><code>GET</code>/<code>POST /admin/log-level</code> — read or change the process log level at runtime, no restart (admin only). See
+<li><code>GET</code>/<code>POST /api/v1/admin/log-level</code> — read or change the process log level at runtime, no restart (admin only). See
   <a href="../setup/#log-level">Setup → Log level</a>; the request/response shape is in the OpenAPI spec.</li>
 </ul>
 </article>

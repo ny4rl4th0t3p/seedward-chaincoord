@@ -1058,7 +1058,7 @@ runs coordd and the web frontend together. This page runs the coordd <strong>ser
 <a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>docker<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>--name<span class="w"> </span>coordd<span class="w"> </span>-p<span class="w"> </span><span class="m">8080</span>:8080<span class="w"> </span>-v<span class="w"> </span>coordd-data:/data<span class="w"> </span>--env-file<span class="w"> </span>coordd.env<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$IMG</span><span class="s2">&quot;</span>
 </code></pre></div>
 <p>Check it: <code>curl http://localhost:8080/healthz</code> → <code>{"status":"ok"}</code>.</p>
-<p><code>COORD_ADMIN_ADDRESSES</code> is the wallet address that manages the <code>/admin</code> endpoints (the coordinator
+<p><code>COORD_ADMIN_ADDRESSES</code> is the wallet address that manages the <code>/api/v1/admin</code> endpoints (the coordinator
 allowlist); set it to the address you'll sign in with. <code>COORD_INSECURE_NO_TLS=true</code> only suppresses the
 plaintext-bind warning — use it when TLS is terminated upstream (reverse proxy / load balancer). See
 <a href="../../reference/setup/">Setup &amp; Configuration</a> for TLS, CORS, the full env-var reference, and production

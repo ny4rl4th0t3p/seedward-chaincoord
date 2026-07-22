@@ -1086,54 +1086,59 @@
 <li><strong>Final genesis</strong> (<code>FinalGenesisSHA256</code>) — the committee-assembled, post-gentx genesis, uploaded in
   <code>WINDOW_CLOSED</code>.</li>
 </ul>
-<p>coordd <strong>never assembles genesis</strong> — a committee member builds it locally (gentool folds the approved
-allocation files <em>and</em> the gentxs into a base genesis; or the chain binary's <code>collect-gentxs</code> adds the
-gentxs) and uploads it.
-coordd only runs light well-formedness checks and anchors the hash; <strong>the committee is what validates the
-genesis it publishes</strong> — by review (optionally backed by a rehearsal) plus the M-of-N <code>PUBLISH_GENESIS</code>
+<p>coordd <strong>never assembles genesis</strong> — a committee member builds it locally (gentool folds the approved allocation files
+<em>and</em> the gentxs into a base genesis; or the chain binary's <code>collect-gentxs</code> adds the gentxs) and uploads it. coordd
+only runs light well-formedness checks and anchors the hash; <strong>the committee is what validates the genesis it
+publishes</strong> — by review (optionally backed by a rehearsal) plus the M-of-N <code>PUBLISH_GENESIS</code>
 attestation.</p>
 <h2 id="dual-mode-upload">Dual-mode upload<a class="headerlink" href="#dual-mode-upload" title="Permanent link">&para;</a></h2>
-<p>Both go through <code>POST /launch/{id}/genesis?type=initial|final</code>, in one of two modes:</p>
+<p>Both go through <code>POST /api/v1/launch/{id}/genesis?type=initial|final</code>, in one of two modes:</p>
 <ul>
-<li><strong>Attestor mode</strong> (default, <code>application/json</code>) — body <code>{url, sha256[, genesis_time]}</code>. coordd stores
-  the URL + hash only (SSRF-checked), keeps no bytes, and serves reads as a <strong>302</strong> to the external URL.</li>
-<li><strong>Host mode</strong> (<code>application/octet-stream</code>, gated by <code>COORD_GENESIS_HOST_MODE</code>) — bytes stream to disk,
-  capped by <code>genesis_max_bytes</code> (<code>413</code> on exceed); reads stream the file.</li>
+<li><strong>Attestor mode</strong> (default, <code>application/json</code>) — body <code>{url, sha256[, genesis_time]}</code>. coordd stores the URL + hash
+  only (SSRF-checked), keeps no bytes, and serves reads as a <strong>302</strong> to the external URL.</li>
+<li><strong>Host mode</strong> (<code>application/octet-stream</code>, gated by <code>COORD_GENESIS_HOST_MODE</code>) — bytes stream to disk, capped by
+  <code>genesis_max_bytes</code> (<code>413</code> on exceed); reads stream the file.</li>
 </ul>
 <p>(This is the same by-reference model allocation files use.)</p>
 <h2 id="final-genesis-checks">Final-genesis checks<a class="headerlink" href="#final-genesis-checks" title="Permanent link">&para;</a></h2>
-<p>coordd runs a few <strong>mechanical guardrail</strong> checks on a final upload (no chain binary invoked): the bytes
-are well-formed JSON, <code>chain_id</code> matches the record, <code>genesis_time</code> is set and in the future, and the
-genesis contains <strong>exactly the approved validator set</strong> — in either assembly convention: the <em>gentx form</em>
-(<code>collect-gentxs</code>: <code>len(gen_txs) == len(approved)</code>, each approved consensus pubkey exactly once, no
-duplicates) or the <em>baked form</em> (gentool: <code>gen_txs</code> is empty and the approved pubkeys appear exactly once
-each in <code>staking.validators</code>, no extras). It then binds <code>FinalGenesisInputSetHash</code> (the approved-set fingerprint, re-checked at
-<code>PUBLISH_GENESIS</code> so a genesis that no longer matches the set can't be finalized). These are guardrails,
-<strong>not genesis validation</strong>: the genesis schema, balances, supply, and bonded pool are the committee's to
-vet (with gentool / rehearsal) — the file is opaque to coordd.</p>
-<p>Because attestor-mode can't read the file, <code>genesis_time</code> is a <strong>required request field</strong> for an
-attestor-mode final upload (and must be in the future).</p>
+<p>coordd runs a few <strong>mechanical guardrail</strong> checks on a final upload (no chain binary invoked): the bytes are well-formed
+JSON, <code>chain_id</code> matches the record, <code>genesis_time</code> is set and in the future, and the genesis contains <strong>exactly the
+approved validator set</strong> — in either assembly convention: the <em>gentx form</em>
+(<code>collect-gentxs</code>: <code>len(gen_txs) == len(approved)</code>, each approved consensus pubkey exactly once, no duplicates) or the
+<em>baked form</em> (gentool: <code>gen_txs</code> is empty and the approved pubkeys appear exactly once each in <code>staking.validators</code>, no
+extras). It then binds <code>FinalGenesisInputSetHash</code> (the approved-set fingerprint, re-checked at
+<code>PUBLISH_GENESIS</code> so a genesis that no longer matches the set can't be finalized). These are guardrails, <strong>not genesis
+validation</strong>: the genesis schema, balances, supply, and bonded pool are the committee's to vet (with gentool /
+rehearsal) — the file is opaque to coordd.</p>
+<p>Because attestor-mode can't read the file, <code>genesis_time</code> is a <strong>required request field</strong> for an attestor-mode final
+upload (and must be in the future).</p>
 <h2 id="verifying-the-genesis-reproduce-dont-trust">Verifying the genesis — reproduce, don't trust<a class="headerlink" href="#verifying-the-genesis-reproduce-dont-trust" title="Permanent link">&para;</a></h2>
-<p>Those checks are mechanical guardrails, and coordd never assembles the genesis itself — so the trust anchor
-is <strong>independent reproduction by the committee</strong>, not the proposer's uploaded file. The approved inputs are
-deterministic and pinned: the approved gentxs (<code>GET /launch/{id}/gentxs</code>), the approved allocation files, and
-the chain record, all fingerprinted by <code>FinalGenesisInputSetHash</code>. So any committee member can rebuild the
-genesis locally (with <code>gentool</code>, or the chain binary's <code>collect-gentxs</code>) and confirm their result's hash
-equals the proposer's <code>FinalGenesisSHA256</code>. The M-of-N <code>PUBLISH_GENESIS</code>
-signatures are that <strong>reproduction-backed attestation</strong> — each signer vouches for a hash they can regenerate
-from the approved set, not one they merely downloaded.</p>
-<p>The optional <strong>rehearsal</strong> service is the automated, enforceable form of this: <code>rehearsald</code> pulls the same
-approved input set, rebuilds the genesis, boots an ephemeral chain, and posts a <em>signed</em> PASS/FAIL bound to
-the input-set fingerprint — and the rehearsal gate can require a PASS before <code>PUBLISH_GENESIS</code> executes.
-(Validators, at <code>GENESIS_READY</code>, download the file and verify its SHA256 to run their node — last-mile
-distribution against the already-attested hash, not the trust anchor.)</p>
+<p>Those checks are mechanical guardrails, and coordd never assembles the genesis itself — so the trust anchor is
+<strong>independent reproduction by the committee</strong>, not the proposer's uploaded file. The approved inputs are deterministic
+and pinned: the approved gentxs (<code>GET /api/v1/launch/{id}/gentxs</code>), the approved allocation files, and the chain record
+are all fingerprinted by <code>FinalGenesisInputSetHash</code>. Combined with the retained <strong>initial genesis</strong>
+(<code>GET /api/v1/launch/{id}/genesis?type=initial</code>) as the base, any committee member can rebuild the genesis locally (with
+<code>gentool</code>, or the chain binary's <code>collect-gentxs</code>) and confirm their result's hash equals the proposer's
+<code>FinalGenesisSHA256</code>. (The initial genesis is the reproduction base, not part of <code>FinalGenesisInputSetHash</code> — swapping
+it is caught by that final-hash comparison, not the fingerprint.) The initial genesis stays downloadable via
+<code>?type=initial</code>
+<strong>even after the final is published</strong> — precisely so a signer can reproduce the final from its inputs at
+<code>PUBLISH_GENESIS</code> review time; <code>?type=final</code> fetches the published result, and omitting <code>type</code> returns the current
+genesis (final once published, else initial). The M-of-N <code>PUBLISH_GENESIS</code>
+signatures are that <strong>reproduction-backed attestation</strong> — each signer vouches for a hash they can regenerate from the
+approved set, not one they merely downloaded.</p>
+<p>The optional <strong>rehearsal</strong> service is the automated, enforceable form of this: <code>rehearsald</code> pulls the same approved
+input set, rebuilds the genesis, boots an ephemeral chain, and posts a <em>signed</em> PASS/FAIL bound to the input-set
+fingerprint — and the rehearsal gate can require a PASS before <code>PUBLISH_GENESIS</code> executes. (Validators, at
+<code>GENESIS_READY</code>, download the file and verify its SHA256 to run their node — last-mile distribution against the
+already-attested hash, not the trust anchor.)</p>
 <h2 id="publishing">Publishing<a class="headerlink" href="#publishing" title="Permanent link">&para;</a></h2>
 <p>Uploading only records the hash. The <code>WINDOW_CLOSED → GENESIS_READY</code> transition happens when the
 <code>PUBLISH_GENESIS</code> committee proposal executes (see <a href="../proposals/">Proposals &amp; M-of-N</a>).</p>
 <h2 id="changing-the-genesis-time">Changing the genesis time<a class="headerlink" href="#changing-the-genesis-time" title="Permanent link">&para;</a></h2>
-<p><code>UPDATE_GENESIS_TIME</code> updates the launch record's <code>genesis_time</code> and invalidates readiness confirmations.
-Note that coordd does <strong>not</strong> rebuild the genesis file (it never assembles genesis) — producing a new
-genesis with a different time is done via <code>REVISE_GENESIS</code> → re-upload. <em>(The exact intended semantics of
+<p><code>UPDATE_GENESIS_TIME</code> updates the launch record's <code>genesis_time</code> and invalidates readiness confirmations. Note that
+coordd does <strong>not</strong> rebuild the genesis file (it never assembles genesis) — producing a new genesis with a different
+time is done via <code>REVISE_GENESIS</code> → re-upload. <em>(The exact intended semantics of
 <code>UPDATE_GENESIS_TIME</code> versus a re-upload are under review.)</em></p>
 
 

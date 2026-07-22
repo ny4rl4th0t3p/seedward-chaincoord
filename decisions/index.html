@@ -1959,7 +1959,7 @@ configuration.</p>
 <h3 id="not-everything-is-a-proposal">Not everything is a proposal<a class="headerlink" href="#not-everything-is-a-proposal" title="Permanent link">&para;</a></h3>
 <p><code>OpenWindow</code> is a <strong>direct</strong> API call, not a proposal — it auto-publishes from <code>DRAFT</code> when the initial
 genesis hash is already present (a single-step convenience).</p>
-<p><strong>Cancel is hybrid.</strong> The direct <code>POST /launch/{id}/cancel</code> endpoint is <strong>lead-only</strong> and valid only in
+<p><strong>Cancel is hybrid.</strong> The direct <code>POST /api/v1/launch/{id}/cancel</code> endpoint is <strong>lead-only</strong> and valid only in
 <code>DRAFT</code>/<code>PUBLISHED</code>, where no validators have committed — a harmless unilateral scrap. Once a launch is
 past <code>PUBLISHED</code> (<code>WINDOW_OPEN</code> and later) external parties have committed gentxs, so the direct path
 returns <code>409</code> and cancellation must go through an <strong>M-of-N <code>CANCEL_LAUNCH</code> proposal</strong> instead. That
@@ -1980,7 +1980,7 @@ instead have the <strong>application layer</strong> record theirs via <code>Prop
 / <code>CommitteeExpanded</code> / <code>CommitteeShrunk</code>, each carrying the old→new membership + threshold snapshot the
 payload alone can't provide.</p>
 <h3 id="live-event-feed-mirrors-the-audit-log">Live event feed mirrors the audit log<a class="headerlink" href="#live-event-feed-mirrors-the-audit-log" title="Permanent link">&para;</a></h3>
-<p>The per-launch SSE stream (<code>GET /launch/{id}/events</code>) is the <strong>real-time projection of the audit log</strong>:
+<p>The per-launch SSE stream (<code>GET /api/v1/launch/{id}/events</code>) is the <strong>real-time projection of the audit log</strong>:
 every launch-scoped domain event that is audited is also broadcast. This is enforced <strong>structurally, not by
 convention</strong> — each service records launch events through a single <code>emit(ctx, scope, ev)</code> = <code>recordAudit</code> +
 <code>events.Publish</code>, so audit-coverage and SSE-coverage are equal by construction and can't drift as new actions
@@ -2021,7 +2021,7 @@ one identity. Authorization compares on the account
 protection), the <code>operator_revocations</code> fence, the admin set, and the coordinator allowlist. Launch-scoped
 addresses (members, committee, join-request submitter + operator) are stored <strong>under the launch's bech32
 prefix</strong>; global identities (coordinator allowlist, revocation fence) as the <strong>account hex</strong> — a startup
-backfill canonicalizes existing rows. <code>GET /launch/{id}/chain-hint</code> is gated behind the visibility check
+backfill canonicalizes existing rows. <code>GET /api/v1/launch/{id}/chain-hint</code> is gated behind the visibility check
 (404 for non-members): a validator authenticates first, then reads the launch prefix for their gentx.</p>
 <h3 id="challenge-nonce-sessions">Challenge / nonce / sessions<a class="headerlink" href="#challenge-nonce-sessions" title="Permanent link">&para;</a></h3>
 <ul>
@@ -2032,9 +2032,9 @@ backfill canonicalizes existing rows. <code>GET /launch/{id}/chain-hint</code> i
   consumed before the challenge check.</li>
 <li><strong>Challenge rate limits:</strong> 10/IP/min (chi <code>httprate</code>) + 5/operator/5-min.</li>
 <li><strong>Sessions</strong> are stateless Ed25519 JWTs, <strong>1 h</strong> TTL. No per-token revocation; bulk revocation uses an
-  <code>operator_revocations</code> fence table (<code>RevokeAllForOperator</code>), exposed as <code>DELETE /auth/sessions/all</code>
-  (self) and <code>DELETE /admin/sessions/{address}</code> (admin).</li>
-<li><code>POST /auth/verify</code> returns a <strong>uniform 401</strong> for every failure (anti-enumeration), bypassing the normal
+  <code>operator_revocations</code> fence table (<code>RevokeAllForOperator</code>), exposed as <code>DELETE /api/v1/auth/sessions/all</code>
+  (self) and <code>DELETE /api/v1/admin/sessions/{address}</code> (admin).</li>
+<li><code>POST /api/v1/auth/verify</code> returns a <strong>uniform 401</strong> for every failure (anti-enumeration), bypassing the normal
   error responder.</li>
 </ul>
 <h3 id="members-api-storage">Members API &amp; storage<a class="headerlink" href="#members-api-storage" title="Permanent link">&para;</a></h3>
@@ -2055,7 +2055,7 @@ backfill canonicalizes existing rows. <code>GET /launch/{id}/chain-hint</code> i
 <h3 id="global-coordinator-allowlist-display-only">Global coordinator allowlist (display only)<a class="headerlink" href="#global-coordinator-allowlist-display-only" title="Permanent link">&para;</a></h3>
 <ul>
 <li>An admin-managed <code>coordinator_allowlist</code> exists but only feeds the <code>is_coordinator</code> display flag on
-  <code>GET /auth/session</code>. Stored and compared as the <strong>account hex</strong>, so a coordinator is recognized under any
+  <code>GET /api/v1/auth/session</code>. Stored and compared as the <strong>account hex</strong>, so a coordinator is recognized under any
   prefix. Per-launch governance authz is <code>Committee.HasMember</code>, unrelated to it.</li>
 </ul>
 <h3 id="invite-token-onboarding-v1x">Invite-token onboarding (v1.x)<a class="headerlink" href="#invite-token-onboarding-v1x" title="Permanent link">&para;</a></h3>
@@ -2121,7 +2121,7 @@ verify</code>) and refuses on tamper/corruption while only warning on a backward
 large-log escape hatch. Coverage is guarded by a reflection test — every exported <code>LaunchService</code> /
 <code>ProposalService</code> method must be classified audited-or-not, and there are currently no mutation exemptions
 (<code>ClaimRehearsalRun</code> → <code>RehearsalRunClaimed</code>, <code>ExpireStale</code> → <code>ProposalExpired</code>; only queries and builders
-are unaudited). A <code>PATCH /launch/{id}</code> emits one <code>LaunchPatched</code> event carrying a per-field old→new diff — the trusted
+are unaudited). A <code>PATCH /api/v1/launch/{id}</code> emits one <code>LaunchPatched</code> event carrying a per-field old→new diff — the trusted
 rehearsal key folded in, no longer a special-cased event.</p>
 <p>Audit-write error policy is split by criticality: a direct action <strong>logs and continues</strong> on a failed audit
 write (the mutation already committed), while a governance proposal is <strong>two-phase</strong> — a <code>ProposalExecuting</code>
@@ -2147,14 +2147,14 @@ attestation are suite ADRs; the mechanics below are chaincoord-internal.</p>
 consensus-pubkey presence + dedup, future <code>genesis_time</code>) and syncs the file's <code>genesis_time</code> into
 <code>Record.GenesisTime</code>; an attestor-mode final upload takes <code>genesis_time</code> as a required RFC3339 request
 field. Host mode is gated by <code>COORD_GENESIS_HOST_MODE</code> + <code>genesis_max_bytes</code> (shared with allocation
-uploads). <code>GET /launch/{id}/genesis/hash</code> returns both <code>initial_sha256</code> and <code>final_sha256</code>.</p>
+uploads). <code>GET /api/v1/launch/{id}/genesis/hash</code> returns both <code>initial_sha256</code> and <code>final_sha256</code>.</p>
 <h3 id="readiness-dashboard-aggregation">Readiness dashboard aggregation<a class="headerlink" href="#readiness-dashboard-aggregation" title="Permanent link">&para;</a></h3>
 <p><code>ThresholdStatus</code> cutoffs: <code>CONFIRMED</code> at ≥ <code>bftThreshold</code> (200/3 %), <code>AT_RISK</code> below <code>atRiskBelow</code> (50 %),
 else <code>REACHABLE</code>. Voting-power % is computed from each confirmed operator's <code>SelfDelegationAmount</code>; only
 valid (non-invalidated) confirmations count.</p>
 <h3 id="block-monitor">Block monitor<a class="headerlink" href="#block-monitor" title="Permanent link">&para;</a></h3>
 <p><code>RunLaunchMonitor</code> (started in <code>serve.go</code>, 1-minute cadence) polls each <code>GENESIS_READY</code> launch with a
-non-empty <code>MonitorRPCURL</code> — a single URL set by a committee member via <code>PATCH /launch/{id}</code>, re-read each
+non-empty <code>MonitorRPCURL</code> — a single URL set by a committee member via <code>PATCH /api/v1/launch/{id}</code>, re-read each
 tick so a <code>PATCH</code> takes effect without restart: <code>GET &lt;rpc&gt;/block?height=1</code> (5 s timeout, SSRF-guarded), and
 on a <code>200</code> whose <code>result.block</code> is non-null <strong>and</strong> whose header <code>chain_id</code> matches the launch at height <code>1</code>,
 calls <code>MarkLaunched</code> and emits <code>LaunchDetected{LaunchID, SourceRPC}</code>. The <code>chain_id</code>/height check stops a
@@ -2164,19 +2164,20 @@ committee-set, content-trusted <code>MonitorRPCURL</code> from flipping an unrel
 <p>The OpenAPI-as-source-of-truth decision is a suite ADR; the routing + CLI structure below is
 chaincoord-internal.</p>
 <h3 id="auth-tier-route-taxonomy">Auth-tier route taxonomy<a class="headerlink" href="#auth-tier-route-taxonomy" title="Permanent link">&para;</a></h3>
-<p>Routes are grouped into five tiers on the Chi router (<code>server.go</code>):</p>
+<p>Routes are grouped into five tiers on the Chi router (<code>server.go</code>); everything except the root ops
+endpoints is mounted under <code>/api/v1</code> (ADR-0027 — paths below inside the mount):</p>
 <ul>
-<li><strong>public</strong> — <code>GET /healthz</code>, <code>GET /metrics</code> (unauthenticated — network-restrict it in deploy), <code>GET
-  /audit/pubkey</code>, <code>POST /auth/challenge</code> (rate-limited), <code>POST /auth/verify</code>, and <code>GET</code>/<code>DELETE
-  /auth/session</code>.</li>
+<li><strong>public</strong> — root: <code>GET /healthz</code>, <code>GET /metrics</code> (unauthenticated — network-restrict it in deploy);
+  in the mount: <code>GET /api/v1/audit/pubkey</code>, <code>POST /api/v1/auth/challenge</code> (rate-limited),
+  <code>POST /api/v1/auth/verify</code>, and <code>GET</code>/<code>DELETE /api/v1/auth/session</code>.</li>
 <li><strong>optionalAuth</strong> — resolves the caller if a token is present, else anonymous → visibility gating (the
-  reads: <code>GET /launches</code>, <code>/launch/{id}</code>, <code>/committee/{id}</code>, <code>/launch/{id}/chain-hint</code>, genesis, allocations,
-  dashboard, peers, audit, events).</li>
+  reads: <code>GET /api/v1/launches</code>, <code>/api/v1/launch/{id}</code>, <code>/api/v1/launch/{id}/committee</code>,
+  <code>/api/v1/launch/{id}/chain-hint</code>, genesis, allocations, dashboard, peers, audit, events).</li>
 <li><strong>requireAuth</strong> — the authenticated actions + reads (create/patch, committee create, members, uploads,
-  join/proposal/ready writes, the launch read GETs, <code>DELETE /auth/sessions/all</code>).</li>
-<li><strong>requireOps</strong> — the four <code>/bridge/*</code> endpoints (shared <code>rehearsal_ops_token</code>, <strong>fail-closed</strong> when
+  join/proposal/ready writes, the launch read GETs, <code>DELETE /api/v1/auth/sessions/all</code>).</li>
+<li><strong>requireOps</strong> — the four <code>/api/v1/bridge/*</code> endpoints (shared <code>rehearsal_ops_token</code>, <strong>fail-closed</strong> when
   unset).</li>
-<li><strong>requireAdmin</strong> — <code>/admin/*</code> (coordinators + <code>DELETE /admin/sessions/{address}</code>).</li>
+<li><strong>requireAdmin</strong> — <code>/api/v1/admin/*</code> (coordinators + <code>DELETE /api/v1/admin/sessions/{address}</code>).</li>
 </ul>
 <h3 id="single-binary-coordd">Single-binary coordd<a class="headerlink" href="#single-binary-coordd" title="Permanent link">&para;</a></h3>
 <p>coordd is one cobra binary with subcommands <code>serve</code> / <code>migrate</code> / <code>keygen</code> / <code>version</code> / <code>audit verify</code> —

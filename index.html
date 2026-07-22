@@ -1055,19 +1055,19 @@
 
 <h1 id="seedward-chaincoord">seedward-chaincoord<a class="headerlink" href="#seedward-chaincoord" title="Permanent link">&para;</a></h1>
 <p><strong>seedward-chaincoord</strong> is a self-hosted coordination server for <strong>Cosmos SDK</strong> chain genesis launches.</p>
-<p>It manages the full launch lifecycle — from assembling a committee, through validator applications and
-M-of-N approval, to M-of-N agreement on the final genesis and block monitoring — with a tamper-evident audit log at
-every step. <code>coordd</code> never runs a node, never holds a private key, and never assembles the final genesis itself —
-a committee member builds it locally with the chain binary once the committee has agreed.</p>
+<p>It manages the full launch lifecycle — from assembling a committee, through validator applications and M-of-N approval,
+to M-of-N agreement on the final genesis and block monitoring — with a tamper-evident audit log at every step. <code>coordd</code>
+never runs a node, never holds a validator's signing key, and never assembles the final genesis itself — a committee
+member builds it locally with the chain binary once the committee has agreed. (coordd does hold its own Ed25519 keys for
+signing the audit log and session tokens.)</p>
 <div class="admonition danger">
 <p class="admonition-title">Not production-ready yet</p>
 </div>
 <p>seedward-chaincoord is a <strong>feature-complete v1 release candidate</strong> (not yet tagged v1) — a Spec-Driven Development
-project: the protocol, the M-of-N
-committee governance model, the launch-lifecycle state machine, the threat model, and the offline-verifiable audit-log
-design were authored as a spec and implemented with AI assistance under review. It is <strong>not production-ready yet</strong> —
-built to get there with real-world testing, and APIs, data formats, and behaviours may still change. <strong>Do not use it
-for mainnet launches or any environment where correctness and availability are required.</strong></p>
+project: the protocol, the M-of-N committee governance model, the launch-lifecycle state machine, the threat model, and
+the offline-verifiable audit-log design were authored as a spec and implemented with AI assistance under review. It is
+<strong>not production-ready yet</strong> — built to get there with real-world testing, and APIs, data formats, and behaviours may
+still change. <strong>Do not use it for mainnet launches or any environment where correctness and availability are required.</strong></p>
 <div class="admonition warning">
 <p class="admonition-title">Cosmos SDK only</p>
 </div>
@@ -1120,23 +1120,21 @@ frameworks.</p>
 </tbody>
 </table>
 <p>Most state transitions are driven by <strong>proposals</strong> — committee actions that require M-of-N committee-member signatures
-before
-they execute. A couple of actions are direct: any committee member can open the application window, and the lead can
-directly cancel a <code>DRAFT</code>/<code>PUBLISHED</code> launch (once past <code>PUBLISHED</code>, cancellation is an M-of-N <code>CANCEL_LAUNCH</code>
+before they execute. A couple of actions are direct: any committee member can open the application window, and the lead
+can directly cancel a <code>DRAFT</code>/<code>PUBLISHED</code> launch (once past <code>PUBLISHED</code>, cancellation is an M-of-N <code>CANCEL_LAUNCH</code>
 proposal). The move to LAUNCHED is detected automatically from the chain.</p>
 <hr />
 <h2 id="key-concepts">Key concepts<a class="headerlink" href="#key-concepts" title="Permanent link">&para;</a></h2>
 <p><strong>Committee</strong> — A group of N committee members, of which M must sign any proposal for it to execute (M-of-N threshold).
-One
-member is designated the lead.</p>
+One member is designated the lead.</p>
 <p><strong>Proposal</strong> — A signed, time-limited action raised by any committee member. A single VETO from any member kills it.
 Once M SIGN decisions are collected, it executes immediately.</p>
 <p><strong>Membership</strong> — Every launch is private. Only its committee and the addresses on its per-launch <strong>members list</strong>
 (managed directly by the committee) can see it or submit a join request; everyone else gets a <code>404</code>.</p>
 <p><strong>Join request</strong> — A member's application to participate, carrying their <code>gentx</code> and self-delegation amount; the
 operator address is derived from the gentx's signer, not supplied as a trusted field.</p>
-<p><strong>Audit log</strong> — An append-only JSONL file recording every state transition and committee proposal. Each entry is
-signed with the server's Ed25519 key and can be verified offline with <code>coordd audit verify</code>.</p>
+<p><strong>Audit log</strong> — An append-only JSONL file recording every state transition and committee proposal. Each entry is signed
+with the server's Ed25519 key and can be verified offline with <code>coordd audit verify</code>.</p>
 <hr />
 <h2 id="components">Components<a class="headerlink" href="#components" title="Permanent link">&para;</a></h2>
 <table>
@@ -1168,8 +1166,8 @@ signed with the server's Ed25519 key and can be verified offline with <code>coor
 <hr />
 <h2 id="next-steps">Next steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="getting-started/docker/">Run with Docker</a> — run <code>coordd</code> from the published image. (The full stack —
-  coordd + web — lives in seedward-suite.)</li>
+<li><a href="getting-started/docker/">Run with Docker</a> — run <code>coordd</code> from the published image. (The full stack — coordd + web —
+  lives in seedward-suite.)</li>
 <li><a href="getting-started/quickstart/">Quickstart</a> — run <code>coordd</code> locally in five minutes</li>
 <li><a href="reference/setup/">Setup &amp; Configuration</a> — full configuration reference</li>
 <li><a href="concepts/overview/">Concepts</a> — deeper explanation of roles, proposals, and the lifecycle</li>

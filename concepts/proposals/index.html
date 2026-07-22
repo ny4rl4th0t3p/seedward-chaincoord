@@ -1285,10 +1285,10 @@ action that executes automatically when M committee members sign it.</p>
 <hr />
 <h2 id="how-proposals-work">How proposals work<a class="headerlink" href="#how-proposals-work" title="Permanent link">&para;</a></h2>
 <ol>
-<li>Any committee member raises a proposal (<code>POST /launch/:id/proposal</code>). The proposer's signature is recorded
+<li>Any committee member raises a proposal (<code>POST /api/v1/launch/:id/proposal</code>). The proposer's signature is recorded
    implicitly — raising a proposal counts as a SIGN.</li>
 <li>Other committee members review the proposal and submit a SIGN or VETO decision (
-   <code>POST /launch/:id/proposal/:pid/sign</code>).</li>
+   <code>POST /api/v1/launch/:id/proposal/:pid/sign</code>).</li>
 <li>The proposal resolves when one of three things happens:<ul>
 <li><strong>Quorum reached:</strong> M SIGN decisions collected → proposal executes immediately</li>
 <li><strong>Vetoed:</strong> any member submits VETO → proposal moves to <code>VETOED</code>, no execution</li>
@@ -1297,6 +1297,17 @@ action that executes automatically when M committee members sign it.</p>
 </li>
 </ol>
 <p>If M=1 (a 1-of-1 or 1-of-N committee), the proposal executes the moment it is raised.</p>
+<p><strong>No conflicting pending proposals.</strong> Raising a proposal that conflicts with one already
+<code>PENDING_SIGNATURES</code> for the same launch is rejected with <code>409 Conflict</code>:</p>
+<ul>
+<li>an <strong>identical</strong> proposal (same action + payload) — e.g. two committee members each raising
+  <code>APPROVE_VALIDATOR</code> for the same validator; collaborate on the existing one instead;</li>
+<li>a <strong>contradictory validator decision</strong> — <code>APPROVE_VALIDATOR</code>, <code>REJECT_VALIDATOR</code>, and
+  <code>REMOVE_APPROVED_VALIDATOR</code> targeting the <strong>same join request</strong> are mutually exclusive, so an
+  approve and a reject for the same validator can't both be pending.</li>
+</ul>
+<p>A <code>VETOED</code>/<code>EXPIRED</code> proposal no longer blocks, so the action can be re-raised; decisions on
+<em>different</em> validators are independent.</p>
 <hr />
 <h2 id="proposal-states">Proposal states<a class="headerlink" href="#proposal-states" title="Permanent link">&para;</a></h2>
 <table>
@@ -1430,7 +1441,7 @@ published (<code>GENESIS_READY</code>, <code>LAUNCHED</code>, or <code>CANCELED<
 </table>
 <h4 id="allocation-files">Allocation files<a class="headerlink" href="#allocation-files" title="Permanent link">&para;</a></h4>
 <p>Genesis allocations (<code>accounts</code>, <code>claims</code>, <code>grants</code>, <code>authz</code>, <code>feegrant</code>) are governed as <strong>whole files</strong>, not
-per-entry. A committee member uploads the curated file for a type (<code>POST /launch/{id}/allocations/{type}</code>, dual-mode
+per-entry. A committee member uploads the curated file for a type (<code>POST /api/v1/launch/{id}/allocations/{type}</code>, dual-mode
 like genesis: attestor URL+hash or host bytes); it lands in <code>PENDING</code>. The content is <strong>opaque</strong> to coordd — gentool
 emits CSV/TSV, not JSON — so the server stores and hashes the bytes but does not parse them.</p>
 <p>Each file is then governed by its own <code>APPROVE_ALLOCATION_FILE</code> proposal, carrying <code>{type, hash}</code>:</p>

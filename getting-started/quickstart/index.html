@@ -1129,9 +1129,8 @@
 <p class="admonition-title">Not production-ready yet</p>
 </div>
 <p>seedward-chaincoord is a <strong>feature-complete v1 release candidate</strong> that is <strong>not production-ready yet</strong> — APIs, data
-formats, and
-behaviours may still change. <strong>Do not use it for mainnet launches or any environment where correctness and availability
-are required.</strong></p>
+formats, and behaviours may still change. <strong>Do not use it for mainnet launches or any environment where correctness and
+availability are required.</strong></p>
 <hr />
 <h2 id="1-build">1. Build<a class="headerlink" href="#1-build" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/ny4rl4th0t3p/seedward-chaincoord.git
@@ -1167,9 +1166,12 @@ them with the built-in <code>keygen</code> command:</p>
 <p>See <a href="../../reference/setup/">Setup &amp; Configuration</a> for all available options.</p>
 <hr />
 <h2 id="4-run-migrations">4. Run migrations<a class="headerlink" href="#4-run-migrations" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>bin/coordd<span class="w"> </span>migrate<span class="w"> </span>--config<span class="w"> </span>config.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>bin/coordd<span class="w"> </span>migrate<span class="w"> </span>--db-path<span class="w"> </span>./data/coord.db
 </code></pre></div>
-<p>This creates the SQLite database and applies all schema migrations.</p>
+<p>This creates the SQLite database and applies all schema migrations. <code>coordd serve</code> runs the same migrations at startup,
+so this step is optional — a separate <code>migrate</code> is handy for running migrations as a distinct deploy step. Note it does
+<strong>not</strong> read the config file: pass the database path via <code>--db-path</code> (or
+<code>COORD_DB_PATH</code>).</p>
 <hr />
 <h2 id="5-start-the-server">5. Start the server<a class="headerlink" href="#5-start-the-server" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>bin/coordd<span class="w"> </span>serve<span class="w"> </span>--config<span class="w"> </span>config.yaml

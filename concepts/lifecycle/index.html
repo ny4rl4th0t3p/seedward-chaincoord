@@ -1125,7 +1125,9 @@
 
 <h1 id="launch-lifecycle">Launch Lifecycle<a class="headerlink" href="#launch-lifecycle" title="Permanent link">&para;</a></h1>
 <p>A launch moves through seven states. Transitions are one-way (except <code>GENESIS_READY → WINDOW_CLOSED</code> for genesis
-revision) and each is gated by a committee proposal, except for opening the application window.</p>
+revision) and most are gated by a committee proposal. The exceptions: opening the application window (any committee
+member, direct), the automatic <code>GENESIS_READY → LAUNCHED</code> transition (driven by the block monitor), and cancellation
+from <code>DRAFT</code>/<code>PUBLISHED</code> (a lead-only direct call — only <code>WINDOW_OPEN</code> and later require a <code>CANCEL_LAUNCH</code> proposal).</p>
 <pre class="mermaid"><code>stateDiagram-v2
     direction TB
     [*] --&gt; DRAFT
@@ -1148,9 +1150,9 @@ revision) and each is gated by a committee proposal, except for opening the appl
 (chain ID, binary, denom, deadlines, commission limits) and the initial committee (members, threshold M, total N) at
 creation. During DRAFT the committee prepares it:</p>
 <ul>
-<li>Adjust mutable chain-record fields via <code>PATCH /launch/:id</code></li>
+<li>Adjust mutable chain-record fields via <code>PATCH /api/v1/launch/:id</code></li>
 <li>Reconfigure the committee wholesale, if needed — the <strong>lead</strong> only, while still in DRAFT</li>
-<li>Upload the initial genesis file (<code>POST /launch/:id/genesis?type=initial</code>)</li>
+<li>Upload the initial genesis file (<code>POST /api/v1/launch/:id/genesis?type=initial</code>)</li>
 </ul>
 <p>The initial genesis is typically a bare <code>gaiad init</code> output with no accounts and no validators — just the base app state
 with the correct parameters.</p>
@@ -1159,21 +1161,21 @@ before publishing.</p>
 <hr />
 <h2 id="published">PUBLISHED<a class="headerlink" href="#published" title="Permanent link">&para;</a></h2>
 <p>Triggered by: <code>PUBLISH_CHAIN_RECORD</code> proposal executing.</p>
-<p>The committee attests to the chain record and the initial genesis SHA256. From this point the chain record is
-immutable (no further edits to chain ID, binary name, denom, etc.).</p>
+<p>The committee attests to the chain record and the initial genesis SHA256. From this point the chain record is immutable
+(no further edits to chain ID, binary name, denom, etc.).</p>
 <p>Every launch is <strong>private</strong> — visible only to its committee and the addresses on its <strong>members list</strong> (see
 <a href="../roles/#membership">Roles → Membership</a>). A non-member, even with the launch URL, gets a <code>404</code>. There is no
 public/browsable launch.</p>
 <p>Validators cannot apply yet — the application window is not open.</p>
 <hr />
 <h2 id="window_open">WINDOW_OPEN<a class="headerlink" href="#window_open" title="Permanent link">&para;</a></h2>
-<p>Triggered by: Any committee member calls <code>POST /launch/:id/open-window</code> (no proposal required). If the launch is still
-in <code>DRAFT</code> and the initial genesis hash has already been uploaded, this call auto-publishes first — a single-step
+<p>Triggered by: Any committee member calls <code>POST /api/v1/launch/:id/open-window</code> (no proposal required). If the launch is
+still in <code>DRAFT</code> and the initial genesis hash has already been uploaded, this call auto-publishes first — a single-step
 shortcut equivalent to executing a <code>PUBLISH_CHAIN_RECORD</code> proposal.</p>
-<p>Validators <strong>on the member list</strong> can now submit join requests — a caller whose (hot) address is not a
-committee member or member is <code>404</code>'d, so the committee adds each operator's hot address to the member list
-(off-band, with a label) before the window opens (see <a href="../roles/#membership">Roles → Membership</a>). The window
-stays open until the committee closes it with a proposal.</p>
+<p>Validators <strong>on the member list</strong> can now submit join requests — a caller whose (hot) address is not a committee member
+or member is <code>404</code>'d, so the committee adds each operator's hot address to the member list (off-band, with a label)
+before the window opens (see <a href="../roles/#membership">Roles → Membership</a>). The window stays open until the committee
+closes it with a proposal.</p>
 <p>During this phase committee members review incoming join requests and raise <code>APPROVE_VALIDATOR</code> or <code>REJECT_VALIDATOR</code>
 proposals. Approved validators accumulate; the server tracks committed voting power and warns if any single entity
 reaches or exceeds 1/3 of the total.</p>
@@ -1203,46 +1205,46 @@ reaches or exceeds 1/3 of the total.</p>
 <p>The genesis allocations are no longer added entry-by-entry: the committee approves each curated allocation file as a
 whole (see <a href="../proposals/#allocation-files">Proposals → Allocation files</a>), and a committee member feeds the <strong>approved</strong>
 files into gentool here.</p>
-<p>Then uploads the result: <code>POST /launch/:id/genesis?type=final</code>.</p>
+<p>Then uploads the result: <code>POST /api/v1/launch/:id/genesis?type=final</code>.</p>
 <hr />
 <h2 id="genesis_ready">GENESIS_READY<a class="headerlink" href="#genesis_ready" title="Permanent link">&para;</a></h2>
 <p>Triggered by: <code>PUBLISH_GENESIS</code> proposal executing.</p>
-<p>The committee attests to the final genesis SHA256 — but not on trust. Before signing <code>PUBLISH_GENESIS</code>, each
-committee member can <strong>reproduce the genesis locally from the approved inputs</strong> (approved gentxs + allocation
-files + chain record, all pinned by <code>FinalGenesisInputSetHash</code>) and confirm their result's hash equals the
-proposer's <code>FinalGenesisSHA256</code>. The M-of-N signatures are that reproduction-backed attestation, not blind
-trust in the uploaded file. (The optional rehearsal service automates it: rebuild from the same input set,
-boot an ephemeral chain, and post a signed PASS/FAIL the gate can require before publish.)</p>
+<p>The committee attests to the final genesis SHA256 — but not on trust. Before signing <code>PUBLISH_GENESIS</code>, each committee
+member can <strong>reproduce the genesis locally from the approved inputs</strong> (approved gentxs + allocation files + chain
+record, all pinned by <code>FinalGenesisInputSetHash</code>) and confirm their result's hash equals the proposer's
+<code>FinalGenesisSHA256</code>. The M-of-N signatures are that reproduction-backed attestation, not blind trust in the uploaded
+file. (The optional rehearsal service automates it: rebuild from the same input set, boot an ephemeral chain, and post a
+signed PASS/FAIL the gate can require before publish.)</p>
 <p>With the genesis published, validators can now:</p>
 <ol>
-<li>Download the final genesis: <code>GET /launch/:id/genesis</code></li>
-<li>Verify the hash: <code>GET /launch/:id/genesis/hash</code></li>
-<li>Submit readiness: <code>POST /launch/:id/ready</code> (signed confirmation of genesis hash + binary hash)</li>
+<li>Download the final genesis: <code>GET /api/v1/launch/:id/genesis</code></li>
+<li>Verify the hash: <code>GET /api/v1/launch/:id/genesis/hash</code></li>
+<li>Submit readiness: <code>POST /api/v1/launch/:id/ready</code> (signed confirmation of genesis hash + binary hash)</li>
 </ol>
 <p>The server validates each confirmation: the reported genesis hash must equal the published final genesis hash, and —
 when the coordinator declared a <code>binary_sha256</code> in the chain record — the reported binary hash must match it. A mismatch
 is rejected. If no <code>binary_sha256</code> was declared, the binary hash is stored but not checked.</p>
-<p>Readiness is a <strong>coordination signal, not a gate</strong>: <code>LAUNCHED</code> is driven by observed block production (block 1
-at the monitor RPC), never by readiness confirmations. Skipping it doesn't block the launch — it only forfeits
-the pre-launch check that catches a validator holding the wrong genesis or binary. A committee that wants a
-readiness threshold enforces it off-band.</p>
-<p>Once any committee member sets a monitor RPC URL (<code>PATCH /launch/:id</code>), <code>coordd</code> starts polling the CometBFT RPC
+<p>Readiness is a <strong>coordination signal, not a gate</strong>: <code>LAUNCHED</code> is driven by observed block production (block 1 at the
+monitor RPC), never by readiness confirmations. Skipping it doesn't block the launch — it only forfeits the pre-launch
+check that catches a validator holding the wrong genesis or binary. A committee that wants a readiness threshold
+enforces it off-band.</p>
+<p>Once any committee member sets a monitor RPC URL (<code>PATCH /api/v1/launch/:id</code>), <code>coordd</code> starts polling the CometBFT RPC
 endpoint once per minute for the first block.</p>
 <p><strong>Genesis revision:</strong> If the genesis file needs to be corrected, the committee can raise a <code>REVISE_GENESIS</code> proposal,
 which reverts the status to <code>WINDOW_CLOSED</code> and clears the final genesis hash. A committee member then re-uploads a
-corrected file
-and the committee re-raises <code>PUBLISH_GENESIS</code>.</p>
+corrected file and the committee re-raises <code>PUBLISH_GENESIS</code>.</p>
 <hr />
 <h2 id="launched">LAUNCHED<a class="headerlink" href="#launched" title="Permanent link">&para;</a></h2>
 <p>Triggered by: The block monitor observes block 1 at the configured RPC endpoint — it polls <code>GET &lt;rpc&gt;/block?height=1</code>
-once per minute and transitions to <code>LAUNCHED</code> on a non-null block.</p>
+once per minute and transitions to <code>LAUNCHED</code> only when the response carries a block at height 1 whose header
+<code>chain_id</code> matches the launch's chain ID (a wrong-chain or fabricated block is ignored — the NHP-5 anti-forgery guard).</p>
 <p>Terminal state. The chain is live.</p>
 <hr />
 <h2 id="canceled">CANCELED<a class="headerlink" href="#canceled" title="Permanent link">&para;</a></h2>
 <p>Triggered by one of two paths, depending on stage:</p>
 <ul>
-<li><strong><code>DRAFT</code>/<code>PUBLISHED</code></strong> — the lead calls <code>POST /launch/:id/cancel</code> directly (a lead-only shortcut,
-  harmless before any validator has committed). Any committee member may also use the proposal path below.</li>
+<li><strong><code>DRAFT</code>/<code>PUBLISHED</code></strong> — the lead calls <code>POST /api/v1/launch/:id/cancel</code> directly (a lead-only shortcut, harmless
+  before any validator has committed). Any committee member may also use the proposal path below.</li>
 <li><strong><code>WINDOW_OPEN</code> and later</strong> — the direct endpoint returns <code>409</code>; cancellation requires an M-of-N
   <code>CANCEL_LAUNCH</code> committee proposal. Cancelling from <code>GENESIS_READY</code> invalidates readiness confirmations.</li>
 </ul>

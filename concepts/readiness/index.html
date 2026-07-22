@@ -1039,7 +1039,7 @@
 <p>Once a launch is <code>GENESIS_READY</code>, approved validators confirm they're set up with the correct genesis and
 binary — the committee's launch go/no-go signal.</p>
 <h2 id="confirming-readiness">Confirming readiness<a class="headerlink" href="#confirming-readiness" title="Permanent link">&para;</a></h2>
-<p>An approved validator submits <code>POST /launch/{id}/ready</code> with a signed attestation:</p>
+<p>An approved validator submits <code>POST /api/v1/launch/{id}/ready</code> with a signed attestation:</p>
 <ul>
 <li>The operator signs (secp256k1, with a nonce + timestamp for replay protection) that
   <code>genesis_hash_confirmed</code> equals the launch's <code>FinalGenesisSHA256</code>, and <code>binary_hash_confirmed</code> equals
@@ -1051,7 +1051,7 @@ binary — the committee's launch go/no-go signal.</p>
 <p>A confirmation is invalidated (the validator must re-confirm) when what it attested to changes:
 <code>UPDATE_GENESIS_TIME</code>, <code>REVISE_GENESIS</code>, or a cancel from <code>GENESIS_READY</code>.</p>
 <h2 id="the-dashboard">The dashboard<a class="headerlink" href="#the-dashboard" title="Permanent link">&para;</a></h2>
-<p><code>GET /launch/{id}/dashboard</code> merges the launch state (status, genesis time, countdown, final genesis hash)
+<p><code>GET /api/v1/launch/{id}/dashboard</code> merges the launch state (status, genesis time, countdown, final genesis hash)
 with readiness aggregation: per-validator voting-power share, <code>ConfirmedReady</code>, <code>VotingPowerConfirmed</code>, and
 a <code>ThresholdStatus</code>:</p>
 <table>
@@ -1076,7 +1076,7 @@ a <code>ThresholdStatus</code>:</p>
 </tr>
 </tbody>
 </table>
-<p><code>GET /launch/{id}/peers</code> returns approved validators' peer addresses (JSON, or <code>?format=text</code> for a
+<p><code>GET /api/v1/launch/{id}/peers</code> returns approved validators' peer addresses (JSON, or <code>?format=text</code> for a
 <code>persistent_peers</code> list).</p>
 
 

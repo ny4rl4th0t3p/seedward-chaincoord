@@ -1364,7 +1364,8 @@
 <p>Run database schema migrations and exit. Safe to run repeatedly — migrations are idempotent.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>coordd migrate [--db-path &lt;path&gt;]
 </code></pre></div>
-<p>Run this before starting <code>coordd serve</code> for the first time and after any upgrade.</p>
+<p><code>coordd serve</code> runs pending migrations automatically at startup, so this command is optional — use it only to apply
+migrations as a separate deploy step (e.g. before rolling the server).</p>
 <hr />
 <h3 id="coordd-keygen">coordd keygen<a class="headerlink" href="#coordd-keygen" title="Permanent link">&para;</a></h3>
 <p>Generate a cryptographically random Ed25519 seed and print it as base64 to stdout.</p>
@@ -1408,7 +1409,7 @@ different.</p>
 </tr>
 <tr>
 <td><code>--server-url</code></td>
-<td><code>coordd</code> base URL — fetches the audit pubkey via <code>GET /audit/pubkey</code> if <code>--pubkey</code> is omitted</td>
+<td><code>coordd</code> base URL — fetches the audit pubkey via <code>GET /api/v1/audit/pubkey</code> if <code>--pubkey</code> is omitted</td>
 </tr>
 </tbody>
 </table>
@@ -1449,8 +1450,8 @@ keys are derived from a fixed index, not from a real keychain.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>smoke-signer privkey --key-index &lt;n&gt;
 </code></pre></div>
 <h3 id="smoke-signer-sign">smoke-signer sign<a class="headerlink" href="#smoke-signer-sign" title="Permanent link">&para;</a></h3>
-<p>Read a JSON payload from stdin, populate <code>nonce</code>, <code>timestamp</code>, <code>pubkey_b64</code>, and <code>signature</code>, then print the signed
-payload to stdout.</p>
+<p>Read a JSON payload from stdin, populate <code>nonce</code>, <code>timestamp</code>, and <code>signature</code> (and <code>pubkey_b64</code> when the input payload
+contains that field), then print the signed payload to stdout.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>echo &#39;&lt;json&gt;&#39; | smoke-signer sign --key-index &lt;n&gt;
 </code></pre></div>
 

@@ -1133,7 +1133,7 @@ to create a launch</em>; the <strong>committee members</strong> are the ones who
 <h2 id="admin">Admin<a class="headerlink" href="#admin" title="Permanent link">&para;</a></h2>
 <p><em>Server plane — the whole coordd deployment.</em></p>
 <p>Whoever operates the coordd server: the operator addresses listed in <code>COORD_ADMIN_ADDRESSES</code>. Admin holds the
-<code>/admin/*</code> endpoints; concretely, admin <strong>manages the coordinator allowlist</strong> (who may create launches when
+<code>/api/v1/admin/*</code> endpoints; concretely, admin <strong>manages the coordinator allowlist</strong> (who may create launches when
 <code>launch_policy=restricted</code>) and can revoke sessions. Admin is <strong>not a participant in any launch</strong> — it never
 declares a committee, signs a proposal, or submits a gentx. See <a href="../../reference/setup/">Setup</a>.</p>
 <hr />
@@ -1219,7 +1219,7 @@ onboarding model:</p>
    gentx; the operator address is <strong>derived from the gentx's signer</strong> (then checked against its self-declared
    <code>validator_address</code>). The server rejects an invalid gentx with a <code>gentx_invalid</code> error + per-invariant detail.</li>
 <li>Wait for the committee to approve or reject. The committee reviews applications <strong>grouped by submitter</strong>
-   (<code>GET /launch/{id}/join/grouped</code>), matching each submitted operator address and self-delegation against the off-band
+   (<code>GET /api/v1/launch/{id}/join/grouped</code>), matching each submitted operator address and self-delegation against the off-band
    expectation tied to that member's label.</li>
 <li>After <code>GENESIS_READY</code>: download the final genesis file, verify its SHA256 hash, and submit a readiness confirmation.</li>
 </ol>
@@ -1233,10 +1233,10 @@ fresh address grants <strong>nothing</strong>.</p>
 <p>The <strong>members list</strong> is the per-launch set of <strong>hot actor addresses</strong>, each with a <strong>label</strong>. The committee manages it
 directly (no proposal needed) while the launch is in <code>DRAFT</code>/<code>PUBLISHED</code>/<code>WINDOW_OPEN</code>:</p>
 <ul>
-<li><code>POST /launch/{id}/members</code> — add an address + label (the label points to off-band verification of who that operator
+<li><code>POST /api/v1/launch/{id}/members</code> — add an address + label (the label points to off-band verification of who that operator
   is; it is not proof of identity).</li>
-<li><code>DELETE /launch/{id}/members/{address}</code> — revoke.</li>
-<li><code>GET /launch/{id}/members</code> — committee-only; lists addresses, labels, and add provenance.</li>
+<li><code>DELETE /api/v1/launch/{id}/members/{address}</code> — revoke.</li>
+<li><code>GET /api/v1/launch/{id}/members</code> — committee-only; lists addresses, labels, and add provenance.</li>
 </ul>
 <p>For v1 the committee collects operators' hot addresses off-band and adds them directly. (Invite tokens — a labeled,
 redeemable token so the address need not be known up front — are planned for v1.x.) The label is what makes
@@ -1247,9 +1247,9 @@ expectation, so an unexpected operator address under a member surfaces at approv
 <p>Every role that signs (coordinator, committee member, validator, and admin) authenticates identically: secp256k1
 challenge–response.</p>
 <ol>
-<li><code>POST /auth/challenge</code> with <code>operator_address</code> → server returns a nonce</li>
+<li><code>POST /api/v1/auth/challenge</code> with <code>operator_address</code> → server returns a nonce</li>
 <li>Sign a payload containing the challenge with your secp256k1 operator key</li>
-<li><code>POST /auth/verify</code> with the signed payload → server returns a JWT</li>
+<li><code>POST /api/v1/auth/verify</code> with the signed payload → server returns a JWT</li>
 </ol>
 <p>The JWT is short-lived and must be included as a <code>Bearer</code> token on all subsequent requests.</p>
 <p>The identity coordd derives is the <strong>HRP-independent account</strong> (the 20 bytes <code>ripemd160(sha256(pubkey))</code>),
