@@ -1857,13 +1857,24 @@ paths:
       - events
   /launch/{id}/genesis:
     get:
-      description: Returns 302 redirect (attestor mode) or streams raw genesis JSON
-        (host mode).
+      description: |-
+        Returns 302 redirect (attestor mode) or streams raw genesis JSON (host mode).
+        ?type=initial|final selects which stored genesis to serve. The initial stays
+        downloadable after the final is published, so committee members can still
+        reproduce the final from its inputs. Omit type for the current genesis
+        (final once published, else initial).
       parameters:
       - description: Launch UUID
         in: path
         name: id
         required: true
+        type: string
+      - description: Genesis type
+        enum:
+        - initial
+        - final
+        in: query
+        name: type
         type: string
       produces:
       - application/json

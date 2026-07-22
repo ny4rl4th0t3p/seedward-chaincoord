@@ -633,6 +633,70 @@ func TestHandleGenesisGet_InitialGenesis(t *testing.T) {
 	assertStatusCode(t, w, http.StatusOK)
 }
 
+// Once the final is published, no type serves the final (current genesis)...
+func TestHandleGenesisGet_DefaultServesFinalWhenPublished(t *testing.T) {
+	h := newHarness(t)
+	l := testLaunch()
+	l.InitialGenesisSHA256 = "abc123"
+	l.FinalGenesisSHA256 = "def456"
+	h.launches.data[l.ID] = l
+	h.genesis.initial[l.ID.String()] = []byte(`{"kind":"initial"}`)
+	h.genesis.final[l.ID.String()] = []byte(`{"kind":"final"}`)
+	w := h.getAsMember("/launch/" + l.ID.String() + "/genesis")
+	assertStatusCode(t, w, http.StatusOK)
+	assert.JSONEq(t, `{"kind":"final"}`, w.Body.String())
+}
+
+// ...but ?type=initial must STILL serve the retained initial — the reproduction/verification
+// anchor for a committee member reviewing PUBLISH_GENESIS (regression guard for the bug where the
+// initial became unreachable once the final was uploaded).
+func TestHandleGenesisGet_InitialReachableAfterFinalPublished(t *testing.T) {
+	h := newHarness(t)
+	l := testLaunch()
+	l.InitialGenesisSHA256 = "abc123"
+	l.FinalGenesisSHA256 = "def456"
+	h.launches.data[l.ID] = l
+	h.genesis.initial[l.ID.String()] = []byte(`{"kind":"initial"}`)
+	h.genesis.final[l.ID.String()] = []byte(`{"kind":"final"}`)
+	w := h.getAsMember("/launch/" + l.ID.String() + "/genesis?type=initial")
+	assertStatusCode(t, w, http.StatusOK)
+	assert.JSONEq(t, `{"kind":"initial"}`, w.Body.String())
+}
+
+func TestHandleGenesisGet_TypeFinal(t *testing.T) {
+	h := newHarness(t)
+	l := testLaunch()
+	l.InitialGenesisSHA256 = "abc123"
+	l.FinalGenesisSHA256 = "def456"
+	h.launches.data[l.ID] = l
+	h.genesis.initial[l.ID.String()] = []byte(`{"kind":"initial"}`)
+	h.genesis.final[l.ID.String()] = []byte(`{"kind":"final"}`)
+	w := h.getAsMember("/launch/" + l.ID.String() + "/genesis?type=final")
+	assertStatusCode(t, w, http.StatusOK)
+	assert.JSONEq(t, `{"kind":"final"}`, w.Body.String())
+}
+
+// ?type=final before a final is published is a 404, not a fallback to the initial.
+func TestHandleGenesisGet_TypeFinalBeforePublished(t *testing.T) {
+	h := newHarness(t)
+	l := testLaunch()
+	l.InitialGenesisSHA256 = "abc123"
+	h.launches.data[l.ID] = l
+	h.genesis.initial[l.ID.String()] = []byte(`{"kind":"initial"}`)
+	w := h.getAsMember("/launch/" + l.ID.String() + "/genesis?type=final")
+	assertStatusCode(t, w, http.StatusNotFound)
+}
+
+func TestHandleGenesisGet_InvalidType(t *testing.T) {
+	h := newHarness(t)
+	l := testLaunch()
+	l.InitialGenesisSHA256 = "abc123"
+	h.launches.data[l.ID] = l
+	h.genesis.initial[l.ID.String()] = []byte(`{"kind":"initial"}`)
+	w := h.getAsMember("/launch/" + l.ID.String() + "/genesis?type=bogus")
+	assertStatusCode(t, w, http.StatusBadRequest)
+}
+
 // ---- GET /launch/{id}/genesis/hash ------------------------------------------
 
 func TestHandleGenesisHashGet_BadUUID(t *testing.T) {

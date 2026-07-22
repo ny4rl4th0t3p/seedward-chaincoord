@@ -43,10 +43,14 @@ attestor-mode final upload (and must be in the future).
 
 Those checks are mechanical guardrails, and coordd never assembles the genesis itself — so the trust anchor
 is **independent reproduction by the committee**, not the proposer's uploaded file. The approved inputs are
-deterministic and pinned: the approved gentxs (`GET /api/v1/launch/{id}/gentxs`), the approved allocation files, and
+deterministic and pinned: the **initial genesis** (`GET /api/v1/launch/{id}/genesis?type=initial`), the
+approved gentxs (`GET /api/v1/launch/{id}/gentxs`), the approved allocation files, and
 the chain record, all fingerprinted by `FinalGenesisInputSetHash`. So any committee member can rebuild the
 genesis locally (with `gentool`, or the chain binary's `collect-gentxs`) and confirm their result's hash
-equals the proposer's `FinalGenesisSHA256`. The M-of-N `PUBLISH_GENESIS`
+equals the proposer's `FinalGenesisSHA256`. The initial genesis stays downloadable via `?type=initial`
+**even after the final is published** — precisely so a signer can reproduce the final from its inputs at
+`PUBLISH_GENESIS` review time; `?type=final` fetches the published result, and omitting `type` returns the
+current genesis (final once published, else initial). The M-of-N `PUBLISH_GENESIS`
 signatures are that **reproduction-backed attestation** — each signer vouches for a hash they can regenerate
 from the approved set, not one they merely downloaded.
 

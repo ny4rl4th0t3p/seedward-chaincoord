@@ -11,6 +11,14 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+
+	"github.com/ny4rl4th0t3p/seedward-chaincoord/internal/application/ports"
+)
+
+// Genesis type selectors used on both the upload (?type=) and download (?type=) paths.
+const (
+	genesisTypeInitial = "initial"
+	genesisTypeFinal   = "final"
 )
 
 // genesisRefRequest is the JSON body for Option A (attestor mode) uploads.
@@ -102,7 +110,7 @@ func (s *Server) handleGenesisUploadRef(w http.ResponseWriter, r *http.Request, 
 	}
 
 	var err error
-	if genesisType == "final" {
+	if genesisType == genesisTypeFinal {
 		if req.GenesisTime == "" {
 			writeError(w, http.StatusBadRequest, "missing_genesis_time", "genesis_time is required for final genesis refs")
 			return
@@ -150,7 +158,7 @@ func (s *Server) handleGenesisUploadBytes(w http.ResponseWriter, r *http.Request
 	}
 
 	var hash string
-	if genesisType == "final" {
+	if genesisType == genesisTypeFinal {
 		hash, err = s.launches.UploadFinalGenesis(r.Context(), id, data, callerAddr)
 	} else {
 		hash, err = s.launches.UploadInitialGenesis(r.Context(), id, data, callerAddr)
@@ -177,9 +185,14 @@ func (s *Server) handleGenesisUploadBytes(w http.ResponseWriter, r *http.Request
 //
 // @Summary      Download genesis file
 // @Description  Returns 302 redirect (attestor mode) or streams raw genesis JSON (host mode).
+// @Description  ?type=initial|final selects which stored genesis to serve. The initial stays
+// @Description  downloadable after the final is published, so committee members can still
+// @Description  reproduce the final from its inputs. Omit type for the current genesis
+// @Description  (final once published, else initial).
 // @Tags         genesis
 // @Produce      json
-// @Param        id   path      string  true  "Launch UUID"
+// @Param        id    path      string  true   "Launch UUID"
+// @Param        type  query     string  false  "Genesis type" Enums(initial,final)
 // @Success      200  {string}  string  "Raw genesis JSON (host mode)"
 // @Success      302  {string}  string  "Redirect to external genesis URL (attestor mode)"
 // @Failure      400  {object}  errorEnvelope
@@ -204,22 +217,35 @@ func (s *Server) handleGenesisGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var externalURL, localPath string
-	if l.FinalGenesisSHA256 != "" {
-		gr, err := s.genesisStore.GetFinalRef(r.Context(), id.String())
-		if err != nil {
-			writeServiceError(w, r, err)
+	// Resolve which stored ref to serve. type=initial always returns the retained initial (even
+	// after the final is published — the reproduction/verification anchor for PUBLISH_GENESIS);
+	// type=final returns the published final; no type returns the current genesis (final if
+	// published, else initial) for back-compatibility.
+	var gr *ports.StoredFileRef
+	switch r.URL.Query().Get("type") {
+	case genesisTypeInitial:
+		gr, err = s.genesisStore.GetInitialRef(r.Context(), id.String())
+	case genesisTypeFinal:
+		if l.FinalGenesisSHA256 == "" {
+			writeError(w, http.StatusNotFound, "not_found", "no final genesis has been published for this launch")
 			return
 		}
-		externalURL, localPath = gr.ExternalURL, gr.LocalPath
-	} else {
-		gr, err := s.genesisStore.GetInitialRef(r.Context(), id.String())
-		if err != nil {
-			writeServiceError(w, r, err)
-			return
+		gr, err = s.genesisStore.GetFinalRef(r.Context(), id.String())
+	case "":
+		if l.FinalGenesisSHA256 != "" {
+			gr, err = s.genesisStore.GetFinalRef(r.Context(), id.String())
+		} else {
+			gr, err = s.genesisStore.GetInitialRef(r.Context(), id.String())
 		}
-		externalURL, localPath = gr.ExternalURL, gr.LocalPath
+	default:
+		writeError(w, http.StatusBadRequest, "invalid_type", "type must be 'initial' or 'final'")
+		return
 	}
+	if err != nil {
+		writeServiceError(w, r, err)
+		return
+	}
+	externalURL, localPath := gr.ExternalURL, gr.LocalPath
 
 	switch {
 	case externalURL != "":
