@@ -2,11 +2,9 @@
 
 This document covers how to run and configure the `coordd` server in both development and production environments.
 
-!!! danger "Not production-ready yet"
-seedward-chaincoord is a **feature-complete v1 release candidate** that is **not production-ready yet** — APIs, data
-formats, and
-behaviours may still change. **Do not use it for mainnet launches or any environment where correctness and availability
-are required.**
+!!! note "Newly released"
+seedward-chaincoord **v1.0.0** is the first stable release. It has not had an external security audit — review the
+threat model and verify on your own setup before high-value use.
 
 ---
 

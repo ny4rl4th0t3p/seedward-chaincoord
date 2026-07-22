@@ -8,12 +8,11 @@ never runs a node, never holds a validator's signing key, and never assembles th
 member builds it locally with the chain binary once the committee has agreed. (coordd does hold its own Ed25519 keys for
 signing the audit log and session tokens.)
 
-!!! danger "Not production-ready yet"
-seedward-chaincoord is a **feature-complete v1 release candidate** (not yet tagged v1) — a Spec-Driven Development
-project: the protocol, the M-of-N committee governance model, the launch-lifecycle state machine, the threat model, and
-the offline-verifiable audit-log design were authored as a spec and implemented with AI assistance under review. It is
-**not production-ready yet** — built to get there with real-world testing, and APIs, data formats, and behaviours may
-still change. **Do not use it for mainnet launches or any environment where correctness and availability are required.**
+!!! note "Newly released"
+seedward-chaincoord **v1.0.0** is the first stable release — a Spec-Driven Development project: the protocol, the M-of-N
+committee governance model, the launch-lifecycle state machine, the threat model, and the offline-verifiable audit-log
+design were authored as a spec and implemented with AI assistance under review. It has **not had an external security
+audit** — review the [security model](concepts/security.md) and verify on your own infrastructure before high-value use.
 
 !!! warning "Cosmos SDK only"
 seedward-chaincoord is purpose-built for Cosmos SDK chains. It works with standard `gentx`-based genesis files,
@@ -71,11 +70,11 @@ with the server's Ed25519 key and can be verified offline with `coordd audit ver
 
 ## Components
 
-| Component                 | Role                                                                                                                                                                                           | Status                                                                                          |
-|---------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------|
-| `coordd`                  | The coordination server — HTTP API + background jobs                                                                                                                                           | Release candidate — v1 imminent                                                                 |
-| `seedward-chaincoord-web` | React + TypeScript web frontend — **a separate repo**; committee members and validators use their Keplr/Leap wallet to authenticate and drive the full launch lifecycle over coordd's HTTP API | 🚧 **Heavy development** — proof of concept, not production-ready; expect big, breaking changes |
-| `smoke-signer`            | Test utility for signing committee and validator actions in smoke/E2E tests                                                                                                                    | Test-only utility                                                                               |
+| Component                 | Role                                                                                                                                                                                           | Status                                                                                                  |
+|---------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------|
+| `coordd`                  | The coordination server — HTTP API + background jobs                                                                                                                                           | Stable — v1.0.0                                                                                         |
+| `seedward-chaincoord-web` | React + TypeScript web frontend — **a separate repo**; committee members and validators use their Keplr/Leap wallet to authenticate and drive the full launch lifecycle over coordd's HTTP API | **Beta** — functional; drives the full lifecycle, but a deliberately minimal UI that will keep evolving |
+| `smoke-signer`            | Test utility for signing committee and validator actions in smoke/E2E tests                                                                                                                    | Test-only utility                                                                                       |
 
 ---
 

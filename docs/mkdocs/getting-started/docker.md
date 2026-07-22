@@ -17,8 +17,8 @@ runs coordd and the web frontend together. This page runs the coordd **server** 
 ## Run the server
 
 ```bash
-# Pin an explicit release tag (`:latest` exists only once a stable, non-rc v1 is published).
-IMG=ghcr.io/ny4rl4th0t3p/seedward-chaincoord:v1.0.0-rc3
+# Pin an explicit release tag (`:latest` also tracks the newest stable release).
+IMG=ghcr.io/ny4rl4th0t3p/seedward-chaincoord:v1.0.0
 docker volume create coordd-data
 
 # The image runs as a non-root user (uid 1000). Hand it ownership of the volume so coordd can write its

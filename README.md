@@ -17,8 +17,8 @@ building for the Cosmos SDK chain lifecycle. Its siblings:
 > **Spec-Driven Development (SDD) project.** The design is mine — the protocol, the M-of-N committee
 > governance model, the launch-lifecycle state machine, the threat model, and the offline-verifiable
 > audit-log security design — authored as a spec and then implemented with AI assistance under my review.
-> The result is a complete, capable v1 — **not production-ready _yet_**, but built to get there with
-> real-world testing.
+> The result is **v1.0.0**, the first stable release — feature-complete, though not yet externally
+> audited; review the threat model and verify on your own infrastructure before high-value use.
 
 📖 **[Full documentation](https://ny4rl4th0t3p.github.io/seedward-chaincoord/)** · 🏗️ **[Design document](docs/DESIGN.md)**
 
