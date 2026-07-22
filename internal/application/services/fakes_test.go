@@ -189,13 +189,14 @@ func (f *fakeChallengeStore) Consume(_ context.Context, addr string) (string, er
 
 type fakeSessionStore struct {
 	data        map[string]string // token → addr
+	fenced      map[string]bool   // addr → revoked (fence: Validate rejects, ParseClaims still parses)
 	issueErr    error
 	validateErr error
 	revokeErr   error
 }
 
 func newFakeSessionStore() *fakeSessionStore {
-	return &fakeSessionStore{data: make(map[string]string)}
+	return &fakeSessionStore{data: make(map[string]string), fenced: make(map[string]bool)}
 }
 
 func (f *fakeSessionStore) Issue(_ context.Context, addr string) (string, error) {
@@ -212,7 +213,7 @@ func (f *fakeSessionStore) Validate(_ context.Context, token string) (string, er
 		return "", f.validateErr
 	}
 	addr, ok := f.data[token]
-	if !ok {
+	if !ok || f.fenced[addr] {
 		return "", ports.ErrUnauthorized
 	}
 	return addr, nil
@@ -227,11 +228,10 @@ func (f *fakeSessionStore) Revoke(_ context.Context, token string) error {
 }
 
 func (f *fakeSessionStore) RevokeAllForOperator(_ context.Context, addr string) error {
-	for tok, a := range f.data {
-		if a == addr {
-			delete(f.data, tok)
-		}
-	}
+	// Set the fence, mirroring the real store: existing tokens still parse (ParseClaims), but Validate
+	// rejects them. This is what lets a claims-only session endpoint wrongly report a revoked session
+	// as valid — the exact case GetSessionInfo must now catch.
+	f.fenced[addr] = true
 	return nil
 }
 

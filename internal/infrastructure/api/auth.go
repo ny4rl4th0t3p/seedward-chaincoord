@@ -144,7 +144,7 @@ func (s *Server) handleAuthSessionInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	info, err := s.auth.GetSessionInfo(token)
+	info, err := s.auth.GetSessionInfo(r.Context(), token)
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "invalid_token", "token is invalid or expired")
 		return

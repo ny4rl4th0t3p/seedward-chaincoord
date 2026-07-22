@@ -87,8 +87,9 @@ type SessionStore interface {
 	// now for the given operator address are rejected on next Validate call.
 	RevokeAllForOperator(ctx context.Context, operatorAddr string) error
 
-	// ParseClaims extracts the operator address and expiry from a token without
-	// performing a database revocation check. Used by session-info endpoints.
+	// ParseClaims extracts the operator address and expiry from a token without performing a
+	// database revocation check — claims-only. Callers that need authoritative validity (e.g. the
+	// session-info endpoint) must Validate first; ParseClaims is used only to read the expiry.
 	ParseClaims(token string) (operatorAddr string, expiresAt time.Time, err error)
 }
 

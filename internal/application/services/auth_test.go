@@ -212,13 +212,26 @@ func TestAuthService_GetSessionInfo(t *testing.T) {
 	sessions.data["tok"] = testAddr1
 	svc := newAuthSvc(newFakeChallengeStore(), sessions, newFakeNonceStore(), &fakeVerifier{})
 
-	info, err := svc.GetSessionInfo("tok")
+	info, err := svc.GetSessionInfo(context.Background(), "tok")
 	require.NoError(t, err)
 	assert.Equal(t, testAddr1, info.OperatorAddress)
 	assert.False(t, info.ExpiresAt.IsZero(), "expiry should be populated")
 
-	_, err = svc.GetSessionInfo("no-such-token")
+	_, err = svc.GetSessionInfo(context.Background(), "no-such-token")
 	require.Error(t, err)
+}
+
+// A token that survives ParseClaims (still cryptographically valid) but has been revoked via the
+// fence must be reported as invalid — the status endpoint must be fence-checked, not claims-only.
+func TestAuthService_GetSessionInfo_RejectsRevoked(t *testing.T) {
+	sessions := newFakeSessionStore()
+	sessions.data["tok"] = testAddr1
+	svc := newAuthSvc(newFakeChallengeStore(), sessions, newFakeNonceStore(), &fakeVerifier{})
+
+	require.NoError(t, sessions.RevokeAllForOperator(context.Background(), testAddr1))
+
+	_, err := svc.GetSessionInfo(context.Background(), "tok")
+	require.Error(t, err, "a revoked token must not be reported as a valid session")
 }
 
 func TestAuthService_ValidateSession_Valid(t *testing.T) {

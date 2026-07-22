@@ -182,7 +182,13 @@ type SessionInfo struct {
 }
 
 // GetSessionInfo returns metadata about the supplied token without consuming it.
-func (s *AuthService) GetSessionInfo(token string) (SessionInfo, error) {
+func (s *AuthService) GetSessionInfo(ctx context.Context, token string) (SessionInfo, error) {
+	// Fence-checked validity (signature + expiry + revocation), consistent with the auth middleware.
+	// ParseClaims alone would report a server-side-revoked-but-cryptographically-valid token as valid,
+	// so a status endpoint must Validate too — otherwise it lies about a revoked session.
+	if _, err := s.sessions.Validate(ctx, token); err != nil {
+		return SessionInfo{}, err
+	}
 	addr, exp, err := s.sessions.ParseClaims(token)
 	if err != nil {
 		return SessionInfo{}, err
