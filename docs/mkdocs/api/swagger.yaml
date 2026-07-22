@@ -2415,8 +2415,11 @@ paths:
     post:
       consumes:
       - application/json
-      description: Committee member raises a new action proposal. Rate-limited to
-        60 req/IP/min.
+      description: |-
+        Committee member raises a new action proposal. Rate-limited to 60 req/IP/min.
+        409 if a conflicting proposal is already pending for the launch: an identical one
+        (same action + payload), or a contradictory validator decision (approve/reject/remove
+        targeting the same join request).
       parameters:
       - description: Launch UUID
         in: path
@@ -2446,6 +2449,10 @@ paths:
             $ref: '#/definitions/api.errorEnvelope'
         "403":
           description: Forbidden
+          schema:
+            $ref: '#/definitions/api.errorEnvelope'
+        "409":
+          description: Conflict
           schema:
             $ref: '#/definitions/api.errorEnvelope'
       security:

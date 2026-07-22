@@ -60,6 +60,9 @@ func proposalToJSON(p *proposal.Proposal) proposalJSON {
 //
 // @Summary      Raise a proposal
 // @Description  Committee member raises a new action proposal. Rate-limited to 60 req/IP/min.
+// @Description  409 if a conflicting proposal is already pending for the launch: an identical one
+// @Description  (same action + payload), or a contradictory validator decision (approve/reject/remove
+// @Description  targeting the same join request).
 // @Tags         proposals
 // @Security     BearerAuth
 // @Accept       json
@@ -70,6 +73,7 @@ func proposalToJSON(p *proposal.Proposal) proposalJSON {
 // @Failure      400   {object}  errorEnvelope
 // @Failure      401   {object}  errorEnvelope
 // @Failure      403   {object}  errorEnvelope
+// @Failure      409   {object}  errorEnvelope
 // @Router       /launch/{id}/proposal [post]
 func (s *Server) handleProposalRaise(w http.ResponseWriter, r *http.Request) {
 	launchID, err := uuid.Parse(chi.URLParam(r, "id"))

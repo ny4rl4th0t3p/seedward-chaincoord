@@ -162,6 +162,13 @@ func (s *ProposalService) Raise(ctx context.Context, launchID uuid.UUID, input R
 		return nil, err
 	}
 
+	// Reject a conflicting pending proposal for this launch: an identical one (same action + payload),
+	// or — for the validator-decision actions — a different decision on the same join request (you
+	// can't have an approve AND a reject pending for the same validator).
+	if err := s.rejectConflictingPending(ctx, launchID, input.ActionType, input.Payload); err != nil {
+		return nil, err
+	}
+
 	sig, err := launch.NewSignature(input.Signature)
 	if err != nil {
 		return nil, fmt.Errorf("raise proposal: signature value: %w: %w", err, ports.ErrBadRequest)
@@ -196,6 +203,66 @@ func (s *ProposalService) Raise(ctx context.Context, launchID uuid.UUID, input R
 		return nil, fmt.Errorf("raise proposal: save: %w", err)
 	}
 	return p, nil
+}
+
+// rejectConflictingPending returns ErrConflict if a proposal that conflicts with the new one is
+// already PENDING_SIGNATURES for this launch. Two proposals conflict when they share a conflict key
+// (see conflictKey). Only pending proposals block — a vetoed/expired one can be re-raised.
+func (s *ProposalService) rejectConflictingPending(
+	ctx context.Context, launchID uuid.UUID, action proposal.ActionType, payload json.RawMessage,
+) error {
+	pending, err := s.proposals.FindPending(ctx)
+	if err != nil {
+		return fmt.Errorf("raise proposal: check conflicts: %w", err)
+	}
+	want := conflictKey(action, payload)
+	for _, ex := range pending {
+		if ex.LaunchID == launchID && conflictKey(ex.ActionType, ex.Payload) == want {
+			return fmt.Errorf("raise proposal: a conflicting %s proposal is already pending: %w",
+				ex.ActionType, ports.ErrConflict)
+		}
+	}
+	return nil
+}
+
+// conflictKey groups proposals that must not be simultaneously pending for a launch. The three
+// validator-decision actions (approve / reject / remove) on the same join request share one key — you
+// can't have a pending approve AND reject for the same validator, whichever way it later resolves.
+// Every other action's key is its type + canonical payload, so it collides only with an identical
+// proposal. A malformed validator payload (no join request id) falls back to the identical-only key.
+func conflictKey(action proposal.ActionType, payload json.RawMessage) string {
+	// if (not switch): an intentionally partial match — only the validator-decision actions group by
+	// target. A switch here would trip the exhaustive linter over the rest of the enum.
+	if action == proposal.ActionApproveValidator ||
+		action == proposal.ActionRejectValidator ||
+		action == proposal.ActionRemoveApprovedValidator {
+		if jr := extractJoinRequestID(payload); jr != "" {
+			return "validator:" + jr
+		}
+	}
+	return string(action) + ":" + string(canonicalPayload(payload))
+}
+
+// extractJoinRequestID reads the join_request_id field shared by the validator-decision payloads.
+// Returns "" if absent or unparsable.
+func extractJoinRequestID(payload json.RawMessage) string {
+	var p struct {
+		JoinRequestID string `json:"join_request_id"`
+	}
+	if err := json.Unmarshal(payload, &p); err != nil {
+		return ""
+	}
+	return p.JoinRequestID
+}
+
+// canonicalPayload returns the canonical-JSON form of a proposal payload for equality comparison,
+// falling back to the raw bytes if it can't be canonicalised (e.g. empty).
+func canonicalPayload(raw json.RawMessage) []byte {
+	c, err := canonicaljson.Marshal(raw)
+	if err != nil {
+		return raw
+	}
+	return c
 }
 
 // SignInput is the payload for a committee member's SIGN or VETO decision.

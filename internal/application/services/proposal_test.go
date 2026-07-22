@@ -118,6 +118,54 @@ func TestProposalService_Raise_NotCommitteeMember(t *testing.T) {
 	require.ErrorIs(t, err, ports.ErrForbidden)
 }
 
+func TestProposalService_Raise_RejectsDuplicatePending(t *testing.T) {
+	l := testLaunch() // 2-of-3 → one signature stays pending, so a duplicate can be raised
+	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
+
+	first, err := svc.Raise(context.Background(), l.ID, validRaiseInput(l))
+	require.NoError(t, err)
+	require.Equal(t, proposal.StatusPendingSignatures, first.Status, "2-of-3: one signature stays pending")
+
+	// An identical proposal (same action + payload) while the first is pending must be rejected.
+	_, err = svc.Raise(context.Background(), l.ID, validRaiseInput(l))
+	require.ErrorIs(t, err, ports.ErrConflict, "a duplicate pending proposal must be rejected")
+}
+
+func TestProposalService_Raise_DuplicateCheckIsPerLaunch(t *testing.T) {
+	l1, l2 := testLaunch(), testLaunch()
+	svc := newProposalSvc(newFakeLaunchRepo(l1, l2), newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
+
+	_, err := svc.Raise(context.Background(), l1.ID, validRaiseInput(l1))
+	require.NoError(t, err)
+
+	// The same action + payload on a DIFFERENT launch is not a duplicate — the guard is per-launch.
+	_, err = svc.Raise(context.Background(), l2.ID, validRaiseInput(l2))
+	require.NoError(t, err, "the duplicate guard must be scoped per launch")
+}
+
+func TestProposalService_Raise_RejectsCrossActionValidatorConflict(t *testing.T) {
+	l := testLaunch() // 2-of-3 → the first raise stays pending
+	l.Status = launch.StatusWindowOpen
+	svc := newProposalSvc(newFakeLaunchRepo(l), newFakeJoinRequestRepo(), newFakeProposalRepo(), newFakeReadinessRepo(), newFakeNonceStore(), &fakeVerifier{})
+
+	jr := uuid.New()
+	approve, err := raiseWith(t, svc, l.ID, proposal.ActionApproveValidator,
+		proposal.ApproveValidatorPayload{JoinRequestID: jr, OperatorAddress: testAddr2})
+	require.NoError(t, err)
+	require.Equal(t, proposal.StatusPendingSignatures, approve.Status)
+
+	// A REJECT for the SAME join request while the approve is pending must conflict — you can't have
+	// an approve and a reject of the same validator both awaiting signatures.
+	_, err = raiseWith(t, svc, l.ID, proposal.ActionRejectValidator,
+		proposal.RejectValidatorPayload{JoinRequestID: jr, OperatorAddress: testAddr2, Reason: "no"})
+	require.ErrorIs(t, err, ports.ErrConflict, "approve + reject of the same validator must not both be pending")
+
+	// A decision on a DIFFERENT join request is unaffected.
+	_, err = raiseWith(t, svc, l.ID, proposal.ActionRejectValidator,
+		proposal.RejectValidatorPayload{JoinRequestID: uuid.New(), OperatorAddress: testAddr3, Reason: "no"})
+	require.NoError(t, err, "a decision on a different validator is not a conflict")
+}
+
 func TestProposalService_Raise_SigFails(t *testing.T) {
 	l := testLaunch()
 	// A BARE verifier error (as the real crypto verifiers return) must still map to 401 —

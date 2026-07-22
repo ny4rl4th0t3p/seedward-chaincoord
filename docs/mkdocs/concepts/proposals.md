@@ -18,6 +18,18 @@ action that executes automatically when M committee members sign it.
 
 If M=1 (a 1-of-1 or 1-of-N committee), the proposal executes the moment it is raised.
 
+**No conflicting pending proposals.** Raising a proposal that conflicts with one already
+`PENDING_SIGNATURES` for the same launch is rejected with `409 Conflict`:
+
+- an **identical** proposal (same action + payload) — e.g. two committee members each raising
+  `APPROVE_VALIDATOR` for the same validator; collaborate on the existing one instead;
+- a **contradictory validator decision** — `APPROVE_VALIDATOR`, `REJECT_VALIDATOR`, and
+  `REMOVE_APPROVED_VALIDATOR` targeting the **same join request** are mutually exclusive, so an
+  approve and a reject for the same validator can't both be pending.
+
+A `VETOED`/`EXPIRED` proposal no longer blocks, so the action can be re-raised; decisions on
+*different* validators are independent.
+
 ---
 
 ## Proposal states
