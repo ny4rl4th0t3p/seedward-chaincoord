@@ -136,7 +136,9 @@ func (s *JWTSessionStore) RevokeAllForOperator(ctx context.Context, operatorAddr
 }
 
 // ParseClaims extracts the operator address and expiry from a token without a DB
-// lookup. Used by session-info endpoints where the caller only needs metadata.
+// lookup, so it does NOT detect server-side (fence) revocation. Callers that must
+// reject revoked tokens (e.g. the session-info endpoint) Validate first and use
+// ParseClaims only to read the expiry.
 func (s *JWTSessionStore) ParseClaims(raw string) (string, time.Time, error) {
 	operatorAddr, _, expiresAt, err := s.parseClaims(raw)
 	if err != nil {

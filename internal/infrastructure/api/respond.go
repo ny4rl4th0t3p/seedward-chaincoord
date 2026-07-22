@@ -59,8 +59,9 @@ type pagination struct {
 }
 
 // parsePagination reads ?page=&per_page= from the request.
-// Invalid or missing values fall back to defaults; per_page is capped at maxPerPage.
-// Returns a 400 response and false if the values are present but non-numeric.
+// Missing values fall back to defaults; per_page is capped at maxPerPage.
+// Returns a 400 response and false if either value is present but not a positive
+// integer (non-numeric or < 1).
 func parsePagination(w http.ResponseWriter, r *http.Request) (pagination, bool) {
 	p := pagination{Page: defaultPage, PerPage: defaultPerPage}
 

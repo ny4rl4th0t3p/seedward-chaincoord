@@ -180,8 +180,9 @@ func (s *Server) handleGenesisUploadBytes(w http.ResponseWriter, r *http.Request
 //     external URL. The client fetches the file directly from there.
 //   - Option C (host): streams the file with Content-Type application/json.
 //
-// Returns the final genesis if one has been registered; otherwise returns
-// the initial genesis.
+// With no ?type, returns the final genesis if one has been registered; otherwise the
+// initial genesis. ?type=initial|final selects a specific stored genesis — the initial
+// stays downloadable after the final is published (reproduction anchor).
 //
 // @Summary      Download genesis file
 // @Description  Returns 302 redirect (attestor mode) or streams raw genesis JSON (host mode).

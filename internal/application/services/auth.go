@@ -159,11 +159,9 @@ func (s *AuthService) RevokeSession(ctx context.Context, token string) error {
 	return s.sessions.Revoke(ctx, token)
 }
 
-// RevokeAllSessions invalidates all tokens currently held by the given operator.
-// Used by the operator themselves (DELETE /auth/sessions/all) and by admins
-// (DELETE /admin/sessions/{address}).
-// RevokeAllSessions revokes every session for operatorAddr and records a SessionsRevoked audit
-// event. revokedBy is the actor (the account itself for self-service, or an admin).
+// RevokeAllSessions revokes every session held by operatorAddr (fence) and records a SessionsRevoked
+// audit event. revokedBy is the actor: the account itself for self-service via
+// DELETE /api/v1/auth/sessions/all, or an admin via DELETE /api/v1/admin/sessions/{address}.
 func (s *AuthService) RevokeAllSessions(ctx context.Context, operatorAddr, revokedBy string) error {
 	if err := s.sessions.RevokeAllForOperator(ctx, operatorAddr); err != nil {
 		return err

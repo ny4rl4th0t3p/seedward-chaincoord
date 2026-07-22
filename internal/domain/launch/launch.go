@@ -328,8 +328,8 @@ func (l *Launch) EnsureOpenForApplications() error {
 // An empty address represents an unauthenticated caller.
 func (l *Launch) IsVisibleTo(addr string) bool {
 	// Every launch is discovery-private: visible only to its committee and its
-	// validator allowlist. There is no public kind — an empty/unparseable caller
-	// sees nothing.
+	// members list (allowlist). There is no public kind — an empty/unparseable
+	// caller sees nothing.
 	if addr == "" {
 		return false
 	}

@@ -9,8 +9,8 @@ import (
 )
 
 // privateRanges lists CIDR blocks that must not be reachable via user-supplied URLs.
-// Includes RFC1918 private ranges, loopback, link-local, cloud metadata, the unspecified
-// ("this host") ranges, and multicast.
+// Includes RFC1918 private ranges, IPv6 unique-local (ULA), carrier-grade NAT (RFC6598),
+// loopback, link-local / cloud metadata, the unspecified ("this host") ranges, and multicast.
 var privateRanges = mustParsePrivateRanges()
 
 func mustParsePrivateRanges() []*net.IPNet {

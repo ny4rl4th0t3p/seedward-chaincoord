@@ -4,9 +4,8 @@ Run `coordd` locally in a few minutes. This guide assumes you have Go 1.25+ inst
 
 !!! danger "Not production-ready yet"
 seedward-chaincoord is a **feature-complete v1 release candidate** that is **not production-ready yet** — APIs, data
-formats, and
-behaviours may still change. **Do not use it for mainnet launches or any environment where correctness and availability
-are required.**
+formats, and behaviours may still change. **Do not use it for mainnet launches or any environment where correctness and
+availability are required.**
 
 ---
 
@@ -62,10 +61,13 @@ See [Setup & Configuration](../reference/setup.md) for all available options.
 ## 4. Run migrations
 
 ```bash
-bin/coordd migrate --config config.yaml
+bin/coordd migrate --db-path ./data/coord.db
 ```
 
-This creates the SQLite database and applies all schema migrations.
+This creates the SQLite database and applies all schema migrations. `coordd serve` runs the same migrations at startup,
+so this step is optional — a separate `migrate` is handy for running migrations as a distinct deploy step. Note it does
+**not** read the config file: pass the database path via `--db-path` (or
+`COORD_DB_PATH`).
 
 ---
 

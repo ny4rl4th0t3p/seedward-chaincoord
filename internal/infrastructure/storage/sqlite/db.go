@@ -17,7 +17,8 @@ import (
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
 
-// Open opens an SQLite database at the given DSN and runs all pending migrations.
+// Open opens an SQLite database at the given DSN, runs all pending migrations, then runs the
+// idempotent account-form backfill that canonicalizes address columns.
 // Use ":memory:" for in-memory databases (tests).
 // WAL mode is enabled for better concurrent read performance.
 func Open(dsn string) (*sql.DB, error) {

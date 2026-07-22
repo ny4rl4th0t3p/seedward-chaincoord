@@ -40,7 +40,7 @@ type ApproveAllocationFilePayload struct {
 
 // PublishChainRecordPayload carries the initial genesis hash that the committee is
 // attesting to. When the proposal executes, the server verifies this hash matches
-// the one stored on the launch (uploaded via POST /launch/:id/genesis?type=initial).
+// the one stored on the launch (uploaded via POST /api/v1/launch/{id}/genesis?type=initial).
 type PublishChainRecordPayload struct {
 	InitialGenesisHash string `json:"initial_genesis_sha256"`
 }
@@ -72,7 +72,7 @@ type ReplaceCommitteeMemberPayload struct {
 	NewMoniker string `json:"new_moniker"`
 }
 
-// CommitteeMemberSpec describes a new committee member in expand/replace payloads.
+// CommitteeMemberSpec describes a new committee member in the expand-committee payload.
 type CommitteeMemberSpec struct {
 	Address string `json:"address"`
 	Moniker string `json:"moniker"`

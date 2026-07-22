@@ -631,14 +631,6 @@ func (s *ProposalService) applyPublishGenesis(ctx context.Context, l *launch.Lau
 	return s.saveLaunchAndProposal(ctx, l, p)
 }
 
-// guardFinalizationRaise (Part A) rejects a raise that would break genesis↔approved-set consistency.
-// Runs after auth so a doomed proposal never enters the signing flow:
-//   - PUBLISH_GENESIS: the uploaded genesis must still match the current set (freshness), and no
-//     set-mutating proposal may be pending (freeze).
-//   - APPROVE_VALIDATOR / REMOVE_APPROVED_VALIDATOR: no genesis publication may be pending (freeze).
-//
-// The freeze is bidirectional, so the two kinds can never be pending at once. applyPublishGenesis's
-// execute-time re-check remains the hard floor against a concurrent-raise race.
 // guardCancelLaunchRaise gates the M-of-N cancel path. A CANCEL_LAUNCH proposal is valid from any
 // non-terminal state: it is the ONLY cancel path once a launch is past PUBLISHED (WINDOW_OPEN and
 // later, where external parties have committed), and it stays available in DRAFT/PUBLISHED too so a
@@ -656,6 +648,14 @@ func guardCancelLaunchRaise(action proposal.ActionType, status launch.Status) er
 	return nil
 }
 
+// guardFinalizationRaise (Part A) rejects a raise that would break genesis↔approved-set consistency.
+// Runs after auth so a doomed proposal never enters the signing flow:
+//   - PUBLISH_GENESIS: the uploaded genesis must still match the current set (freshness), and no
+//     set-mutating proposal may be pending (freeze).
+//   - APPROVE_VALIDATOR / REMOVE_APPROVED_VALIDATOR: no genesis publication may be pending (freeze).
+//
+// The freeze is bidirectional, so the two kinds can never be pending at once. applyPublishGenesis's
+// execute-time re-check remains the hard floor against a concurrent-raise race.
 func (s *ProposalService) guardFinalizationRaise(ctx context.Context, l *launch.Launch, action proposal.ActionType) error {
 	// if (not switch) so we only reason about the three actions that touch consistency — the rest are
 	// unaffected (and it keeps the exhaustive linter out of an intentionally partial enum match).
@@ -1057,15 +1057,11 @@ func (s *ProposalService) saveLaunchAndProposal(ctx context.Context, l *launch.L
 	return nil
 }
 
-// dispatchEvents dispatches domain events from an executed proposal to the event
-// publisher and audit log, without saving the launch.
-// Audit log failures are returned — callers should treat them as hard errors because
-// an unlogged action cannot be reconstructed for forensics. The proposal table
-// provides a secondary record, but the audit log is the primary tamper-evident trail.
-// dispatchEvents publishes and audits the completion events of an executed proposal. A failure to
-// write a governance completion event is FATAL: the intent was already recorded and the action has
-// committed, so continuing would accumulate unauditable governance. We log at fatal level and exit;
-// the process must be restarted after the audit infrastructure is repaired.
+// dispatchEvents publishes and audits the completion events of an executed proposal, without saving
+// the launch. A failure to write a governance completion event is FATAL: the intent was already
+// recorded and the action has committed, so continuing would accumulate unauditable governance. We
+// log at fatal level and exit; the process must be restarted after the audit infrastructure is
+// repaired.
 func (s *ProposalService) dispatchEvents(ctx context.Context, p *proposal.Proposal) {
 	for _, ev := range p.PopEvents() {
 		s.events.Publish(ev)

@@ -202,7 +202,7 @@ func (s *Server) handleLaunchList(w http.ResponseWriter, r *http.Request) {
 }
 
 // GET /launch/{id}
-// Optional auth — visibility-gated (committee ∪ members; a non-member gets 404).
+// Optional auth — visibility-gated (committee ∪ allowlist; a non-member gets 404).
 //
 // @Summary      Get a launch
 // @Tags         launches
@@ -376,7 +376,9 @@ func parsePatchInput(raw map[string]json.RawMessage) (services.PatchLaunchInput,
 }
 
 // @Summary      Open the application window
-// @Description  Transitions a launch from DRAFT to OPEN. Committee member only.
+// @Description  Transitions a launch to WINDOW_OPEN (opens the application window): from PUBLISHED,
+// @Description  or from DRAFT with the initial genesis already uploaded (auto-publishes first).
+// @Description  Committee member only.
 // @Tags         launches
 // @Security     BearerAuth
 // @Produce      json

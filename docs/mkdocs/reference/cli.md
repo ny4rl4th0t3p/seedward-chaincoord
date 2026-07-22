@@ -61,7 +61,8 @@ Run database schema migrations and exit. Safe to run repeatedly — migrations a
 coordd migrate [--db-path <path>]
 ```
 
-Run this before starting `coordd serve` for the first time and after any upgrade.
+`coordd serve` runs pending migrations automatically at startup, so this command is optional — use it only to apply
+migrations as a separate deploy step (e.g. before rolling the server).
 
 ---
 
@@ -174,8 +175,8 @@ smoke-signer privkey --key-index <n>
 
 ### smoke-signer sign
 
-Read a JSON payload from stdin, populate `nonce`, `timestamp`, `pubkey_b64`, and `signature`, then print the signed
-payload to stdout.
+Read a JSON payload from stdin, populate `nonce`, `timestamp`, and `signature` (and `pubkey_b64` when the input payload
+contains that field), then print the signed payload to stdout.
 
 ```
 echo '<json>' | smoke-signer sign --key-index <n>

@@ -128,8 +128,9 @@ func (s *LaunchService) CreateLaunch(ctx context.Context, input CreateLaunchInpu
 }
 
 // UploadInitialGenesis stores the initial (pre-gentx) genesis file and records its
-// SHA256 on the launch. It does not transition status — the PUBLISH transition is
-// triggered by the ProposalService when the PUBLISH_GENESIS proposal executes.
+// SHA256 on the launch. It does not transition status — the DRAFT→PUBLISHED (publish)
+// transition is triggered by the ProposalService when the PUBLISH_CHAIN_RECORD proposal
+// executes (or via OpenWindow's single-step shortcut).
 func (s *LaunchService) UploadInitialGenesis(
 	ctx context.Context,
 	launchID uuid.UUID,
@@ -1115,13 +1116,12 @@ func (s *LaunchService) CancelLaunch(ctx context.Context, launchID uuid.UUID, ca
 	return nil
 }
 
-// writeAudit records a launch-scoped audit event, logging (not failing) on error — the mutation
-// has already committed. Critical proposal events use the fatal path (dispatchEvents).
-// emit records ev to the audit log and broadcasts it to the launch's SSE subscribers, so the live
-// feed is the real-time projection of the audit log. Both sinks are best-effort — recordAudit logs
-// (does not fail) on write error; the broker drops slow subscribers. Use for every launch-scoped
-// domain event. (Global-scoped events — coordinator allowlist, session revocation — have no launch
-// SSE channel and keep their audit-only writeAudit.)
+// emit records ev to the audit log via recordAudit — which logs (does not fail) on write error,
+// since the mutation has already committed — and broadcasts it to the launch's SSE subscribers, so
+// the live feed is the real-time projection of the audit log. Both sinks are best-effort; the broker
+// drops slow subscribers. Use for every launch-scoped domain event. (Global-scoped events —
+// coordinator allowlist, session revocation — have no launch SSE channel and are audit-only.)
+// Critical proposal events use the fatal audit path instead (ProposalService.dispatchEvents).
 func (s *LaunchService) emit(ctx context.Context, scope string, ev domain.DomainEvent) {
 	recordAudit(ctx, s.audit, s.logger, scope, ev)
 	s.events.Publish(ev)

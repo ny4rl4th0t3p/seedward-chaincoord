@@ -209,7 +209,7 @@ func (s *Server) handleAllocationGet(w http.ResponseWriter, r *http.Request) {
 	}
 	allocType := chi.URLParam(r, "type")
 
-	// Visibility gate (private-always: visible only to committee ∪ members; non-members → 404).
+	// Visibility gate (private-always: visible only to committee ∪ allowlist; non-members → 404).
 	callerAddr := operatorFromContext(r.Context())
 	if _, err := s.launches.GetLaunch(r.Context(), id, callerAddr); err != nil {
 		writeServiceError(w, r, err)

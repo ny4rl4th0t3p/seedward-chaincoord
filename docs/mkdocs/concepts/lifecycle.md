@@ -1,7 +1,9 @@
 # Launch Lifecycle
 
 A launch moves through seven states. Transitions are one-way (except `GENESIS_READY → WINDOW_CLOSED` for genesis
-revision) and each is gated by a committee proposal, except for opening the application window.
+revision) and most are gated by a committee proposal. The exceptions: opening the application window (any committee
+member, direct), the automatic `GENESIS_READY → LAUNCHED` transition (driven by the block monitor), and cancellation
+from `DRAFT`/`PUBLISHED` (a lead-only direct call — only `WINDOW_OPEN` and later require a `CANCEL_LAUNCH` proposal).
 
 ```mermaid
 stateDiagram-v2
@@ -46,8 +48,8 @@ before publishing.
 
 Triggered by: `PUBLISH_CHAIN_RECORD` proposal executing.
 
-The committee attests to the chain record and the initial genesis SHA256. From this point the chain record is
-immutable (no further edits to chain ID, binary name, denom, etc.).
+The committee attests to the chain record and the initial genesis SHA256. From this point the chain record is immutable
+(no further edits to chain ID, binary name, denom, etc.).
 
 Every launch is **private** — visible only to its committee and the addresses on its **members list** (see
 [Roles → Membership](roles.md#membership)). A non-member, even with the launch URL, gets a `404`. There is no
@@ -59,14 +61,14 @@ Validators cannot apply yet — the application window is not open.
 
 ## WINDOW_OPEN
 
-Triggered by: Any committee member calls `POST /api/v1/launch/:id/open-window` (no proposal required). If the launch is still
-in `DRAFT` and the initial genesis hash has already been uploaded, this call auto-publishes first — a single-step
+Triggered by: Any committee member calls `POST /api/v1/launch/:id/open-window` (no proposal required). If the launch is
+still in `DRAFT` and the initial genesis hash has already been uploaded, this call auto-publishes first — a single-step
 shortcut equivalent to executing a `PUBLISH_CHAIN_RECORD` proposal.
 
-Validators **on the member list** can now submit join requests — a caller whose (hot) address is not a
-committee member or member is `404`'d, so the committee adds each operator's hot address to the member list
-(off-band, with a label) before the window opens (see [Roles → Membership](roles.md#membership)). The window
-stays open until the committee closes it with a proposal.
+Validators **on the member list** can now submit join requests — a caller whose (hot) address is not a committee member
+or member is `404`'d, so the committee adds each operator's hot address to the member list (off-band, with a label)
+before the window opens (see [Roles → Membership](roles.md#membership)). The window stays open until the committee
+closes it with a proposal.
 
 During this phase committee members review incoming join requests and raise `APPROVE_VALIDATOR` or `REJECT_VALIDATOR`
 proposals. Approved validators accumulate; the server tracks committed voting power and warns if any single entity
@@ -114,12 +116,12 @@ Then uploads the result: `POST /api/v1/launch/:id/genesis?type=final`.
 
 Triggered by: `PUBLISH_GENESIS` proposal executing.
 
-The committee attests to the final genesis SHA256 — but not on trust. Before signing `PUBLISH_GENESIS`, each
-committee member can **reproduce the genesis locally from the approved inputs** (approved gentxs + allocation
-files + chain record, all pinned by `FinalGenesisInputSetHash`) and confirm their result's hash equals the
-proposer's `FinalGenesisSHA256`. The M-of-N signatures are that reproduction-backed attestation, not blind
-trust in the uploaded file. (The optional rehearsal service automates it: rebuild from the same input set,
-boot an ephemeral chain, and post a signed PASS/FAIL the gate can require before publish.)
+The committee attests to the final genesis SHA256 — but not on trust. Before signing `PUBLISH_GENESIS`, each committee
+member can **reproduce the genesis locally from the approved inputs** (approved gentxs + allocation files + chain
+record, all pinned by `FinalGenesisInputSetHash`) and confirm their result's hash equals the proposer's
+`FinalGenesisSHA256`. The M-of-N signatures are that reproduction-backed attestation, not blind trust in the uploaded
+file. (The optional rehearsal service automates it: rebuild from the same input set, boot an ephemeral chain, and post a
+signed PASS/FAIL the gate can require before publish.)
 
 With the genesis published, validators can now:
 
@@ -131,25 +133,25 @@ The server validates each confirmation: the reported genesis hash must equal the
 when the coordinator declared a `binary_sha256` in the chain record — the reported binary hash must match it. A mismatch
 is rejected. If no `binary_sha256` was declared, the binary hash is stored but not checked.
 
-Readiness is a **coordination signal, not a gate**: `LAUNCHED` is driven by observed block production (block 1
-at the monitor RPC), never by readiness confirmations. Skipping it doesn't block the launch — it only forfeits
-the pre-launch check that catches a validator holding the wrong genesis or binary. A committee that wants a
-readiness threshold enforces it off-band.
+Readiness is a **coordination signal, not a gate**: `LAUNCHED` is driven by observed block production (block 1 at the
+monitor RPC), never by readiness confirmations. Skipping it doesn't block the launch — it only forfeits the pre-launch
+check that catches a validator holding the wrong genesis or binary. A committee that wants a readiness threshold
+enforces it off-band.
 
 Once any committee member sets a monitor RPC URL (`PATCH /api/v1/launch/:id`), `coordd` starts polling the CometBFT RPC
 endpoint once per minute for the first block.
 
 **Genesis revision:** If the genesis file needs to be corrected, the committee can raise a `REVISE_GENESIS` proposal,
 which reverts the status to `WINDOW_CLOSED` and clears the final genesis hash. A committee member then re-uploads a
-corrected file
-and the committee re-raises `PUBLISH_GENESIS`.
+corrected file and the committee re-raises `PUBLISH_GENESIS`.
 
 ---
 
 ## LAUNCHED
 
 Triggered by: The block monitor observes block 1 at the configured RPC endpoint — it polls `GET <rpc>/block?height=1`
-once per minute and transitions to `LAUNCHED` on a non-null block.
+once per minute and transitions to `LAUNCHED` only when the response carries a block at height 1 whose header
+`chain_id` matches the launch's chain ID (a wrong-chain or fabricated block is ignored — the NHP-5 anti-forgery guard).
 
 Terminal state. The chain is live.
 
@@ -159,8 +161,8 @@ Terminal state. The chain is live.
 
 Triggered by one of two paths, depending on stage:
 
-- **`DRAFT`/`PUBLISHED`** — the lead calls `POST /api/v1/launch/:id/cancel` directly (a lead-only shortcut,
-  harmless before any validator has committed). Any committee member may also use the proposal path below.
+- **`DRAFT`/`PUBLISHED`** — the lead calls `POST /api/v1/launch/:id/cancel` directly (a lead-only shortcut, harmless
+  before any validator has committed). Any committee member may also use the proposal path below.
 - **`WINDOW_OPEN` and later** — the direct endpoint returns `409`; cancellation requires an M-of-N
   `CANCEL_LAUNCH` committee proposal. Cancelling from `GENESIS_READY` invalidates readiness confirmations.
 

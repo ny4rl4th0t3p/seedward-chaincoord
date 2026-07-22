@@ -41,7 +41,7 @@ func (r *ProposalRepository) Save(ctx context.Context, p *proposal.Proposal) err
 		return fmt.Errorf("proposal save: %w", err)
 	}
 
-	// Upsert each signature entry.
+	// Insert each signature entry; INSERT OR IGNORE leaves an already-persisted signature unchanged (append-only).
 	for _, s := range p.Signatures {
 		if _, err := q.ExecContext(ctx, `
 			INSERT OR IGNORE INTO proposal_signatures (proposal_id, member_address, decision, signed_at, signature)

@@ -377,7 +377,7 @@ type FieldChange struct {
 }
 
 // LaunchPatched is emitted when a committee member changes mutable launch fields via
-// PATCH /launch/{id}: the operational fields (monitor_rpc_url, rehearsal_endpoint,
+// PATCH /api/v1/launch/{id}: the operational fields (monitor_rpc_url, rehearsal_endpoint,
 // rehearsal_service_pubkey — the rehearsal trust anchor) and, on a DRAFT launch, chain-record
 // fields. Carries a per-field old→new diff of exactly the fields that changed, so every patch —
 // including a swap of the trusted rehearsal key that could otherwise let a forged PASS satisfy the
