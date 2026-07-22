@@ -33,7 +33,7 @@ func newAuditVerifyCmd() *cobra.Command {
   - Ed25519 signatures are valid (if a public key is available)
 
 The audit public key can be supplied via --pubkey or fetched automatically from
-a running server with --server-url (uses GET /audit/pubkey).`,
+a running server with --server-url (uses GET /api/v1/audit/pubkey).`,
 		Example: `  # Verify offline with an explicit pubkey
   coordd audit verify --file audit.jsonl --pubkey <base64-ed25519-pubkey>
 
@@ -43,7 +43,7 @@ a running server with --server-url (uses GET /audit/pubkey).`,
 	}
 	cmd.Flags().String("file", "", "path to local JSONL audit log file (required)")
 	cmd.Flags().String("pubkey", "", "base64 Ed25519 public key for signature verification")
-	cmd.Flags().String("server-url", "", "coordd base URL — fetches audit pubkey via GET /audit/pubkey if --pubkey is omitted")
+	cmd.Flags().String("server-url", "", "coordd base URL — fetches audit pubkey via GET /api/v1/audit/pubkey if --pubkey is omitted")
 	_ = cmd.MarkFlagRequired("file")
 	return cmd
 }
@@ -125,21 +125,21 @@ func resolveAuditPubKey(pubKeyB64, serverURL string) (ed25519.PublicKey, error) 
 	return nil, nil
 }
 
-// fetchAuditPubKey calls GET /audit/pubkey on the given server and returns the key.
+// fetchAuditPubKey calls GET /api/v1/audit/pubkey on the given server and returns the key.
 func fetchAuditPubKey(serverURL string) (ed25519.PublicKey, error) {
-	resp, err := http.Get(serverURL + "/audit/pubkey") //nolint:noctx // simple CLI fetch, no context needed
+	resp, err := http.Get(serverURL + "/api/v1/audit/pubkey") //nolint:noctx // simple CLI fetch, no context needed
 	if err != nil {
-		return nil, fmt.Errorf("GET /audit/pubkey: %w", err)
+		return nil, fmt.Errorf("GET /api/v1/audit/pubkey: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GET /audit/pubkey: server returned %d", resp.StatusCode)
+		return nil, fmt.Errorf("GET /api/v1/audit/pubkey: server returned %d", resp.StatusCode)
 	}
 	var body struct {
 		PubKeyB64 string `json:"pub_key_b64"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		return nil, fmt.Errorf("decoding /audit/pubkey response: %w", err)
+		return nil, fmt.Errorf("decoding /api/v1/audit/pubkey response: %w", err)
 	}
 	raw, err := base64.StdEncoding.DecodeString(body.PubKeyB64)
 	if err != nil {
