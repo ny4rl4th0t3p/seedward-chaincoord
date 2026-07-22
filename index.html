@@ -1060,14 +1060,13 @@ to M-of-N agreement on the final genesis and block monitoring — with a tamper-
 never runs a node, never holds a validator's signing key, and never assembles the final genesis itself — a committee
 member builds it locally with the chain binary once the committee has agreed. (coordd does hold its own Ed25519 keys for
 signing the audit log and session tokens.)</p>
-<div class="admonition danger">
-<p class="admonition-title">Not production-ready yet</p>
+<div class="admonition note">
+<p class="admonition-title">Newly released</p>
 </div>
-<p>seedward-chaincoord is a <strong>feature-complete v1 release candidate</strong> (not yet tagged v1) — a Spec-Driven Development
-project: the protocol, the M-of-N committee governance model, the launch-lifecycle state machine, the threat model, and
-the offline-verifiable audit-log design were authored as a spec and implemented with AI assistance under review. It is
-<strong>not production-ready yet</strong> — built to get there with real-world testing, and APIs, data formats, and behaviours may
-still change. <strong>Do not use it for mainnet launches or any environment where correctness and availability are required.</strong></p>
+<p>seedward-chaincoord <strong>v1.0.0</strong> is the first stable release — a Spec-Driven Development project: the protocol, the M-of-N
+committee governance model, the launch-lifecycle state machine, the threat model, and the offline-verifiable audit-log
+design were authored as a spec and implemented with AI assistance under review. It has <strong>not had an external security
+audit</strong> — review the <a href="concepts/security/">security model</a> and verify on your own infrastructure before high-value use.</p>
 <div class="admonition warning">
 <p class="admonition-title">Cosmos SDK only</p>
 </div>
@@ -1149,12 +1148,12 @@ with the server's Ed25519 key and can be verified offline with <code>coordd audi
 <tr>
 <td><code>coordd</code></td>
 <td>The coordination server — HTTP API + background jobs</td>
-<td>Release candidate — v1 imminent</td>
+<td>Stable — v1.0.0</td>
 </tr>
 <tr>
 <td><code>seedward-chaincoord-web</code></td>
 <td>React + TypeScript web frontend — <strong>a separate repo</strong>; committee members and validators use their Keplr/Leap wallet to authenticate and drive the full launch lifecycle over coordd's HTTP API</td>
-<td>🚧 <strong>Heavy development</strong> — proof of concept, not production-ready; expect big, breaking changes</td>
+<td><strong>Beta</strong> — functional; drives the full lifecycle, but a deliberately minimal UI that will keep evolving</td>
 </tr>
 <tr>
 <td><code>smoke-signer</code></td>

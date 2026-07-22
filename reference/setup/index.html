@@ -1735,13 +1735,11 @@
 
 <h1 id="coordd-setup-configuration">coordd — Setup &amp; Configuration<a class="headerlink" href="#coordd-setup-configuration" title="Permanent link">&para;</a></h1>
 <p>This document covers how to run and configure the <code>coordd</code> server in both development and production environments.</p>
-<div class="admonition danger">
-<p class="admonition-title">Not production-ready yet</p>
+<div class="admonition note">
+<p class="admonition-title">Newly released</p>
 </div>
-<p>seedward-chaincoord is a <strong>feature-complete v1 release candidate</strong> that is <strong>not production-ready yet</strong> — APIs, data
-formats, and
-behaviours may still change. <strong>Do not use it for mainnet launches or any environment where correctness and availability
-are required.</strong></p>
+<p>seedward-chaincoord <strong>v1.0.0</strong> is the first stable release. It has not had an external security audit — review the
+threat model and verify on your own setup before high-value use.</p>
 <hr />
 <h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
 <p><code>coordd</code> resolves configuration from three sources, in order of precedence (highest first):</p>
