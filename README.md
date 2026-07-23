@@ -1,16 +1,15 @@
 # chaincoord
 
+Part of **Seedward** — [docs](https://ny4rl4th0t3p.github.io/seedward-suite) · [ADRs](https://ny4rl4th0t3p.github.io/seedward-suite/decisions/) · [demo](https://ny4rl4th0t3p.github.io/seedward-suite/demo/)
+
 Self-hosted coordination server for **Cosmos SDK** chain launches — M-of-N committee governance, a guarded
 launch-lifecycle state machine, gentx intake with pre-acceptance validation, and a tamper-evident,
 offline-verifiable audit log.
 
-`chaincoord` is the coordination server (`coordd`) in **Seedward**, the self-hostable operator suite I'm
-building for the Cosmos SDK chain lifecycle. Its siblings:
+`chaincoord` is the coordination server (`coordd`); its Seedward siblings:
 
 - [seedward-gentool](https://github.com/ny4rl4th0t3p/seedward-gentool) — deterministic genesis-file construction (also the engine `rehearsal` embeds)
 - [seedward-rehearsal](https://github.com/ny4rl4th0t3p/seedward-rehearsal) — a pre-flight service that boots a throwaway chain to prove a genesis initializes and advances before anyone commits
-- [seedward-cli](https://github.com/ny4rl4th0t3p/seedward-cli) — the unified suite CLI (**planned, post-v1**; its coordd-facing commands are stubs today)
-- [pour](https://github.com/ny4rl4th0t3p/pour) — a pure-Go multi-chain faucet
 
 *Published components are Apache-2.0 and self-hostable.*
 
